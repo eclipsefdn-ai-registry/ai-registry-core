@@ -1,6 +1,7 @@
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
@@ -18,17 +19,38 @@ function loadSchema(name: string): object {
 const validateOrg = ajv.compile(loadSchema("organization.schema.json"));
 const validateAppr = ajv.compile(loadSchema("mcp-approval.schema.json"));
 
+// --- Types ---
+
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
 }
 
-interface ApprovalData {
+export interface ApprovalData {
   serverId: string;
   date: string;
   versionRange?: string;
-  installConfigs: { tool?: string }[];
+  installConfigs: { tool: string }[];
 }
+
+export interface ApprovalEntry {
+  file: string;
+  data: ApprovalData;
+}
+
+export interface VendorValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  organization?: {
+    id: string;
+    tools: { id: string }[];
+    raw: unknown;
+  };
+  approvals: ApprovalEntry[];
+}
+
+// --- Schema validation ---
 
 function formatErrors(validate: typeof validateOrg): string[] {
   return (validate.errors ?? []).map(
@@ -44,19 +66,6 @@ export function validateOrganization(data: unknown): ValidationResult {
   };
 }
 
-export function checkToolIds(
-  approval: ApprovalData,
-  toolIds: Set<string>,
-): string[] {
-  const warnings: string[] = [];
-  for (const ic of approval.installConfigs) {
-    if (ic.tool && !toolIds.has(ic.tool)) {
-      warnings.push(`tool "${ic.tool}" not found in organization.json`);
-    }
-  }
-  return warnings;
-}
-
 export function validateApproval(data: unknown): ValidationResult {
   const valid = validateAppr(data);
   return {
@@ -65,119 +74,242 @@ export function validateApproval(data: unknown): ValidationResult {
   };
 }
 
+export function checkToolIds(
+  approval: ApprovalData,
+  toolIds: Set<string>,
+): string[] {
+  const errors: string[] = [];
+  for (const ic of approval.installConfigs) {
+    if (ic.tool && !toolIds.has(ic.tool)) {
+      errors.push(`tool "${ic.tool}" not found in organization.json`);
+    }
+  }
+  return errors;
+}
+
+// --- Core validation (pure, testable) ---
+
 /**
- * Validate a vendor repository directory.
- * Used by the CLI (`validate-vendor` bin) and can be called programmatically.
+ * Validate vendor data. Pure function — no I/O.
+ * Takes parsed org data and approval entries, returns validation result.
  */
+export function validateVendorData(
+  orgData: unknown,
+  approvals: ApprovalEntry[],
+  expectedVendorId?: string,
+): VendorValidationResult {
+  const result: VendorValidationResult = {
+    valid: true,
+    errors: [],
+    warnings: [],
+    approvals: [],
+  };
+
+  const orgResult = validateOrganization(orgData);
+  if (!orgResult.valid) {
+    result.valid = false;
+    result.errors.push(`organization.json: ${orgResult.errors.join(", ")}`);
+    return result;
+  }
+
+  const org = orgData as { id: string; tools: { id: string }[] };
+  if (expectedVendorId && org.id !== expectedVendorId) {
+    result.valid = false;
+    result.errors.push(
+      `organization.json id "${org.id}" does not match vendor id "${expectedVendorId}" from vendors.json`,
+    );
+    return result;
+  }
+
+  result.organization = { id: org.id, tools: org.tools, raw: orgData };
+  const toolIds = new Set(org.tools.map((t) => t.id));
+
+  const seenServerIds = new Set<string>();
+  for (const { file, data } of approvals) {
+    const approvalResult = validateApproval(data);
+    if (!approvalResult.valid) {
+      result.valid = false;
+      result.errors.push(`${file}: ${approvalResult.errors.join(", ")}`);
+      continue;
+    }
+
+    const approval = data as ApprovalData;
+
+    if (seenServerIds.has(approval.serverId)) {
+      result.valid = false;
+      result.errors.push(
+        `${file}: duplicate approval for serverId "${approval.serverId}"`,
+      );
+      continue;
+    }
+    seenServerIds.add(approval.serverId);
+
+    const expectedFilename = approval.serverId.replace(/\//g, "--") + ".json";
+    if (file !== expectedFilename) {
+      result.warnings.push(
+        `${file} — filename should be "${expectedFilename}"`,
+      );
+    }
+
+    const toolErrors = checkToolIds(approval, toolIds);
+    for (const e of toolErrors) {
+      result.valid = false;
+      result.errors.push(`${file}: ${e}`);
+    }
+
+    result.approvals.push({ file, data: approval });
+  }
+
+  return result;
+}
+
+// --- File reading layer ---
+
+/**
+ * Read and validate all files in a vendor repo directory.
+ * Thin wrapper around validateVendorData that handles I/O.
+ */
+export function validateVendorFiles(
+  repoDir: string,
+  expectedVendorId?: string,
+): VendorValidationResult {
+  const orgPath = resolve(repoDir, "organization.json");
+  if (!existsSync(orgPath)) {
+    return {
+      valid: false,
+      errors: ["organization.json not found"],
+      warnings: [],
+      approvals: [],
+    };
+  }
+
+  let orgRaw: unknown;
+  try {
+    orgRaw = JSON.parse(readFileSync(orgPath, "utf-8"));
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "";
+    return {
+      valid: false,
+      errors: [
+        `organization.json is not valid JSON${detail ? `: ${detail}` : ""}`,
+      ],
+      warnings: [],
+      approvals: [],
+    };
+  }
+
+  const approvals: ApprovalEntry[] = [];
+  const mcpDir = resolve(repoDir, "mcp");
+  if (existsSync(mcpDir)) {
+    for (const file of readdirSync(mcpDir).filter((f) => f.endsWith(".json"))) {
+      let data: unknown;
+      try {
+        data = JSON.parse(readFileSync(join(mcpDir, file), "utf-8"));
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "";
+        return {
+          valid: false,
+          errors: [
+            `mcp/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+          ],
+          warnings: [],
+          approvals: [],
+        };
+      }
+      approvals.push({ file, data: data as ApprovalData });
+    }
+  }
+
+  return validateVendorData(orgRaw, approvals, expectedVendorId);
+}
+
+// --- Vendor ID lookup ---
+
+interface VendorEntry {
+  id: string;
+  repo: string;
+}
+
+function lookupVendorId(repoDir: string): string | undefined {
+  const vendorsPath = resolve(__dirname, "../vendors.json");
+  if (!existsSync(vendorsPath)) return undefined;
+
+  let remoteUrl: string;
+  try {
+    remoteUrl = execSync("git remote get-url origin", {
+      cwd: repoDir,
+      stdio: "pipe",
+    })
+      .toString()
+      .trim();
+  } catch {
+    return undefined;
+  }
+
+  const vendors = JSON.parse(
+    readFileSync(vendorsPath, "utf-8"),
+  ) as VendorEntry[];
+
+  const normalize = (url: string) =>
+    url
+      .replace(/\.git$/, "")
+      .replace(/^git@github\.com:/, "https://github.com/");
+  const entry = vendors.find((v) => normalize(v.repo) === normalize(remoteUrl));
+  return entry?.id;
+}
+
+// --- CLI entry point ---
+
 export async function validateVendorRepo(repoDir: string): Promise<boolean> {
   console.log("=== AI Registry — Vendor Validation ===\n");
 
-  let hasErrors = false;
-  let hasWarnings = false;
-
-  // Validate organization.json
-  const orgPath = resolve(repoDir, "organization.json");
-  if (!existsSync(orgPath)) {
-    console.error("FAIL: organization.json not found");
-    return false;
+  const expectedVendorId = lookupVendorId(repoDir);
+  if (expectedVendorId) {
+    console.log(`Vendor ID from vendors.json: ${expectedVendorId}\n`);
   }
 
-  console.log("Validating organization.json...");
-  const orgData: unknown = JSON.parse(readFileSync(orgPath, "utf-8"));
-  const orgResult = validateOrganization(orgData);
-  let toolIds: Set<string> = new Set();
-  if (!orgResult.valid) {
-    console.error("  FAIL: organization.json");
-    orgResult.errors.forEach((e) => console.error(`    - ${e}`));
-    hasErrors = true;
-  } else {
-    console.log("  PASS: organization.json");
-    const org = orgData as { tools: { id: string }[] };
-    toolIds = new Set(org.tools.map((t) => t.id));
+  console.log("Phase 1: Schema validation");
+  const result = validateVendorFiles(repoDir, expectedVendorId);
+
+  for (const e of result.errors) {
+    console.error(`  FAIL: ${e}`);
+  }
+  for (const w of result.warnings) {
+    console.warn(`  WARNING: ${w}`);
+  }
+  for (const { file } of result.approvals) {
+    console.log(`  PASS: ${file}`);
   }
 
-  // Validate approval files
-  const mcpDir = resolve(repoDir, "mcp");
-  if (!existsSync(mcpDir)) {
-    console.log("\nNo mcp/ directory found, skipping approval validation");
-  } else {
-    const approvalFiles = readdirSync(mcpDir).filter((f) =>
-      f.endsWith(".json"),
-    );
-
-    // Phase 1: Schema validation
-    console.log(`\nValidating ${approvalFiles.length} approval file(s)...\n`);
-    console.log("Phase 1: Schema validation");
-    const validFiles: { file: string; data: ApprovalData }[] = [];
-
-    for (const file of approvalFiles) {
-      const filePath = join(mcpDir, file);
-      const data: unknown = JSON.parse(readFileSync(filePath, "utf-8"));
-
-      const result = validateApproval(data);
-      if (!result.valid) {
-        console.error(`  FAIL: mcp/${file}`);
-        result.errors.forEach((e) => console.error(`    - ${e}`));
-        hasErrors = true;
-        continue;
-      }
-
-      const approval = data as ApprovalData;
-
-      // Check filename convention: serverId with / replaced by --
-      const expectedFilename = approval.serverId.replace(/\//g, "--") + ".json";
-      if (file !== expectedFilename) {
-        console.warn(
-          `  WARNING: mcp/${file} — filename should be "${expectedFilename}" (based on serverId "${approval.serverId}")`,
-        );
-        hasWarnings = true;
-      }
-
-      // Check tool IDs reference valid tools from organization.json
-      if (toolIds.size > 0) {
-        const toolErrors = checkToolIds(approval, toolIds);
-        for (const e of toolErrors) {
-          console.error(`  FAIL: mcp/${file} — ${e}`);
-          hasErrors = true;
-        }
-      }
-
-      console.log(`  PASS: mcp/${file}`);
-      validFiles.push({ file, data: approval });
-    }
-
-    // Phase 2: Anthropic MCP registry verification
+  if (result.approvals.length > 0) {
     console.log("\nPhase 2: Anthropic MCP registry verification");
-    for (const { file, data } of validFiles) {
+    for (const { file, data } of result.approvals) {
       try {
-        const result = await lookupServer(data.serverId);
-        if (!result) {
+        const lookup = await lookupServer(data.serverId);
+        if (!lookup) {
           console.warn(
-            `  WARNING: mcp/${file} — serverId "${data.serverId}" not found in Anthropic MCP registry (may be newly submitted)`,
+            `  WARNING: ${file} — serverId "${data.serverId}" not found in Anthropic MCP registry (may be newly submitted)`,
           );
-          hasWarnings = true;
         } else {
-          console.log(`  PASS: mcp/${file}`);
-          console.log(`    Name: ${result.name}`);
-          console.log(`    Description: ${result.description}`);
+          console.log(`  PASS: ${file}`);
+          console.log(`    Name: ${lookup.name}`);
+          console.log(`    Description: ${lookup.description}`);
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.warn(
-          `  WARNING: mcp/${file} — could not reach Anthropic MCP registry: ${message}`,
+          `  WARNING: ${file} — could not reach Anthropic MCP registry: ${message}`,
         );
-        hasWarnings = true;
       }
     }
   }
 
-  // Summary
   console.log("\n--- Summary ---");
-  if (hasErrors) {
-    console.error("FAILED: Schema validation errors found");
+  if (!result.valid) {
+    console.error("FAILED: Validation errors found");
     return false;
   }
-  if (hasWarnings) {
+  if (result.warnings.length > 0) {
     console.warn("PASSED with warnings");
   } else {
     console.log("PASSED: All files valid");

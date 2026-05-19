@@ -1,7 +1,6 @@
 import {
   readFileSync,
   writeFileSync,
-  readdirSync,
   existsSync,
   mkdirSync,
   rmSync,
@@ -9,7 +8,7 @@ import {
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
-import { validateOrganization, validateApproval } from "./validate.js";
+import { validateVendorFiles } from "./validate.js";
 import { lookupServer, type ServerLookupResult } from "./anthropic-registry.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -46,7 +45,7 @@ export interface Tool {
 }
 
 export interface InstallConfig {
-  tool?: string;
+  tool: string;
   installUrl?: string;
   openVsxUrl?: string;
   config?: Record<string, unknown>;
@@ -102,16 +101,15 @@ export function addOrganization(
 export function addApproval(
   approvalData: ApprovalData,
   organizationId: string,
-  registryResult: ServerLookupResult | undefined,
   output: ConsolidatedOutput,
 ): void {
   let mcpEntry = output.mcp.find((m) => m.serverId === approvalData.serverId);
   if (!mcpEntry) {
     mcpEntry = {
       serverId: approvalData.serverId,
-      name: registryResult?.name ?? approvalData.serverId,
-      description: registryResult?.description ?? "",
-      mcpRegistryVerified: registryResult?.verified ?? false,
+      name: approvalData.serverId,
+      description: "",
+      mcpRegistryVerified: false,
       approvals: [],
     };
     output.mcp.push(mcpEntry);
@@ -128,8 +126,16 @@ export function addApproval(
   mcpEntry.approvals.push(approval);
 }
 
+export function enrichWithRegistryData(
+  entry: McpEntry,
+  result: ServerLookupResult,
+): void {
+  entry.name = result.name;
+  entry.description = result.description;
+  entry.mcpRegistryVerified = result.verified;
+}
+
 export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
-  // Only include servers that have at least one approval for this tool
   return servers
     .filter((server) =>
       server.approvals.some((a) =>
@@ -145,12 +151,27 @@ export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
     }));
 }
 
-// --- I/O ---
+// --- Step 1: Collect vendor data (I/O + validation, no network) ---
 
-function loadVendors(): VendorEntry[] {
-  return JSON.parse(
+function loadAndValidateVendors(): VendorEntry[] {
+  const vendors = JSON.parse(
     readFileSync(resolve(ROOT, "vendors.json"), "utf-8"),
   ) as VendorEntry[];
+
+  const seenIds = new Set<string>();
+  const seenRepos = new Set<string>();
+  for (const v of vendors) {
+    if (seenIds.has(v.id)) {
+      throw new Error(`Duplicate vendor ID in vendors.json: "${v.id}"`);
+    }
+    if (seenRepos.has(v.repo)) {
+      throw new Error(`Duplicate repo URL in vendors.json: "${v.repo}"`);
+    }
+    seenIds.add(v.id);
+    seenRepos.add(v.repo);
+  }
+
+  return vendors;
 }
 
 function cloneOrUseLocal(vendor: VendorEntry, tmpDir: string): string {
@@ -171,96 +192,60 @@ function cloneOrUseLocal(vendor: VendorEntry, tmpDir: string): string {
   console.log(`  Cloning ${vendor.repo}...`);
   try {
     execSync(`git clone --depth 1 ${repoUrl} ${dest}`, { stdio: "pipe" });
-  } catch (err) {
-    const stderr =
-      err instanceof Error && "stderr" in err
-        ? String((err as { stderr: Buffer }).stderr)
-        : "";
-    throw new Error(
-      `Failed to clone ${vendor.repo}: ${stderr.trim() || "unknown error"}`,
-    );
+  } catch {
+    throw new Error(`Failed to clone ${vendor.repo}`);
   }
   return dest;
 }
 
-async function processVendorRepo(
+function collectVendorData(
   vendorId: string,
   vendorPath: string,
   output: ConsolidatedOutput,
-): Promise<void> {
-  const orgPath = join(vendorPath, "organization.json");
-  if (!existsSync(orgPath)) {
-    console.warn(`  WARNING [${vendorId}]: organization.json not found`);
-    return;
-  }
+): void {
+  const result = validateVendorFiles(vendorPath, vendorId);
 
-  let orgRaw: unknown;
-  try {
-    orgRaw = JSON.parse(readFileSync(orgPath, "utf-8"));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `  WARNING [${vendorId}]: Failed to parse organization.json: ${message}`,
+  if (!result.valid) {
+    throw new Error(
+      `[${vendorId}] Validation failed:\n${result.errors.map((e) => `    - ${e}`).join("\n")}`,
     );
-    return;
-  }
-  const orgResult = validateOrganization(orgRaw);
-  if (!orgResult.valid) {
-    console.warn(
-      `  WARNING [${vendorId}]: organization.json validation failed:`,
-    );
-    orgResult.errors.forEach((e) => console.warn(`    - ${e}`));
-    return;
   }
 
-  const orgData = orgRaw as OrganizationData;
-  addOrganization(orgData, output);
-
-  const mcpDir = join(vendorPath, "mcp");
-  if (!existsSync(mcpDir)) {
-    console.log(`  No mcp/ directory found, skipping approvals`);
-    return;
+  for (const w of result.warnings) {
+    console.warn(`  WARNING [${vendorId}]: ${w}`);
   }
 
-  const approvalFiles = readdirSync(mcpDir).filter((f) => f.endsWith(".json"));
-  for (const file of approvalFiles) {
-    let approvalRaw: unknown;
-    try {
-      approvalRaw = JSON.parse(readFileSync(join(mcpDir, file), "utf-8"));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `  WARNING [${vendorId}]: Failed to parse mcp/${file}: ${message}`,
-      );
-      continue;
-    }
+  addOrganization(result.organization!.raw as OrganizationData, output);
 
-    const approvalResult = validateApproval(approvalRaw);
-    if (!approvalResult.valid) {
-      console.warn(`  WARNING [${vendorId}]: ${file} validation failed:`);
-      approvalResult.errors.forEach((e) => console.warn(`    - ${e}`));
-      continue;
-    }
-
-    const approvalData = approvalRaw as ApprovalData;
-    const lookup = await lookupServer(approvalData.serverId);
-
-    if (lookup) {
-      console.log(`  Resolved from Anthropic registry:`);
-      console.log(`    Name: ${lookup.name}`);
-      console.log(`    Description: ${lookup.description}`);
-    } else {
-      console.warn(
-        `  WARNING: ${approvalData.serverId} not found in Anthropic MCP registry`,
-      );
-    }
-
-    addApproval(approvalData, orgData.id, lookup, output);
-    console.log(
-      `  Processed: ${approvalData.serverId} (verified: ${lookup !== undefined})`,
-    );
+  for (const { data } of result.approvals) {
+    addApproval(data, vendorId, output);
+    console.log(`  Collected: ${data.serverId}`);
   }
 }
+
+// --- Step 2: Enrich with Anthropic registry metadata (network, can fail systemically) ---
+
+async function enrichRegistryMetadata(
+  output: ConsolidatedOutput,
+): Promise<void> {
+  console.log("Enriching with Anthropic MCP registry metadata...\n");
+
+  for (const entry of output.mcp) {
+    const result = await lookupServer(entry.serverId);
+    if (result) {
+      enrichWithRegistryData(entry, result);
+      console.log(`  Verified: ${entry.serverId}`);
+      console.log(`    Name: ${result.name}`);
+      console.log(`    Description: ${result.description}`);
+    } else {
+      console.log(
+        `  Not found: ${entry.serverId} (mcpRegistryVerified: false)`,
+      );
+    }
+  }
+}
+
+// --- Step 3: Write output files ---
 
 function writeJson(filePath: string, data: unknown): void {
   writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n");
@@ -270,12 +255,10 @@ function writeOutput(output: ConsolidatedOutput): void {
   const outputDir = resolve(ROOT, "dist/api/v1");
   mkdirSync(outputDir, { recursive: true });
 
-  // Write all.json — full registry
   const allPath = resolve(outputDir, "all.json");
   writeJson(allPath, output);
   console.log(`Written: ${allPath}`);
 
-  // Write organizations.json — orgs and their tools
   const orgsPath = resolve(outputDir, "organizations.json");
   writeJson(orgsPath, {
     organizations: output.organizations,
@@ -283,7 +266,6 @@ function writeOutput(output: ConsolidatedOutput): void {
   });
   console.log(`Written: ${orgsPath}`);
 
-  // Write per-tool files — just the mcp array filtered for that tool
   for (const tool of output.tools) {
     const toolPath = resolve(outputDir, `${tool.id}.json`);
     writeJson(toolPath, { mcp: buildToolView(tool.id, output.mcp) });
@@ -300,13 +282,14 @@ function writeOutput(output: ConsolidatedOutput): void {
 export async function main(): Promise<void> {
   console.log("=== AI Registry Consolidation ===\n");
 
-  const vendors = loadVendors();
+  const vendors = loadAndValidateVendors();
   const output: ConsolidatedOutput = {
     organizations: [],
     tools: [],
     mcp: [],
   };
 
+  // Step 1: Collect all vendor data (fails build on any error)
   const tmpDir = resolve(ROOT, ".tmp-vendors");
   if (existsSync(tmpDir)) {
     rmSync(tmpDir, { recursive: true });
@@ -316,13 +299,8 @@ export async function main(): Promise<void> {
   try {
     for (const vendor of vendors) {
       console.log(`Processing vendor: ${vendor.id}`);
-      try {
-        const vendorPath = cloneOrUseLocal(vendor, tmpDir);
-        await processVendorRepo(vendor.id, vendorPath, output);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(`  WARNING [${vendor.id}]: ${message}`);
-      }
+      const vendorPath = cloneOrUseLocal(vendor, tmpDir);
+      collectVendorData(vendor.id, vendorPath, output);
       console.log();
     }
   } finally {
@@ -331,6 +309,19 @@ export async function main(): Promise<void> {
     }
   }
 
+  // Verify no duplicate tool IDs across vendors
+  const seenToolIds = new Set<string>();
+  for (const tool of output.tools) {
+    if (seenToolIds.has(tool.id)) {
+      throw new Error(`Duplicate tool ID across vendors: "${tool.id}"`);
+    }
+    seenToolIds.add(tool.id);
+  }
+
+  // Step 2: Enrich with Anthropic registry (fails build on registry errors)
+  await enrichRegistryMetadata(output);
+
+  // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));
   writeOutput(output);
 }

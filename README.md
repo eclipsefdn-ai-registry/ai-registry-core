@@ -146,6 +146,16 @@ A tool integration typically fetches `organizations.json` + its own `<tool-id>.j
 
 Additional artifact types (e.g., skills) will be added in future versions.
 
+## Reliability
+
+The consolidation pipeline follows a build-or-nothing approach:
+
+1. **Collect** — Clone all vendor repos and validate their data. Any failure (repo unreachable, invalid data) fails the build.
+2. **Enrich** — Look up each server in the Anthropic MCP registry. Registry errors (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`.
+3. **Write & Deploy** — Only reached if both previous steps fully succeed.
+
+If any step fails, the build stops and the previous deployment stays live. The registry never publishes partial or degraded data.
+
 ## Links
 
 - [Development guide](DEVELOPMENT.md) — scripts, local development, GitHub Actions

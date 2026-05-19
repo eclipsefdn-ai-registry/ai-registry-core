@@ -13,7 +13,7 @@ export interface Tool {
 }
 
 export interface InstallConfig {
-  tool?: string;
+  tool: string;
   installUrl?: string;
   openVsxUrl?: string;
   config?: Record<string, unknown>;

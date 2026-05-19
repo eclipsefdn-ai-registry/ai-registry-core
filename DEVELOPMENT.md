@@ -48,6 +48,14 @@ LOCAL_VENDORS_DIR=/path/to/parent/dir npm run dev
 
 This expects vendor repos at `<LOCAL_VENDORS_DIR>/ai-registry-<vendor-id>/`.
 
+### Environment variables
+
+| Variable            | Used by              | Description                                                                                             |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `LOCAL_VENDORS_DIR` | `consolidate`, `dev` | Path to parent directory containing vendor repos                                                        |
+| `GH_TOKEN`          | `consolidate`        | GitHub PAT for cloning private vendor repos. Injected into clone URL. Not needed once repos are public. |
+| `BASE_PATH`         | `build:website`      | Base path for GitHub Pages deployment. Defaults to `/`. Set by CI from `configure-pages` output.        |
+
 ## GitHub Actions
 
 | Workflow    | Trigger                                        | Purpose                                                               |

@@ -26,7 +26,9 @@ function App() {
         return r.json();
       })
       .then((d: RegistryData) => setData(d))
-      .catch((e: Error) => setError(e.message));
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : String(e));
+      });
   }, []);
 
   const filteredServers = useMemo(() => {

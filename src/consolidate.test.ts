@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   addOrganization,
   addApproval,
+  enrichWithRegistryData,
   buildToolView,
   type ConsolidatedOutput,
   type ApprovalData,
@@ -62,35 +63,22 @@ describe("addApproval", () => {
     installConfigs: [{ tool: "tool-a", instructions: "do stuff" }],
   };
 
-  it("creates a new MCP entry when server is new", () => {
+  it("creates a new MCP entry with serverId as name", () => {
     const output = emptyOutput();
-    addApproval(approval, "acme", undefined, output);
+    addApproval(approval, "acme", output);
 
     assert.equal(output.mcp.length, 1);
     assert.equal(output.mcp[0].serverId, "io.example/server");
-    assert.equal(output.mcp[0].mcpRegistryVerified, false);
     assert.equal(output.mcp[0].name, "io.example/server");
+    assert.equal(output.mcp[0].description, "");
+    assert.equal(output.mcp[0].mcpRegistryVerified, false);
     assert.equal(output.mcp[0].approvals.length, 1);
     assert.equal(output.mcp[0].approvals[0].organizationId, "acme");
   });
 
-  it("uses registry metadata when available", () => {
-    const output = emptyOutput();
-    addApproval(
-      approval,
-      "acme",
-      { name: "Example Server", description: "A great server", verified: true },
-      output,
-    );
-
-    assert.equal(output.mcp[0].name, "Example Server");
-    assert.equal(output.mcp[0].description, "A great server");
-    assert.equal(output.mcp[0].mcpRegistryVerified, true);
-  });
-
   it("merges approvals from multiple vendors for the same server", () => {
     const output = emptyOutput();
-    addApproval(approval, "acme", undefined, output);
+    addApproval(approval, "acme", output);
     addApproval(
       {
         ...approval,
@@ -98,7 +86,6 @@ describe("addApproval", () => {
         installConfigs: [{ tool: "tool-b" }],
       },
       "other-org",
-      undefined,
       output,
     );
 
@@ -116,9 +103,52 @@ describe("addApproval", () => {
       date: "2026-05-01",
       installConfigs: [{ tool: "tool-a" }],
     };
-    addApproval(noVersion, "acme", undefined, output);
+    addApproval(noVersion, "acme", output);
 
     assert.equal("versionRange" in output.mcp[0].approvals[0], false);
+  });
+});
+
+describe("enrichWithRegistryData", () => {
+  it("updates name, description, and verified status", () => {
+    const entry: McpEntry = {
+      serverId: "io.example/server",
+      name: "io.example/server",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [],
+    };
+
+    enrichWithRegistryData(entry, {
+      name: "Example Server",
+      description: "A great server",
+      verified: true,
+    });
+
+    assert.equal(entry.name, "Example Server");
+    assert.equal(entry.description, "A great server");
+    assert.equal(entry.mcpRegistryVerified, true);
+  });
+
+  it("does not affect approvals", () => {
+    const entry: McpEntry = {
+      serverId: "io.example/server",
+      name: "io.example/server",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        { organizationId: "acme", date: "2026-05-01", installConfigs: [] },
+      ],
+    };
+
+    enrichWithRegistryData(entry, {
+      name: "Example Server",
+      description: "A great server",
+      verified: true,
+    });
+
+    assert.equal(entry.approvals.length, 1);
+    assert.equal(entry.approvals[0].organizationId, "acme");
   });
 });
 
