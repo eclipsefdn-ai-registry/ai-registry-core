@@ -55,6 +55,44 @@ describe("addOrganization", () => {
   });
 });
 
+describe("addOrganization — duplicate tool IDs across vendors", () => {
+  it("produces duplicate tool IDs when two vendors declare the same tool ID", () => {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "vendor-a",
+        name: "Vendor A",
+        description: "First vendor",
+        website: "https://a.com",
+        tools: [{ id: "shared-tool", name: "Shared Tool A" }],
+      },
+      output,
+    );
+    addOrganization(
+      {
+        id: "vendor-b",
+        name: "Vendor B",
+        description: "Second vendor",
+        website: "https://b.com",
+        tools: [{ id: "shared-tool", name: "Shared Tool B" }],
+      },
+      output,
+    );
+
+    // Replicate the cross-vendor duplicate check from consolidate main()
+    const seenToolIds = new Set<string>();
+    let duplicateFound = false;
+    for (const tool of output.tools) {
+      if (seenToolIds.has(tool.id)) {
+        duplicateFound = true;
+        break;
+      }
+      seenToolIds.add(tool.id);
+    }
+    assert.equal(duplicateFound, true, "should detect duplicate tool ID across vendors");
+  });
+});
+
 describe("addApproval", () => {
   const approval: ApprovalData = {
     serverId: "io.example/server",

@@ -122,7 +122,17 @@ export function validateVendorData(
   }
 
   result.organization = { id: org.id, tools: org.tools, raw: orgData };
-  const toolIds = new Set(org.tools.map((t) => t.id));
+
+  const toolIds = new Set<string>();
+  for (const tool of org.tools) {
+    if (toolIds.has(tool.id)) {
+      result.valid = false;
+      result.errors.push(
+        `organization.json: duplicate tool ID "${tool.id}"`,
+      );
+    }
+    toolIds.add(tool.id);
+  }
 
   const seenServerIds = new Set<string>();
   for (const { file, data } of approvals) {

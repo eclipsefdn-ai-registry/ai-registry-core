@@ -113,6 +113,19 @@ describe("validateVendorData", () => {
     assert.equal(result.valid, false);
   });
 
+  it("fails on duplicate tool IDs in organization", () => {
+    const orgWithDuplicateTools = {
+      ...validOrg,
+      tools: [
+        { id: "test-tool", name: "Test Tool" },
+        { id: "test-tool", name: "Test Tool Copy" },
+      ],
+    };
+    const result = validateVendorData(orgWithDuplicateTools, []);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes('duplicate tool ID "test-tool"')));
+  });
+
   it("fails on duplicate serverId across approvals", () => {
     const result = validateVendorData(validOrg, [
       approval("io.example/server"),
