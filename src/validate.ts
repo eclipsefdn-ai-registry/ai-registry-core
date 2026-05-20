@@ -29,7 +29,7 @@ export interface ValidationResult {
 export interface ApprovalData {
   serverId: string;
   date: string;
-  versionRange?: string;
+  version?: string;
   installConfigs: { tool: string }[];
 }
 
@@ -127,9 +127,7 @@ export function validateVendorData(
   for (const tool of org.tools) {
     if (toolIds.has(tool.id)) {
       result.valid = false;
-      result.errors.push(
-        `organization.json: duplicate tool ID "${tool.id}"`,
-      );
+      result.errors.push(`organization.json: duplicate tool ID "${tool.id}"`);
     }
     toolIds.add(tool.id);
   }

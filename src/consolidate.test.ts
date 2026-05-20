@@ -89,7 +89,11 @@ describe("addOrganization — duplicate tool IDs across vendors", () => {
       }
       seenToolIds.add(tool.id);
     }
-    assert.equal(duplicateFound, true, "should detect duplicate tool ID across vendors");
+    assert.equal(
+      duplicateFound,
+      true,
+      "should detect duplicate tool ID across vendors",
+    );
   });
 });
 
@@ -97,7 +101,7 @@ describe("addApproval", () => {
   const approval: ApprovalData = {
     serverId: "io.example/server",
     date: "2026-05-01",
-    versionRange: "^1.0.0",
+    version: "1.0.0",
     installConfigs: [{ tool: "tool-a", instructions: "do stuff" }],
   };
 
@@ -120,7 +124,7 @@ describe("addApproval", () => {
     addApproval(
       {
         ...approval,
-        versionRange: "^2.0.0",
+        version: "2.0.0",
         installConfigs: [{ tool: "tool-b" }],
       },
       "other-org",
@@ -131,7 +135,7 @@ describe("addApproval", () => {
     assert.equal(output.mcp[0].approvals.length, 2);
     assert.equal(output.mcp[0].approvals[0].organizationId, "acme");
     assert.equal(output.mcp[0].approvals[1].organizationId, "other-org");
-    assert.equal(output.mcp[0].approvals[1].versionRange, "^2.0.0");
+    assert.equal(output.mcp[0].approvals[1].version, "2.0.0");
   });
 
   it("produces a stable configHash from approval data", () => {
@@ -152,7 +156,10 @@ describe("addApproval", () => {
     const output2 = emptyOutput();
     addApproval(approval, "acme", output1);
     addApproval(
-      { ...approval, installConfigs: [{ tool: "tool-a", instructions: "changed" }] },
+      {
+        ...approval,
+        installConfigs: [{ tool: "tool-a", instructions: "changed" }],
+      },
       "acme",
       output2,
     );
@@ -164,7 +171,7 @@ describe("addApproval", () => {
     );
   });
 
-  it("omits versionRange when not provided", () => {
+  it("omits version when not provided", () => {
     const output = emptyOutput();
     const noVersion: ApprovalData = {
       serverId: "io.example/server",
@@ -173,12 +180,12 @@ describe("addApproval", () => {
     };
     addApproval(noVersion, "acme", output);
 
-    assert.equal("versionRange" in output.mcp[0].approvals[0], false);
+    assert.equal("version" in output.mcp[0].approvals[0], false);
   });
 });
 
 describe("enrichWithRegistryData", () => {
-  it("updates name, description, and verified status", () => {
+  it("updates name, description, latestVersion, and verified status", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",
@@ -191,21 +198,28 @@ describe("enrichWithRegistryData", () => {
       name: "Example Server",
       description: "A great server",
       verified: true,
+      latestVersion: "2.0.0",
     });
 
     assert.equal(entry.name, "Example Server");
     assert.equal(entry.description, "A great server");
+    assert.equal(entry.latestVersion, "2.0.0");
     assert.equal(entry.mcpRegistryVerified, true);
   });
 
-  it("does not affect approvals", () => {
+  it("sets version to latestVersion on approvals without a pinned version", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",
       description: "",
       mcpRegistryVerified: false,
       approvals: [
-        { organizationId: "acme", date: "2026-05-01", configHash: "abc", installConfigs: [] },
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+        },
       ],
     };
 
@@ -213,10 +227,38 @@ describe("enrichWithRegistryData", () => {
       name: "Example Server",
       description: "A great server",
       verified: true,
+      latestVersion: "3.1.0",
     });
 
-    assert.equal(entry.approvals.length, 1);
-    assert.equal(entry.approvals[0].organizationId, "acme");
+    assert.equal(entry.approvals[0].version, "3.1.0");
+  });
+
+  it("preserves pinned version on approvals that already have one", () => {
+    const entry: McpEntry = {
+      serverId: "io.example/server",
+      name: "io.example/server",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          version: "1.0.0",
+          configHash: "abc",
+          installConfigs: [],
+        },
+      ],
+    };
+
+    enrichWithRegistryData(entry, {
+      name: "Example Server",
+      description: "A great server",
+      verified: true,
+      latestVersion: "3.1.0",
+    });
+
+    assert.equal(entry.approvals[0].version, "1.0.0");
+    assert.equal(entry.latestVersion, "3.1.0");
   });
 });
 

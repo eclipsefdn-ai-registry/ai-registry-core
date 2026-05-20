@@ -86,7 +86,6 @@ Example: `mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`
 {
   "serverId": "io.github.ChromeDevTools/chrome-devtools-mcp",
   "date": "2026-05-12",
-  "versionRange": "^0.26.0",
   "installConfigs": [
     {
       "tool": "your-tool",

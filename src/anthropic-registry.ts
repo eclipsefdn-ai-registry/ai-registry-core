@@ -7,6 +7,7 @@ export interface ServerMetadata {
 
 export interface ServerLookupResult extends ServerMetadata {
   verified: true;
+  latestVersion: string;
 }
 
 interface RegistryMeta {
@@ -19,6 +20,7 @@ interface RegistryServerData {
   name: string;
   title?: string;
   description: string;
+  version: string;
   [key: string]: unknown;
 }
 
@@ -77,5 +79,6 @@ export async function lookupServer(
     name: latest.server.title ?? latest.server.name,
     description: latest.server.description,
     verified: true,
+    latestVersion: latest.server.version,
   };
 }

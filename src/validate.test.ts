@@ -123,7 +123,9 @@ describe("validateVendorData", () => {
     };
     const result = validateVendorData(orgWithDuplicateTools, []);
     assert.equal(result.valid, false);
-    assert.ok(result.errors.some((e) => e.includes('duplicate tool ID "test-tool"')));
+    assert.ok(
+      result.errors.some((e) => e.includes('duplicate tool ID "test-tool"')),
+    );
   });
 
   it("fails on duplicate serverId across approvals", () => {

@@ -16,9 +16,9 @@
       "format": "date",
       "description": "ISO date of approval (YYYY-MM-DD)"
     },
-    "versionRange": {
+    "version": {
       "type": "string",
-      "description": "Semver range of approved versions (e.g., ^1.0.0)"
+      "description": "Pinned server version (e.g., 1.0.1). Omit to use the latest version from the MCP registry."
     },
     "installConfigs": {
       "type": "array",

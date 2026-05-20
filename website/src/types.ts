@@ -23,7 +23,8 @@ export interface InstallConfig {
 export interface Approval {
   organizationId: string;
   date: string;
-  versionRange?: string;
+  version?: string;
+  configHash: string;
   installConfigs: InstallConfig[];
 }
 
@@ -31,6 +32,7 @@ export interface McpServer {
   serverId: string;
   name: string;
   description: string;
+  latestVersion?: string;
   mcpRegistryVerified: boolean;
   approvals: Approval[];
 }

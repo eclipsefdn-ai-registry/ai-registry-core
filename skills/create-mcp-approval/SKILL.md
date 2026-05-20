@@ -36,10 +36,17 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
 
 - **serverId** (required): Must match a server in the Anthropic MCP registry.
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
-- **versionRange** (optional): Semver range of approved versions (e.g., `^1.0.0`).
+- **version** (optional): Pinned server version (e.g., `1.0.1`). Omit to use the latest version from the MCP registry. Only set this when the vendor explicitly needs to pin a specific version (e.g., a newer version has a known issue). When a version is pinned, the install config (e.g., `args` in the config object) should reference that same version instead of `@latest`.
 - **installConfigs** (required, at least one entry): Tool-specific installation configurations.
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
   - **config**: Tool-specific configuration object (e.g., MCP server settings for stdio).
   - **instructions**: Human-readable setup instructions.
   - **installUrl**: Deep-link URL for one-click install (optional).
   - **openVsxUrl**: Link to an Open VSX extension (optional).
+
+## Version Behavior
+
+During consolidation, the registry enriches each approval with version information:
+
+- **No `version` field** (default): The latest version is fetched from the Anthropic MCP registry and set on the approval. The install config should use `@latest` in package references.
+- **`version` set** (pinned): The vendor has pinned a specific version, typically because the install config references that exact version. The consolidation step preserves the pinned version and does not overwrite it with the registry's latest. This lets consumers see the actual version that will be installed.

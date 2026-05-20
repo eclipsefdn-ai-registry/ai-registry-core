@@ -56,14 +56,14 @@ export interface InstallConfig {
 export interface ApprovalData {
   serverId: string;
   date: string;
-  versionRange?: string;
+  version?: string;
   installConfigs: InstallConfig[];
 }
 
 export interface Approval {
   organizationId: string;
   date: string;
-  versionRange?: string;
+  version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
 }
@@ -72,6 +72,7 @@ export interface McpEntry {
   serverId: string;
   name: string;
   description: string;
+  latestVersion?: string;
   mcpRegistryVerified: boolean;
   approvals: Approval[];
 }
@@ -128,8 +129,8 @@ export function addApproval(
     configHash,
     installConfigs: approvalData.installConfigs,
   };
-  if (approvalData.versionRange) {
-    approval.versionRange = approvalData.versionRange;
+  if (approvalData.version) {
+    approval.version = approvalData.version;
   }
   mcpEntry.approvals.push(approval);
 }
@@ -140,7 +141,15 @@ export function enrichWithRegistryData(
 ): void {
   entry.name = result.name;
   entry.description = result.description;
+  entry.latestVersion = result.latestVersion;
   entry.mcpRegistryVerified = result.verified;
+
+  // Approvals without a pinned version default to the latest from the registry
+  for (const approval of entry.approvals) {
+    if (!approval.version) {
+      approval.version = result.latestVersion;
+    }
+  }
 }
 
 export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {

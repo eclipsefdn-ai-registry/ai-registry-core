@@ -264,7 +264,7 @@ function ApprovalCard({
           {org?.name ?? approval.organizationId}
         </span>
         <span>Approved: {approval.date}</span>
-        {approval.versionRange && <span>Version: {approval.versionRange}</span>}
+        {approval.version && <span>Version: {approval.version}</span>}
       </div>
       {approval.installConfigs.map((config, j) => (
         <InstallConfigView key={j} config={config} getTool={getTool} />
