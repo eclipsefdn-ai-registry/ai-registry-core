@@ -134,6 +134,36 @@ describe("addApproval", () => {
     assert.equal(output.mcp[0].approvals[1].versionRange, "^2.0.0");
   });
 
+  it("produces a stable configHash from approval data", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addApproval(approval, "acme", output1);
+    addApproval(approval, "acme", output2);
+
+    const hash1 = output1.mcp[0].approvals[0].configHash;
+    const hash2 = output2.mcp[0].approvals[0].configHash;
+    assert.equal(typeof hash1, "string");
+    assert.ok(hash1.length > 0);
+    assert.equal(hash1, hash2, "same input should produce same hash");
+  });
+
+  it("produces different configHash when approval data changes", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addApproval(approval, "acme", output1);
+    addApproval(
+      { ...approval, installConfigs: [{ tool: "tool-a", instructions: "changed" }] },
+      "acme",
+      output2,
+    );
+
+    assert.notEqual(
+      output1.mcp[0].approvals[0].configHash,
+      output2.mcp[0].approvals[0].configHash,
+      "different input should produce different hash",
+    );
+  });
+
   it("omits versionRange when not provided", () => {
     const output = emptyOutput();
     const noVersion: ApprovalData = {
@@ -175,7 +205,7 @@ describe("enrichWithRegistryData", () => {
       description: "",
       mcpRegistryVerified: false,
       approvals: [
-        { organizationId: "acme", date: "2026-05-01", installConfigs: [] },
+        { organizationId: "acme", date: "2026-05-01", configHash: "abc", installConfigs: [] },
       ],
     };
 
@@ -202,11 +232,13 @@ describe("buildToolView", () => {
           {
             organizationId: "acme",
             date: "2026-05-01",
+            configHash: "aaa",
             installConfigs: [{ tool: "tool-a", instructions: "use tool-a" }],
           },
           {
             organizationId: "other",
             date: "2026-05-02",
+            configHash: "bbb",
             installConfigs: [{ tool: "tool-b", instructions: "use tool-b" }],
           },
         ],
@@ -220,6 +252,7 @@ describe("buildToolView", () => {
           {
             organizationId: "other",
             date: "2026-05-01",
+            configHash: "ccc",
             installConfigs: [{ tool: "tool-b", instructions: "use tool-b" }],
           },
         ],

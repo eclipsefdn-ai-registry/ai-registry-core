@@ -5,6 +5,7 @@ import {
   mkdirSync,
   rmSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -63,6 +64,7 @@ export interface Approval {
   organizationId: string;
   date: string;
   versionRange?: string;
+  configHash: string;
   installConfigs: InstallConfig[];
 }
 
@@ -115,9 +117,15 @@ export function addApproval(
     output.mcp.push(mcpEntry);
   }
 
+  const configHash = createHash("sha256")
+    .update(JSON.stringify(approvalData))
+    .digest("hex")
+    .slice(0, 12);
+
   const approval: Approval = {
     organizationId,
     date: approvalData.date,
+    configHash,
     installConfigs: approvalData.installConfigs,
   };
   if (approvalData.versionRange) {
