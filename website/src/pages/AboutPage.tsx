@@ -87,25 +87,6 @@ export function AboutPage() {
               </td>
             </tr>
             <tr>
-              <td>Legal questions</td>
-              <td>
-                <a href="mailto:license@eclipse.org">license@eclipse.org</a>
-              </td>
-            </tr>
-            <tr>
-              <td>Privacy</td>
-              <td>
-                <a href="mailto:privacy@eclipse.org">privacy@eclipse.org</a> |{" "}
-                <a
-                  href="https://www.eclipse.org/legal/privacy/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Privacy Policy
-                </a>
-              </td>
-            </tr>
-            <tr>
               <td>License</td>
               <td>
                 <a
@@ -114,6 +95,18 @@ export function AboutPage() {
                   rel="noopener noreferrer"
                 >
                   Eclipse Public License v. 2.0
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td>Legal &amp; Contact</td>
+              <td>
+                <a
+                  href="https://www.eclipse.org/legal/compliance/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Compliance &amp; contact details
                 </a>
               </td>
             </tr>

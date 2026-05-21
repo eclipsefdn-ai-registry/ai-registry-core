@@ -12,6 +12,7 @@ export function Footer() {
           >
             GitHub
           </a>
+          <Link to="/about">About</Link>
           <Link to="/terms">Terms of Use</Link>
           <a
             href="https://www.eclipse.org/legal/privacy/"
@@ -20,10 +21,31 @@ export function Footer() {
           >
             Privacy Policy
           </a>
-          <Link to="/about">About</Link>
+          <a
+            href="https://www.eclipse.org/legal/compliance/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Compliance
+          </a>
+          <a
+            href="https://www.eclipse.org/legal/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Legal
+          </a>
         </div>
         <div className="site-footer-copyright">
-          &copy; {new Date().getFullYear()} Eclipse Foundation AISBL
+          Copyright &copy;{" "}
+          <a
+            href="https://www.eclipse.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Eclipse Foundation AISBL
+          </a>
+          . All Rights Reserved.
         </div>
       </div>
     </footer>
