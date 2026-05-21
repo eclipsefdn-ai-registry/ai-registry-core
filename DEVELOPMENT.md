@@ -8,6 +8,20 @@
 - **`website/`** — React static website (Vite + TypeScript)
 - **`skills/`** — AI agent skills (e.g., `create-mcp-approval`)
 
+## Local vendor repos
+
+For local development, the consolidation step needs access to vendor repositories. Instead of cloning them from GitHub, you can point it to local checkouts via the `LOCAL_VENDORS_DIR` environment variable.
+
+By default (when `LOCAL_VENDORS_DIR` is not set), the consolidation step clones vendor repos from GitHub. When set, it looks for vendor repos at `<LOCAL_VENDORS_DIR>/ai-registry-<vendor-id>/`.
+
+The recommended setup is to check out vendor repos as siblings of the core repo. The `dev` script picks them up automatically:
+
+```
+parent/
+├── ai-registry-core/     # this repo
+└── ai-registry-theia/    # vendor repo
+```
+
 ## Scripts
 
 ```bash
@@ -22,7 +36,7 @@ npm run validate-vendor -- /path/to/vendor-repo
 # Consolidate all vendor repos (outputs to dist/api/v1/)
 npm run consolidate
 
-# Run consolidation + start local dev server
+# Run consolidation + start local dev server (uses LOCAL_VENDORS_DIR=.. by default)
 npm run dev
 
 # Build the website
@@ -40,13 +54,11 @@ npm test
 
 ### Local development
 
-`npm run dev` consolidates from sibling vendor repos and starts the Vite dev server. To use a different path:
+`npm run dev` consolidates from local sibling vendor repos (defaults to `LOCAL_VENDORS_DIR=..`) and starts the Vite dev server. To use a different path:
 
 ```bash
 LOCAL_VENDORS_DIR=/path/to/parent/dir npm run dev
 ```
-
-This expects vendor repos at `<LOCAL_VENDORS_DIR>/ai-registry-<vendor-id>/`.
 
 ### Environment variables
 

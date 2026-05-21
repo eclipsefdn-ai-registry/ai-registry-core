@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "cd website && npm install",
     "validate-vendor": "tsx src/cli-validate.ts",
     "consolidate": "tsx src/cli-consolidate.ts",
     "dev": "LOCAL_VENDORS_DIR=.. npm run consolidate && rm -rf website/public/api website/public/schemas && mkdir -p website/public/api/v1 website/public/schemas && cp dist/api/v1/*.json website/public/api/v1/ && cp schemas/*.json website/public/schemas/ && cd website && npm run dev",
