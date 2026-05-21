@@ -33,10 +33,10 @@ Vendor Repos                    Central Repo                    Consumers
 
 ## Repositories
 
-| Repository                                                           | Purpose                                                                                        |
-| :------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
-| [ai-registry-core](https://github.com/EclipseFdn/ai-registry-core)   | Central repo — schemas, consolidation, website, AI skill ([development guide](DEVELOPMENT.md)) |
-| [ai-registry-theia](https://github.com/EclipseFdn/ai-registry-theia) | Theia IDE vendor repo — serves as the reference implementation for vendor repositories         |
+| Repository                                                                       | Purpose                                                                                        |
+| :------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
+| [ai-registry-core](https://github.com/eclipsefdn-ai-registry/ai-registry-core)   | Central repo — schemas, consolidation, website, AI skill ([development guide](DEVELOPMENT.md)) |
+| [ai-registry-theia](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) | Theia IDE vendor repo — serves as the reference implementation for vendor repositories         |
 
 ## Data Flow
 
@@ -116,13 +116,13 @@ npm run validate           # standalone — clones core repo automatically
 npm run validate:local     # fast — requires core repo checked out as sibling
 ```
 
-See the [Theia vendor repo](https://github.com/EclipseFdn/ai-registry-theia) for a complete reference implementation including the CI workflow.
+See the [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) for a complete reference implementation including the CI workflow.
 
 ### Becoming a vendor
 
 1. Create a new repository following the structure above
 2. Add your `organization.json` and approval files in `mcp/`
-3. Set up CI using the [validate workflow](https://github.com/EclipseFdn/ai-registry-theia/blob/main/.github/workflows/validate.yml) from the Theia repo as a template
+3. Set up CI using the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml) from the Theia repo as a template
 4. Request registration by opening a PR on this repo that adds your entry to `vendors.json`
 
 ## API
@@ -130,16 +130,16 @@ See the [Theia vendor repo](https://github.com/EclipseFdn/ai-registry-theia) for
 The registry is served as static JSON files from GitHub Pages. Base URL:
 
 ```
-https://eclipsefdn.github.io/ai-registry-core/api/v1/
+https://eclipsefdn-ai-registry.github.io/ai-registry-core/api/v1/
 ```
 
-| Endpoint                                                                                        | Description                                                                                        |
-| :---------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
-| [`all.json`](https://eclipsefdn.github.io/ai-registry-core/api/v1/all.json)                     | Full registry — organizations, tools, and all MCP servers with merged approvals                    |
-| [`organizations.json`](https://eclipsefdn.github.io/ai-registry-core/api/v1/organizations.json) | All organizations and their tools                                                                  |
-| `<tool-id>.json`                                                                                | Per-tool view — only servers approved for that tool, with install configs for other tools stripped |
+| Endpoint                                                                                                    | Description                                                                                        |
+| :---------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| [`all.json`](https://eclipsefdn-ai-registry.github.io/ai-registry-core/api/v1/all.json)                     | Full registry — organizations, tools, and all MCP servers with merged approvals                    |
+| [`organizations.json`](https://eclipsefdn-ai-registry.github.io/ai-registry-core/api/v1/organizations.json) | All organizations and their tools                                                                  |
+| `<tool-id>.json`                                                                                            | Per-tool view — only servers approved for that tool, with install configs for other tools stripped |
 
-Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://eclipsefdn.github.io/ai-registry-core/schemas/mcp-approval.schema.json)).
+Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://eclipsefdn-ai-registry.github.io/ai-registry-core/schemas/mcp-approval.schema.json)).
 
 A tool integration typically fetches `organizations.json` + its own `<tool-id>.json`.
 
@@ -158,6 +158,6 @@ If any step fails, the build stops and the previous deployment stays live. The r
 ## Links
 
 - [Development guide](DEVELOPMENT.md) — scripts, local development, GitHub Actions
-- [Theia vendor repo](https://github.com/EclipseFdn/ai-registry-theia) — reference vendor implementation
+- [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) — reference vendor implementation
 - [Claude Code skill](skills/create-mcp-approval/SKILL.md) — AI agent skill for generating approval files
 - [JSON schemas](schemas/) — organization and approval file schemas

@@ -20,9 +20,9 @@ Vendors maintain their own repositories with approval files for MCP servers they
 1. **Identify the MCP server** — The user provides a server ID (e.g., `io.github.ChromeDevTools/chrome-devtools-mcp`).
 2. **Verify the server exists** — Fetch `https://registry.modelcontextprotocol.io/v0.1/servers/<serverId>/versions` (URL-encode the serverId). If the server is not found (404), warn the user but allow them to proceed.
 3. **Read the vendor's organization.json** — Find `organization.json` in the repo root to determine the vendor ID and available tools.
-4. **Read the approval schema** — Fetch the schema from `https://eclipsefdn.github.io/ai-registry-core/schemas/mcp-approval.schema.json` to ensure you follow the current contract.
+4. **Read the approval schema** — Fetch the schema from `https://eclipsefdn-ai-registry.github.io/ai-registry-core/schemas/mcp-approval.schema.json` to ensure you follow the current contract.
 5. **Read tool-specific config docs** — Check `ai-docs/mcp-approval.md` in the repo. If it exists, read it to understand how to construct the `config` and `installUrl` for this vendor's tools.
-6. **Read an existing approval as reference** — Look for existing files in the `mcp/` directory. If none exist, fetch the example from `https://raw.githubusercontent.com/EclipseFdn/ai-registry-theia/main/mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`.
+6. **Read an existing approval as reference** — Look for existing files in the `mcp/` directory. If none exist, fetch the example from `https://raw.githubusercontent.com/eclipsefdn-ai-registry/ai-registry-theia/main/mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`.
 7. **Generate the approval file** — Create a JSON file in the `mcp/` directory following the schema, the tool-specific docs, and the naming convention below.
 8. **Validate** — Run `npm run validate` to check the file.
 

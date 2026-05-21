@@ -64,6 +64,6 @@ This expects vendor repos at `<LOCAL_VENDORS_DIR>/ai-registry-<vendor-id>/`.
 
 ## Adding a vendor
 
-1. Create a vendor repository following the [vendor template](https://github.com/EclipseFdn/ai-registry-theia)
+1. Create a vendor repository following the [vendor template](https://github.com/eclipsefdn-ai-registry/ai-registry-theia)
 2. Add an entry to `vendors.json` with the vendor ID and repository URL
 3. The consolidation workflow will automatically include the new vendor
