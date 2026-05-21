@@ -3,13 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Registry</title>
+    <title>AI Registry — Eclipse Foundation</title>
+    <meta
+      name="description"
+      content="Vendor-neutral trust registry for AI artifacts — currently MCP servers"
+    />
+    <meta property="og:title" content="AI Registry — Eclipse Foundation" />
+    <meta
+      property="og:description"
+      content="Vendor-neutral trust registry for AI artifacts — currently MCP servers"
+    />
+    <link rel="icon" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!-- GitHub Pages SPA redirect restore -->
+    <script>
+      (function () {
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== location.href) {
+          history.replaceState(null, "", redirect);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
