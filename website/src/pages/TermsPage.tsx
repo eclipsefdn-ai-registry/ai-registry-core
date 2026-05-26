@@ -36,8 +36,12 @@ export function TermsPage() {
         <p>
           The approval data is contributed by third-party organizations ("Vendor
           Organizations") that independently evaluate and endorse artifacts for
-          use with their tools. The Eclipse Foundation does not independently
-          verify, test, or endorse the artifacts referenced in the Registry
+          use with their tools.
+        </p>
+        <p>
+          The Eclipse Foundation does not independently verify, test, or
+          endorse, monitor, or continuously review the security, functionality,
+          legality, or compliance of the artifacts referenced in the Registry
           beyond aggregating and displaying vendor approval data.
         </p>
       </section>
