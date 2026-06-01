@@ -330,6 +330,33 @@ describe("buildToolView", () => {
     assert.equal(view[0].approvals.length, 2);
   });
 
+  it("filters out other tools' install configs from multi-tool approvals", () => {
+    const multiToolServers: McpEntry[] = [
+      {
+        serverId: "io.example/multi",
+        name: "Multi",
+        description: "One approval with configs for both tools",
+        mcpRegistryVerified: true,
+        approvals: [
+          {
+            organizationId: "acme",
+            date: "2026-05-01",
+            configHash: "ddd",
+            installConfigs: [
+              { tool: "tool-a", instructions: "use tool-a" },
+              { tool: "tool-b", instructions: "use tool-b" },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const view = buildToolView("tool-a", multiToolServers);
+    assert.equal(view.length, 1);
+    assert.equal(view[0].approvals[0].installConfigs.length, 1);
+    assert.equal(view[0].approvals[0].installConfigs[0].tool, "tool-a");
+  });
+
   it("does not mutate the original input", () => {
     const original = servers();
     buildToolView("tool-a", original);

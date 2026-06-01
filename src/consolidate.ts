@@ -161,10 +161,10 @@ export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
     )
     .map((server) => ({
       ...server,
-      approvals: server.approvals.map((a) => {
-        const isForTool = a.installConfigs.some((ic) => ic.tool === toolId);
-        return isForTool ? a : { ...a, installConfigs: [] };
-      }),
+      approvals: server.approvals.map((a) => ({
+        ...a,
+        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
+      })),
     }));
 }
 
@@ -247,8 +247,13 @@ async function enrichRegistryMetadata(
 ): Promise<void> {
   console.log("Enriching with Anthropic MCP registry metadata...\n");
 
-  for (const entry of output.mcp) {
-    const result = await lookupServer(entry.serverId);
+  const results = await Promise.all(
+    output.mcp.map((entry) => lookupServer(entry.serverId)),
+  );
+
+  for (let i = 0; i < output.mcp.length; i++) {
+    const entry = output.mcp[i];
+    const result = results[i];
     if (result) {
       enrichWithRegistryData(entry, result);
       console.log(`  Verified: ${entry.serverId}`);
