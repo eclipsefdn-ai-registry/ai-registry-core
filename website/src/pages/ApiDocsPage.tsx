@@ -34,8 +34,8 @@ export function ApiDocsPage() {
                 </a>
               </td>
               <td>
-                Full registry — all organizations, tools, and MCP servers with
-                merged approvals from all vendors
+                Full registry — all organizations, tools, MCP servers, and
+                skills with merged approvals from all vendors
               </td>
             </tr>
             <tr>
@@ -44,15 +44,17 @@ export function ApiDocsPage() {
                   <code>organizations.json</code>
                 </a>
               </td>
-              <td>All organizations and their tools (no MCP server data)</td>
+              <td>
+                All organizations and their tools (no server or skill data)
+              </td>
             </tr>
             <tr>
               <td>
                 <code>&lt;tool-id&gt;.json</code>
               </td>
               <td>
-                Per-tool view — only servers approved for that tool, with
-                install configs for other tools stripped. Example:{" "}
+                Per-tool view — only servers and skills approved for that tool,
+                with install configs for other tools stripped. Example:{" "}
                 <a href={`${BASE_URL}api/v1/theia-ide.json`}>
                   <code>theia-ide.json</code>
                 </a>
@@ -66,8 +68,8 @@ export function ApiDocsPage() {
         <h2>Schemas</h2>
         <p>
           These schemas define the format for vendor-submitted data. Vendors use
-          them to create organization metadata and MCP server approval files in
-          their repositories.
+          them to create organization metadata, MCP server approvals, and skill
+          approvals in their repositories.
         </p>
         <table className="api-table">
           <thead>
@@ -93,6 +95,14 @@ export function ApiDocsPage() {
               </td>
               <td>MCP server approval file</td>
             </tr>
+            <tr>
+              <td>
+                <a href={`${BASE_URL}schemas/skill-approval.schema.json`}>
+                  <code>skill-approval.schema.json</code>
+                </a>
+              </td>
+              <td>Agent Skill approval file</td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -102,7 +112,7 @@ export function ApiDocsPage() {
         <p>
           A tool integration typically fetches <code>organizations.json</code>{" "}
           plus its own <code>&lt;tool-id&gt;.json</code> to display approved MCP
-          servers for that tool.
+          servers and skills for that tool.
         </p>
         <p>
           The registry data is updated whenever a vendor updates their
