@@ -3,7 +3,7 @@ import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useToolRegistryData } from "../hooks/useRegistryData";
 import { InstallConfigView } from "../components/ServerDetail";
 import { NotFoundPage } from "./NotFoundPage";
-import type { McpServer, Organization, Tool } from "../types";
+import type { McpServer, Skill, Organization, Tool } from "../types";
 
 export function ToolPage() {
   const { toolId } = useParams<{ toolId: string }>();
@@ -20,6 +20,17 @@ export function ToolPage() {
         s.name.toLowerCase().includes(q) ||
         s.description.toLowerCase().includes(q) ||
         s.serverId.toLowerCase().includes(q),
+    );
+  }, [data, search]);
+
+  const filteredSkills = useMemo(() => {
+    if (!data) return [];
+    const q = search.toLowerCase();
+    return (data.skills ?? []).filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.skillId.toLowerCase().includes(q),
     );
   }, [data, search]);
 
@@ -73,7 +84,7 @@ export function ToolPage() {
         </div>
         {org && <p>by {org.name}</p>}
         <p className="tool-header-subtitle">
-          Showing MCP servers approved for {tool?.name ?? toolId}
+          Showing artifacts approved for {tool?.name ?? toolId}
         </p>
       </div>
 
@@ -86,22 +97,44 @@ export function ToolPage() {
         />
       </div>
 
-      <div className="server-list">
-        {filteredServers.length === 0 ? (
-          <div className="empty-state">No servers found</div>
-        ) : (
-          filteredServers.map((server) => (
-            <ToolServerCard
-              key={server.serverId}
-              server={server}
-              toolId={toolId!}
-              getOrg={getOrg}
-              getTool={getTool}
-              onSelect={(id) => setSearchParams({ server: id })}
-            />
-          ))
-        )}
-      </div>
+      {filteredServers.length > 0 && (
+        <>
+          <h2>MCP Servers ({filteredServers.length})</h2>
+          <div className="server-list">
+            {filteredServers.map((server) => (
+              <ToolServerCard
+                key={server.serverId}
+                server={server}
+                toolId={toolId!}
+                getOrg={getOrg}
+                getTool={getTool}
+                onSelect={(id) => setSearchParams({ server: id })}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {filteredSkills.length > 0 && (
+        <>
+          <h2>Skills ({filteredSkills.length})</h2>
+          <div className="server-list">
+            {filteredSkills.map((skill) => (
+              <ToolSkillCard
+                key={skill.skillId}
+                skill={skill}
+                toolId={toolId!}
+                getOrg={getOrg}
+                getTool={getTool}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {filteredServers.length === 0 && filteredSkills.length === 0 && (
+        <div className="empty-state">No artifacts found</div>
+      )}
     </div>
   );
 }
@@ -229,6 +262,61 @@ function ToolServerDetail({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ToolSkillCard({
+  skill,
+  toolId,
+  getOrg,
+  getTool,
+}: {
+  skill: Skill;
+  toolId: string;
+  getOrg: (id: string) => Organization | undefined;
+  getTool: (id: string) => Tool | undefined;
+}) {
+  const toolApproval = skill.approvals.find((a) =>
+    a.installConfigs.some((ic) => ic.tool === toolId),
+  );
+  const installConfig = toolApproval?.installConfigs.find(
+    (ic) => ic.tool === toolId,
+  );
+  const toolObj = getTool(toolId);
+
+  return (
+    <div className="server-card">
+      <div className="server-card-header">
+        <h3>{skill.name}</h3>
+        {skill.approvals.map((a) => {
+          const org = getOrg(a.organizationId);
+          return org ? (
+            <span key={a.organizationId} className="badge badge-org">
+              {org.name}
+            </span>
+          ) : undefined;
+        })}
+      </div>
+      <p>{skill.description}</p>
+      {installConfig?.installUrl && (
+        <div className="tool-install-configs">
+          <div className="install-config">
+            {toolObj && <div className="label">Tool: {toolObj.name}</div>}
+            <a
+              href={installConfig.installUrl}
+              className="install-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Install
+            </a>
+          </div>
+        </div>
+      )}
+      <div className="server-card-meta">
+        <span>{skill.skillId}</span>
+        <span>Hash: {skill.contentHash}</span>
+      </div>
     </div>
   );
 }

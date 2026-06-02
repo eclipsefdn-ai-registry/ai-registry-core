@@ -18,6 +18,7 @@ function loadSchema(name: string): object {
 
 const validateOrg = ajv.compile(loadSchema("organization.schema.json"));
 const validateAppr = ajv.compile(loadSchema("mcp-approval.schema.json"));
+const validateSkillAppr = ajv.compile(loadSchema("skill-approval.schema.json"));
 
 // --- Types ---
 
@@ -38,6 +39,18 @@ export interface ApprovalEntry {
   data: ApprovalData;
 }
 
+export interface SkillApprovalData {
+  skillId: string;
+  date: string;
+  source: { url: string; path?: string };
+  installConfigs: { tool: string }[];
+}
+
+export interface SkillApprovalEntry {
+  file: string;
+  data: SkillApprovalData;
+}
+
 export interface VendorValidationResult {
   valid: boolean;
   errors: string[];
@@ -48,6 +61,7 @@ export interface VendorValidationResult {
     raw: unknown;
   };
   approvals: ApprovalEntry[];
+  skillApprovals: SkillApprovalEntry[];
 }
 
 // --- Schema validation ---
@@ -74,8 +88,16 @@ export function validateApproval(data: unknown): ValidationResult {
   };
 }
 
+export function validateSkillApproval(data: unknown): ValidationResult {
+  const valid = validateSkillAppr(data);
+  return {
+    valid: !!valid,
+    errors: valid ? [] : formatErrors(validateSkillAppr),
+  };
+}
+
 export function checkToolIds(
-  approval: ApprovalData,
+  approval: { installConfigs: { tool: string }[] },
   toolIds: Set<string>,
 ): string[] {
   const errors: string[] = [];
@@ -97,12 +119,14 @@ export function validateVendorData(
   orgData: unknown,
   approvals: ApprovalEntry[],
   expectedVendorId?: string,
+  skillApprovals: SkillApprovalEntry[] = [],
 ): VendorValidationResult {
   const result: VendorValidationResult = {
     valid: true,
     errors: [],
     warnings: [],
     approvals: [],
+    skillApprovals: [],
   };
 
   const orgResult = validateOrganization(orgData);
@@ -168,6 +192,43 @@ export function validateVendorData(
     result.approvals.push({ file, data: approval });
   }
 
+  // Skill approvals
+  const seenSkillIds = new Set<string>();
+  for (const { file, data } of skillApprovals) {
+    const skillResult = validateSkillApproval(data);
+    if (!skillResult.valid) {
+      result.valid = false;
+      result.errors.push(`${file}: ${skillResult.errors.join(", ")}`);
+      continue;
+    }
+
+    const skill = data as SkillApprovalData;
+
+    if (seenSkillIds.has(skill.skillId)) {
+      result.valid = false;
+      result.errors.push(
+        `${file}: duplicate approval for skillId "${skill.skillId}"`,
+      );
+      continue;
+    }
+    seenSkillIds.add(skill.skillId);
+
+    const expectedFilename = skill.skillId.replace(/\//g, "--") + ".json";
+    if (file !== expectedFilename) {
+      result.warnings.push(
+        `${file} — filename should be "${expectedFilename}"`,
+      );
+    }
+
+    const toolErrors = checkToolIds(skill, toolIds);
+    for (const e of toolErrors) {
+      result.valid = false;
+      result.errors.push(`${file}: ${e}`);
+    }
+
+    result.skillApprovals.push({ file, data: skill });
+  }
+
   return result;
 }
 
@@ -188,6 +249,7 @@ export function validateVendorFiles(
       errors: ["organization.json not found"],
       warnings: [],
       approvals: [],
+      skillApprovals: [],
     };
   }
 
@@ -203,6 +265,7 @@ export function validateVendorFiles(
       ],
       warnings: [],
       approvals: [],
+      skillApprovals: [],
     };
   }
 
@@ -222,13 +285,44 @@ export function validateVendorFiles(
           ],
           warnings: [],
           approvals: [],
+          skillApprovals: [],
         };
       }
       approvals.push({ file, data: data as ApprovalData });
     }
   }
 
-  return validateVendorData(orgRaw, approvals, expectedVendorId);
+  const skillApprovals: SkillApprovalEntry[] = [];
+  const skillsDir = resolve(repoDir, "skills");
+  if (existsSync(skillsDir)) {
+    for (const file of readdirSync(skillsDir).filter((f) =>
+      f.endsWith(".json"),
+    )) {
+      let data: unknown;
+      try {
+        data = JSON.parse(readFileSync(join(skillsDir, file), "utf-8"));
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "";
+        return {
+          valid: false,
+          errors: [
+            `skills/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+          ],
+          warnings: [],
+          approvals: [],
+          skillApprovals: [],
+        };
+      }
+      skillApprovals.push({ file, data: data as SkillApprovalData });
+    }
+  }
+
+  return validateVendorData(
+    orgRaw,
+    approvals,
+    expectedVendorId,
+    skillApprovals,
+  );
 }
 
 // --- Vendor ID lookup ---
@@ -307,6 +401,27 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
         const message = err instanceof Error ? err.message : String(err);
         console.warn(
           `  WARNING: ${file} — could not reach Anthropic MCP registry: ${message}`,
+        );
+      }
+    }
+  }
+
+  if (result.skillApprovals.length > 0) {
+    console.log("\nPhase 3: Skill source verification");
+    for (const { file, data } of result.skillApprovals) {
+      try {
+        const { fetchSkillMetadata } = await import("./skill-source.js");
+        const metadata = await fetchSkillMetadata(
+          data.source.url,
+          data.source.path,
+        );
+        console.log(`  PASS: ${file}`);
+        console.log(`    Name: ${metadata.name}`);
+        console.log(`    Description: ${metadata.description}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `  WARNING: ${file} — could not verify skill source: ${message}`,
         );
       }
     }

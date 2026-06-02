@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { validateVendorFiles } from "./validate.js";
 import { lookupServer, type ServerLookupResult } from "./anthropic-registry.js";
+import { enrichSkillMetadata } from "./skill-source.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -77,10 +78,39 @@ export interface McpEntry {
   approvals: Approval[];
 }
 
+export interface SkillInstallConfig {
+  tool: string;
+  installUrl?: string;
+}
+
+export interface SkillApprovalData {
+  skillId: string;
+  date: string;
+  source: { url: string; path?: string };
+  installConfigs: SkillInstallConfig[];
+}
+
+export interface SkillApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: SkillInstallConfig[];
+}
+
+export interface SkillEntry {
+  skillId: string;
+  name: string;
+  description: string;
+  source: { url: string; path?: string };
+  contentHash: string;
+  approvals: SkillApproval[];
+}
+
 export interface ConsolidatedOutput {
   organizations: Organization[];
   tools: Tool[];
   mcp: McpEntry[];
+  skills: SkillEntry[];
 }
 
 // --- Pure logic (testable) ---
@@ -168,6 +198,59 @@ export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
     }));
 }
 
+export function addSkillApproval(
+  approvalData: SkillApprovalData,
+  organizationId: string,
+  output: ConsolidatedOutput,
+): void {
+  let skillEntry = output.skills.find(
+    (s) => s.skillId === approvalData.skillId,
+  );
+  if (!skillEntry) {
+    skillEntry = {
+      skillId: approvalData.skillId,
+      name: approvalData.skillId,
+      description: "",
+      source: approvalData.source,
+      contentHash: "",
+      approvals: [],
+    };
+    output.skills.push(skillEntry);
+  }
+
+  const configHash = createHash("sha256")
+    .update(JSON.stringify(approvalData))
+    .digest("hex")
+    .slice(0, 12);
+
+  const approval: SkillApproval = {
+    organizationId,
+    date: approvalData.date,
+    configHash,
+    installConfigs: approvalData.installConfigs,
+  };
+  skillEntry.approvals.push(approval);
+}
+
+export function buildToolSkillView(
+  toolId: string,
+  skills: SkillEntry[],
+): SkillEntry[] {
+  return skills
+    .filter((skill) =>
+      skill.approvals.some((a) =>
+        a.installConfigs.some((ic) => ic.tool === toolId),
+      ),
+    )
+    .map((skill) => ({
+      ...skill,
+      approvals: skill.approvals.map((a) => ({
+        ...a,
+        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
+      })),
+    }));
+}
+
 // --- Step 1: Collect vendor data (I/O + validation, no network) ---
 
 function loadAndValidateVendors(): VendorEntry[] {
@@ -236,7 +319,12 @@ function collectVendorData(
 
   for (const { data } of result.approvals) {
     addApproval(data, vendorId, output);
-    console.log(`  Collected: ${data.serverId}`);
+    console.log(`  Collected MCP: ${data.serverId}`);
+  }
+
+  for (const { data } of result.skillApprovals) {
+    addSkillApproval(data as SkillApprovalData, vendorId, output);
+    console.log(`  Collected skill: ${data.skillId}`);
   }
 }
 
@@ -290,13 +378,17 @@ function writeOutput(output: ConsolidatedOutput): void {
 
   for (const tool of output.tools) {
     const toolPath = resolve(outputDir, `${tool.id}.json`);
-    writeJson(toolPath, { mcp: buildToolView(tool.id, output.mcp) });
+    writeJson(toolPath, {
+      mcp: buildToolView(tool.id, output.mcp),
+      skills: buildToolSkillView(tool.id, output.skills),
+    });
     console.log(`Written: ${toolPath}`);
   }
 
   console.log(`\n  Organizations: ${output.organizations.length}`);
   console.log(`  Tools: ${output.tools.length}`);
   console.log(`  MCP servers: ${output.mcp.length}`);
+  console.log(`  Skills: ${output.skills.length}`);
 }
 
 // --- Main ---
@@ -309,6 +401,7 @@ export async function main(): Promise<void> {
     organizations: [],
     tools: [],
     mcp: [],
+    skills: [],
   };
 
   // Step 1: Collect all vendor data (fails build on any error)
@@ -340,10 +433,14 @@ export async function main(): Promise<void> {
     seenToolIds.add(tool.id);
   }
 
-  // Step 2: Enrich with Anthropic registry (fails build on registry errors)
+  // Step 2a: Enrich MCP with Anthropic registry (fails build on registry errors)
   await enrichRegistryMetadata(output);
+
+  // Step 2b: Enrich skills with source metadata (skips unreachable sources)
+  output.skills = enrichSkillMetadata(output.skills);
 
   // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));
+  output.skills.sort((a, b) => a.skillId.localeCompare(b.skillId));
   writeOutput(output);
 }
