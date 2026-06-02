@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { checkToolIds, validateVendorData } from "./validate.js";
+import {
+  checkToolIds,
+  validateVendorData,
+  type SkillApprovalEntry,
+} from "./validate.js";
 
 // --- checkToolIds ---
 
@@ -9,11 +13,7 @@ describe("checkToolIds", () => {
 
   it("returns no errors for valid tool IDs", () => {
     const errors = checkToolIds(
-      {
-        serverId: "io.example/server",
-        date: "2026-05-01",
-        installConfigs: [{ tool: "theia-ide" }, { tool: "other-tool" }],
-      },
+      { installConfigs: [{ tool: "theia-ide" }, { tool: "other-tool" }] },
       toolIds,
     );
     assert.equal(errors.length, 0);
@@ -21,11 +21,7 @@ describe("checkToolIds", () => {
 
   it("reports tool IDs not in organization", () => {
     const errors = checkToolIds(
-      {
-        serverId: "io.example/server",
-        date: "2026-05-01",
-        installConfigs: [{ tool: "nonexistent" }],
-      },
+      { installConfigs: [{ tool: "nonexistent" }] },
       toolIds,
     );
     assert.equal(errors.length, 1);
@@ -35,8 +31,6 @@ describe("checkToolIds", () => {
   it("reports multiple invalid tool IDs", () => {
     const errors = checkToolIds(
       {
-        serverId: "io.example/server",
-        date: "2026-05-01",
         installConfigs: [
           { tool: "bad-a" },
           { tool: "theia-ide" },
@@ -178,5 +172,113 @@ describe("validateVendorData", () => {
     const result = validateVendorData(validOrg, []);
     assert.equal(result.organization?.id, "test-vendor");
     assert.equal(result.organization?.tools.length, 1);
+  });
+});
+
+// --- Skill approval validation ---
+
+function skillApproval(skillId = "io.example/my-skill"): SkillApprovalEntry {
+  return {
+    file: skillId.replace(/\//g, "--") + ".json",
+    data: {
+      skillId,
+      date: "2026-06-01",
+      source: {
+        url: "https://github.com/example/skills.git",
+        path: "skills/my-skill",
+      },
+      installConfigs: [{ tool: "test-tool" }],
+    },
+  };
+}
+
+describe("validateVendorData — skill approvals", () => {
+  it("passes for valid org with skill approvals", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      skillApproval(),
+    ]);
+    assert.equal(result.valid, true);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.skillApprovals.length, 1);
+  });
+
+  it("passes with both MCP and skill approvals", () => {
+    const result = validateVendorData(validOrg, [approval()], undefined, [
+      skillApproval(),
+    ]);
+    assert.equal(result.valid, true);
+    assert.equal(result.approvals.length, 1);
+    assert.equal(result.skillApprovals.length, 1);
+  });
+
+  it("fails when skill approval fails schema validation", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      { file: "bad.json", data: { skillId: "x" } as never },
+    ]);
+    assert.equal(result.valid, false);
+  });
+
+  it("fails on duplicate skillId across skill approvals", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      skillApproval("io.example/my-skill"),
+      {
+        file: "io.example--my-skill-copy.json",
+        data: {
+          skillId: "io.example/my-skill",
+          date: "2026-06-02",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/my-skill",
+          },
+          installConfigs: [{ tool: "test-tool" }],
+        },
+      },
+    ]);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("duplicate approval")));
+  });
+
+  it("fails when tool ID in skill approval is not in organization", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example--my-skill.json",
+        data: {
+          skillId: "io.example/my-skill",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/my-skill",
+          },
+          installConfigs: [{ tool: "nonexistent-tool" }],
+        },
+      },
+    ]);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("nonexistent-tool")));
+  });
+
+  it("warns on skill filename mismatch", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "wrong-name.json",
+        data: {
+          skillId: "io.example/my-skill",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/my-skill",
+          },
+          installConfigs: [{ tool: "test-tool" }],
+        },
+      },
+    ]);
+    assert.equal(result.valid, true);
+    assert.ok(result.warnings.some((w) => w.includes("filename should be")));
+  });
+
+  it("backward compatible — works without skill approvals param", () => {
+    const result = validateVendorData(validOrg, [approval()]);
+    assert.equal(result.valid, true);
+    assert.equal(result.skillApprovals.length, 0);
   });
 });

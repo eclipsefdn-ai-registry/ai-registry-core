@@ -3,15 +3,19 @@ import assert from "node:assert/strict";
 import {
   addOrganization,
   addApproval,
+  addSkillApproval,
   enrichWithRegistryData,
   buildToolView,
+  buildToolSkillView,
   type ConsolidatedOutput,
   type ApprovalData,
+  type SkillApprovalData,
   type McpEntry,
+  type SkillEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
-  return { organizations: [], tools: [], mcp: [] };
+  return { organizations: [], tools: [], mcp: [], skills: [] };
 }
 
 describe("addOrganization", () => {
@@ -360,6 +364,155 @@ describe("buildToolView", () => {
   it("does not mutate the original input", () => {
     const original = servers();
     buildToolView("tool-a", original);
+
+    assert.equal(original.length, 2);
+    assert.equal(original[0].approvals[1].installConfigs.length, 1);
+  });
+});
+
+// --- Skill support ---
+
+describe("addSkillApproval", () => {
+  const skillApproval: SkillApprovalData = {
+    skillId: "io.example/my-skill",
+    date: "2026-06-01",
+    source: {
+      url: "https://github.com/example/skills.git",
+      path: "skills/my-skill",
+    },
+    installConfigs: [
+      {
+        tool: "tool-a",
+        installUrl: "tool-a://install-skill?id=io.example/my-skill",
+      },
+    ],
+  };
+
+  it("creates a new skill entry", () => {
+    const output = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output);
+
+    assert.equal(output.skills.length, 1);
+    assert.equal(output.skills[0].skillId, "io.example/my-skill");
+    assert.equal(output.skills[0].name, "io.example/my-skill");
+    assert.equal(output.skills[0].description, "");
+    assert.equal(output.skills[0].contentHash, "");
+    assert.equal(output.skills[0].approvals.length, 1);
+    assert.equal(output.skills[0].approvals[0].organizationId, "acme");
+  });
+
+  it("merges approvals from multiple vendors for the same skill", () => {
+    const output = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output);
+    addSkillApproval(
+      { ...skillApproval, installConfigs: [{ tool: "tool-b" }] },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.skills.length, 1);
+    assert.equal(output.skills[0].approvals.length, 2);
+    assert.equal(output.skills[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("produces a stable configHash", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output1);
+    addSkillApproval(skillApproval, "acme", output2);
+
+    assert.equal(
+      output1.skills[0].approvals[0].configHash,
+      output2.skills[0].approvals[0].configHash,
+    );
+  });
+
+  it("produces different configHash when approval data changes", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output1);
+    addSkillApproval({ ...skillApproval, date: "2026-06-02" }, "acme", output2);
+
+    assert.notEqual(
+      output1.skills[0].approvals[0].configHash,
+      output2.skills[0].approvals[0].configHash,
+    );
+  });
+});
+
+describe("buildToolSkillView", () => {
+  function skills(): SkillEntry[] {
+    return [
+      {
+        skillId: "io.example/skill-1",
+        name: "Skill 1",
+        description: "For both tools",
+        source: {
+          url: "https://github.com/example/skills.git",
+          path: "skills/skill-1",
+        },
+        contentHash: "abc123",
+        approvals: [
+          {
+            organizationId: "acme",
+            date: "2026-06-01",
+            configHash: "aaa",
+            installConfigs: [
+              { tool: "tool-a", installUrl: "tool-a://install" },
+            ],
+          },
+          {
+            organizationId: "other",
+            date: "2026-06-02",
+            configHash: "bbb",
+            installConfigs: [{ tool: "tool-b" }],
+          },
+        ],
+      },
+      {
+        skillId: "io.example/skill-2",
+        name: "Skill 2",
+        description: "For tool-b only",
+        source: {
+          url: "https://github.com/example/skills.git",
+          path: "skills/skill-2",
+        },
+        contentHash: "def456",
+        approvals: [
+          {
+            organizationId: "other",
+            date: "2026-06-01",
+            configHash: "ccc",
+            installConfigs: [{ tool: "tool-b" }],
+          },
+        ],
+      },
+    ];
+  }
+
+  it("only includes skills approved for the target tool", () => {
+    const view = buildToolSkillView("tool-a", skills());
+    assert.equal(view.length, 1);
+    assert.equal(view[0].skillId, "io.example/skill-1");
+  });
+
+  it("filters installConfigs to the target tool", () => {
+    const view = buildToolSkillView("tool-a", skills());
+    const acmeApproval = view[0].approvals.find(
+      (a) => a.organizationId === "acme",
+    )!;
+    assert.equal(acmeApproval.installConfigs.length, 1);
+    assert.equal(acmeApproval.installConfigs[0].tool, "tool-a");
+  });
+
+  it("preserves all approvals on included skills", () => {
+    const view = buildToolSkillView("tool-a", skills());
+    assert.equal(view[0].approvals.length, 2);
+  });
+
+  it("does not mutate the original input", () => {
+    const original = skills();
+    buildToolSkillView("tool-a", original);
 
     assert.equal(original.length, 2);
     assert.equal(original[0].approvals[1].installConfigs.length, 1);

@@ -37,8 +37,30 @@ export interface McpServer {
   approvals: Approval[];
 }
 
+export interface SkillInstallConfig {
+  tool: string;
+  installUrl?: string;
+}
+
+export interface SkillApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: SkillInstallConfig[];
+}
+
+export interface Skill {
+  skillId: string;
+  name: string;
+  description: string;
+  source: { url: string; path?: string };
+  contentHash: string;
+  approvals: SkillApproval[];
+}
+
 export interface RegistryData {
   organizations: Organization[];
   tools: Tool[];
   mcp: McpServer[];
+  skills: Skill[];
 }

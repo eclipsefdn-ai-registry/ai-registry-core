@@ -42,6 +42,7 @@ interface OrgsData {
 
 interface ToolData {
   mcp: RegistryData["mcp"];
+  skills: RegistryData["skills"];
 }
 
 export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
@@ -74,6 +75,7 @@ export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
           organizations: orgsData.organizations,
           tools: orgsData.tools,
           mcp: toolData.mcp,
+          skills: toolData.skills ?? [],
         });
         setLoading(false);
       })
