@@ -173,6 +173,41 @@ describe("validateVendorData", () => {
     assert.equal(result.organization?.id, "test-vendor");
     assert.equal(result.organization?.tools.length, 1);
   });
+
+  it("passes for approval without installConfigs", () => {
+    const result = validateVendorData(validOrg, [
+      {
+        file: "io.example--server.json",
+        data: {
+          serverId: "io.example/server",
+          date: "2026-05-01",
+        },
+      },
+    ]);
+    assert.equal(result.valid, true);
+    assert.equal(result.approvals.length, 1);
+  });
+
+  it("passes for organization without tools", () => {
+    const curatorOrg = {
+      id: "curator",
+      name: "Curator Org",
+      description: "An org without tools",
+      website: "https://curator.com",
+    };
+    const result = validateVendorData(curatorOrg, [
+      {
+        file: "io.example--server.json",
+        data: {
+          serverId: "io.example/server",
+          date: "2026-05-01",
+        },
+      },
+    ]);
+    assert.equal(result.valid, true);
+    assert.equal(result.organization?.tools.length, 0);
+    assert.equal(result.approvals.length, 1);
+  });
 });
 
 // --- Skill approval validation ---
@@ -274,6 +309,24 @@ describe("validateVendorData — skill approvals", () => {
     ]);
     assert.equal(result.valid, true);
     assert.ok(result.warnings.some((w) => w.includes("filename should be")));
+  });
+
+  it("passes for skill approval without installConfigs", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example--my-skill.json",
+        data: {
+          skillId: "io.example/my-skill",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/my-skill",
+          },
+        },
+      },
+    ]);
+    assert.equal(result.valid, true);
+    assert.equal(result.skillApprovals.length, 1);
   });
 
   it("backward compatible — works without skill approvals param", () => {

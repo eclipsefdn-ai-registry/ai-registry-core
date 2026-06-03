@@ -29,7 +29,7 @@ interface OrganizationData {
   description: string;
   website: string;
   color?: string;
-  tools: { id: string; name: string }[];
+  tools?: { id: string; name: string }[];
 }
 
 export interface Organization {
@@ -58,7 +58,7 @@ export interface ApprovalData {
   serverId: string;
   date: string;
   version?: string;
-  installConfigs: InstallConfig[];
+  installConfigs?: InstallConfig[];
 }
 
 export interface Approval {
@@ -67,6 +67,7 @@ export interface Approval {
   version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
+  // installConfigs is always present in output (defaults to [])
 }
 
 export interface McpEntry {
@@ -87,7 +88,7 @@ export interface SkillApprovalData {
   skillId: string;
   date: string;
   source: { url: string; path?: string };
-  installConfigs: SkillInstallConfig[];
+  installConfigs?: SkillInstallConfig[];
 }
 
 export interface SkillApproval {
@@ -95,6 +96,7 @@ export interface SkillApproval {
   date: string;
   configHash: string;
   installConfigs: SkillInstallConfig[];
+  // installConfigs is always present in output (defaults to [])
 }
 
 export interface SkillEntry {
@@ -119,7 +121,7 @@ export function addOrganization(
   orgData: OrganizationData,
   output: ConsolidatedOutput,
 ): void {
-  const { tools: orgTools, ...orgMeta } = orgData;
+  const { tools: orgTools = [], ...orgMeta } = orgData;
   output.organizations.push(orgMeta);
 
   for (const tool of orgTools) {
@@ -157,7 +159,7 @@ export function addApproval(
     organizationId,
     date: approvalData.date,
     configHash,
-    installConfigs: approvalData.installConfigs,
+    installConfigs: approvalData.installConfigs ?? [],
   };
   if (approvalData.version) {
     approval.version = approvalData.version;
@@ -227,7 +229,7 @@ export function addSkillApproval(
     organizationId,
     date: approvalData.date,
     configHash,
-    installConfigs: approvalData.installConfigs,
+    installConfigs: approvalData.installConfigs ?? [],
   };
   skillEntry.approvals.push(approval);
 }

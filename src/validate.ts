@@ -31,7 +31,7 @@ export interface ApprovalData {
   serverId: string;
   date: string;
   version?: string;
-  installConfigs: { tool: string }[];
+  installConfigs?: { tool: string }[];
 }
 
 export interface ApprovalEntry {
@@ -43,7 +43,7 @@ export interface SkillApprovalData {
   skillId: string;
   date: string;
   source: { url: string; path?: string };
-  installConfigs: { tool: string }[];
+  installConfigs?: { tool: string }[];
 }
 
 export interface SkillApprovalEntry {
@@ -97,11 +97,11 @@ export function validateSkillApproval(data: unknown): ValidationResult {
 }
 
 export function checkToolIds(
-  approval: { installConfigs: { tool: string }[] },
+  approval: { installConfigs?: { tool: string }[] },
   toolIds: Set<string>,
 ): string[] {
   const errors: string[] = [];
-  for (const ic of approval.installConfigs) {
+  for (const ic of approval.installConfigs ?? []) {
     if (ic.tool && !toolIds.has(ic.tool)) {
       errors.push(`tool "${ic.tool}" not found in organization.json`);
     }
@@ -136,7 +136,7 @@ export function validateVendorData(
     return result;
   }
 
-  const org = orgData as { id: string; tools: { id: string }[] };
+  const org = orgData as { id: string; tools?: { id: string }[] };
   if (expectedVendorId && org.id !== expectedVendorId) {
     result.valid = false;
     result.errors.push(
@@ -145,10 +145,11 @@ export function validateVendorData(
     return result;
   }
 
-  result.organization = { id: org.id, tools: org.tools, raw: orgData };
+  const orgTools = org.tools ?? [];
+  result.organization = { id: org.id, tools: orgTools, raw: orgData };
 
   const toolIds = new Set<string>();
-  for (const tool of org.tools) {
+  for (const tool of orgTools) {
     if (toolIds.has(tool.id)) {
       result.valid = false;
       result.errors.push(`organization.json: duplicate tool ID "${tool.id}"`);

@@ -186,6 +186,18 @@ describe("addApproval", () => {
 
     assert.equal("version" in output.mcp[0].approvals[0], false);
   });
+
+  it("defaults installConfigs to empty array when omitted", () => {
+    const output = emptyOutput();
+    const approval: ApprovalData = {
+      serverId: "io.example/server",
+      date: "2026-05-01",
+    };
+    addApproval(approval, "curator", output);
+
+    assert.equal(output.mcp[0].approvals[0].installConfigs.length, 0);
+    assert.equal(output.mcp[0].approvals[0].organizationId, "curator");
+  });
 });
 
 describe("enrichWithRegistryData", () => {
