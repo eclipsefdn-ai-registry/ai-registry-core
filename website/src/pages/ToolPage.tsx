@@ -4,6 +4,7 @@ import { useToolRegistryData } from "../hooks/useRegistryData";
 import { InstallConfigView } from "../components/ServerDetail";
 import { NotFoundPage } from "./NotFoundPage";
 import type { McpServer, Skill, Organization, Tool } from "../types";
+import { sanitizeUrl, safeCssColor } from "../sanitize";
 
 export function ToolPage() {
   const { toolId } = useParams<{ toolId: string }>();
@@ -74,10 +75,10 @@ export function ToolPage() {
           &larr; All tools
         </Link>
         <div className="tool-header-title">
-          {org?.color && (
+          {safeCssColor(org?.color) && (
             <span
               className="org-color-dot org-color-dot-lg"
-              style={{ backgroundColor: org.color }}
+              style={{ backgroundColor: safeCssColor(org?.color) }}
             />
           )}
           <h1>{tool?.name ?? toolId}</h1>
@@ -299,12 +300,12 @@ function ToolSkillCard({
         })}
       </div>
       <p>{skill.description}</p>
-      {installConfig?.installUrl && (
+      {sanitizeUrl(installConfig?.installUrl) && (
         <div className="tool-install-configs">
           <div className="install-config">
             {toolObj && <div className="label">Tool: {toolObj.name}</div>}
             <a
-              href={installConfig.installUrl}
+              href={sanitizeUrl(installConfig?.installUrl)}
               className="install-link"
               onClick={(e) => e.stopPropagation()}
             >

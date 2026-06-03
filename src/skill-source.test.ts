@@ -33,9 +33,10 @@ description: >
 Body.`;
     const result = parseSkillFrontmatter(content);
     assert.equal(result.name, "complex-skill");
+    // YAML > (folded, clip) keeps a trailing newline
     assert.equal(
       result.description,
-      "A skill that does something across multiple lines.",
+      "A skill that does something across multiple lines.\n",
     );
   });
 
@@ -66,6 +67,67 @@ Body.`;
     const result = parseSkillFrontmatter(content);
     assert.equal(result.name, "name-only");
     assert.equal(result.description, "");
+  });
+
+  it("extracts multi-line description with >- syntax", () => {
+    const content = `---
+name: folded-strip
+description: >-
+  A skill that does
+  something across
+  multiple lines.
+---
+
+Body.`;
+    const result = parseSkillFrontmatter(content);
+    assert.equal(result.name, "folded-strip");
+    assert.equal(
+      result.description,
+      "A skill that does something across multiple lines.",
+    );
+  });
+
+  it("extracts multi-line description with |- syntax", () => {
+    const content = `---
+name: literal-strip
+description: |-
+  Line one.
+  Line two.
+  Line three.
+---
+
+Body.`;
+    const result = parseSkillFrontmatter(content);
+    assert.equal(result.name, "literal-strip");
+    assert.equal(result.description, "Line one.\nLine two.\nLine three.");
+  });
+
+  it("handles description with special characters and markdown", () => {
+    const content = `---
+name: special-chars
+description: >-
+  **TRIGGER: about to populate \`AskUserQuestion\` options.**
+  Use "quotes" and 'single quotes' and em-dashes — freely.
+---
+
+Body.`;
+    const result = parseSkillFrontmatter(content);
+    assert.equal(result.name, "special-chars");
+    assert.ok(result.description.includes("**TRIGGER:"));
+    assert.ok(result.description.includes("`AskUserQuestion`"));
+    assert.ok(result.description.includes("—"));
+  });
+
+  it("handles quoted description values", () => {
+    const content = `---
+name: quoted
+description: "A description with: colons and # hashes"
+---
+
+Body.`;
+    const result = parseSkillFrontmatter(content);
+    assert.equal(result.name, "quoted");
+    assert.equal(result.description, "A description with: colons and # hashes");
   });
 });
 
