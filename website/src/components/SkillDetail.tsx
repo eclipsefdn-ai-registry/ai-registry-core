@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import type { Skill, Organization, Tool, SkillApproval } from "../types";
 import { sanitizeUrl } from "../sanitize";
 
@@ -17,22 +18,39 @@ export function SkillDetail({
     : skill.source.url.replace(/\.git$/, "");
 
   return (
-    <div className="server-detail">
-      <button className="back-link" onClick={onBack}>
-        &larr; Back to list
+    <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
+      <button
+        className="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4"
+        onClick={onBack}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to list
       </button>
-      <h2>{skill.name}</h2>
-      <p>{skill.description}</p>
-      <div className="meta-row">
-        <span>{skill.skillId}</span>
-        <span>Hash: {skill.contentHash}</span>
-        <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
-          Source
-        </a>
+      <h2 className="text-xl font-bold mb-1">{skill.name}</h2>
+      <p className="text-muted-foreground mb-4">{skill.description}</p>
+      <div className="flex gap-3 mb-6 flex-wrap items-center text-sm">
+        <span className="text-muted-foreground font-mono text-xs">
+          {skill.skillId}
+        </span>
+        <span className="text-muted-foreground text-xs">
+          Hash: {skill.contentHash}
+        </span>
+        {sanitizeUrl(sourceUrl) && (
+          <a
+            href={sanitizeUrl(sourceUrl)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline text-sm"
+          >
+            Source
+          </a>
+        )}
       </div>
 
-      <div className="approvals-section">
-        <h3>Approvals ({skill.approvals.length})</h3>
+      <div>
+        <h3 className="text-base font-semibold mb-3">
+          Approvals ({skill.approvals.length})
+        </h3>
         {skill.approvals.map((approval, i) => (
           <SkillApprovalCard
             key={i}
@@ -56,28 +74,30 @@ function SkillApprovalCard({
   getTool: (id: string) => Tool | undefined;
 }) {
   return (
-    <div className="approval-card">
-      <div className="approval-card-header">
-        <span
-          className="badge badge-org"
-          title={
-            org ? `Approved by ${org.name}` : "Approved by this organization"
-          }
-        >
+    <div className="bg-background border border-border rounded-lg p-4 mb-3">
+      <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
+        <span className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
           {org?.name ?? approval.organizationId}
         </span>
-        <span>Approved: {approval.date}</span>
+        <span className="text-muted-foreground">Approved: {approval.date}</span>
       </div>
       {approval.installConfigs.map((config, j) => {
         const tool = getTool(config.tool);
         return (
-          <div key={j} className="install-config">
-            {tool && <div className="label">Tool: {tool.name}</div>}
+          <div
+            key={j}
+            className="mt-2 p-3 bg-card border border-border rounded-md text-sm"
+          >
+            {tool && (
+              <div className="font-medium text-muted-foreground mb-1">
+                Tool: {tool.name}
+              </div>
+            )}
             {sanitizeUrl(config.installUrl) && (
               <div>
                 <a
                   href={sanitizeUrl(config.installUrl)}
-                  className="install-link"
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
                   onClick={(e) => e.stopPropagation()}
                 >
                   Install

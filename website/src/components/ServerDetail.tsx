@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ShieldCheck, AlertTriangle, ArrowLeft } from "lucide-react";
 import type {
   McpServer,
   Organization,
@@ -20,34 +21,42 @@ export function ServerDetail({
   onBack: () => void;
 }) {
   return (
-    <div className="server-detail">
-      <button className="back-link" onClick={onBack}>
-        &larr; Back to list
+    <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
+      <button
+        className="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4"
+        onClick={onBack}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to list
       </button>
-      <h2>{server.name}</h2>
-      <p>{server.description}</p>
-      <div className="meta-row">
+      <h2 className="text-xl font-bold mb-1">{server.name}</h2>
+      <p className="text-muted-foreground mb-4">{server.description}</p>
+      <div className="flex gap-3 mb-6 flex-wrap items-center text-sm">
         {server.mcpRegistryVerified ? (
-          <span
-            className="badge badge-verified"
-            title="This server exists in the Anthropic MCP registry"
-          >
+          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            <ShieldCheck className="h-3 w-3" />
             Verified
           </span>
         ) : (
-          <span
-            className="badge badge-unverified"
-            title="This server was not found in the Anthropic MCP registry"
-          >
+          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20">
+            <AlertTriangle className="h-3 w-3" />
             Unverified
           </span>
         )}
-        <span>{server.serverId}</span>
-        {server.latestVersion && <span>Latest: {server.latestVersion}</span>}
+        <span className="text-muted-foreground font-mono text-xs">
+          {server.serverId}
+        </span>
+        {server.latestVersion && (
+          <span className="text-muted-foreground">
+            Latest: {server.latestVersion}
+          </span>
+        )}
       </div>
 
-      <div className="approvals-section">
-        <h3>Approvals ({server.approvals.length})</h3>
+      <div>
+        <h3 className="text-base font-semibold mb-3">
+          Approvals ({server.approvals.length})
+        </h3>
         {server.approvals.map((approval, i) => (
           <ApprovalCard
             key={i}
@@ -71,20 +80,17 @@ export function ApprovalCard({
   getTool: (id: string) => Tool | undefined;
 }) {
   return (
-    <div className="approval-card">
-      <div className="approval-card-header">
-        <span
-          className="badge badge-org"
-          title={
-            org
-              ? `Approved by ${org.name} — this organization has reviewed and endorsed this server for use with their tools`
-              : "Approved by this organization"
-          }
-        >
+    <div className="bg-background border border-border rounded-lg p-4 mb-3">
+      <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
+        <span className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
           {org?.name ?? approval.organizationId}
         </span>
-        <span>Approved: {approval.date}</span>
-        {approval.version && <span>Version: {approval.version}</span>}
+        <span className="text-muted-foreground">Approved: {approval.date}</span>
+        {approval.version && (
+          <span className="text-muted-foreground">
+            Version: {approval.version}
+          </span>
+        )}
       </div>
       {approval.installConfigs.map((config, j) => (
         <InstallConfigView key={j} config={config} getTool={getTool} />
@@ -119,13 +125,17 @@ export function InstallConfigView({
   };
 
   return (
-    <div className="install-config">
-      {tool && <div className="label">Tool: {tool.name}</div>}
+    <div className="mt-2 p-3 bg-card border border-border rounded-md text-sm">
+      {tool && (
+        <div className="font-medium text-muted-foreground mb-1">
+          Tool: {tool.name}
+        </div>
+      )}
       {sanitizeUrl(config.installUrl) && (
         <div>
           <a
             href={sanitizeUrl(config.installUrl)}
-            className="install-link"
+            className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
             onClick={(e) => e.stopPropagation()}
           >
             Install
@@ -133,11 +143,12 @@ export function InstallConfigView({
         </div>
       )}
       {sanitizeUrl(config.openVsxUrl) && (
-        <div>
+        <div className="mt-1">
           <a
             href={sanitizeUrl(config.openVsxUrl)}
             target="_blank"
             rel="noopener noreferrer"
+            className="text-primary hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             Open VSX Extension
@@ -145,26 +156,35 @@ export function InstallConfigView({
         </div>
       )}
       {configString && (
-        <div className="config-block">
-          <div className="config-block-header">
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-2">
             <button
-              className="config-toggle"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 setConfigExpanded(!configExpanded);
               }}
             >
-              {configExpanded ? "▾" : "▸"} Configuration
+              {configExpanded ? "\u25BE" : "\u25B8"} Configuration
             </button>
-            <button className="config-copy" onClick={handleCopy}>
+            <button
+              className="text-xs px-2 py-0.5 border border-border rounded hover:border-primary hover:text-primary transition-colors text-muted-foreground"
+              onClick={handleCopy}
+            >
               {copied ? "Copied!" : "Copy"}
             </button>
           </div>
-          {configExpanded && <pre>{configString}</pre>}
+          {configExpanded && (
+            <pre className="mt-2 bg-[#1e293b] text-[#e2e8f0] p-3 rounded-md overflow-x-auto text-xs leading-relaxed">
+              {configString}
+            </pre>
+          )}
         </div>
       )}
       {config.instructions && (
-        <div className="instructions">{config.instructions}</div>
+        <div className="mt-2 text-muted-foreground italic">
+          {config.instructions}
+        </div>
       )}
     </div>
   );

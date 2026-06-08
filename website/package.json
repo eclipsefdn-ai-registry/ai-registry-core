@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "@braintree/sanitize-url": "^7.1.2",
+    "@tailwindcss/vite": "^4.3.0",
+    "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.15.1"
+    "react-router-dom": "^7.15.1",
+    "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

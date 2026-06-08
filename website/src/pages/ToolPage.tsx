@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
+import { Search, ShieldCheck, AlertTriangle, ArrowLeft } from "lucide-react";
 import { useToolRegistryData } from "../hooks/useRegistryData";
 import { InstallConfigView } from "../components/ServerDetail";
 import { NotFoundPage } from "./NotFoundPage";
@@ -37,10 +38,16 @@ export function ToolPage() {
 
   if (notFound) return <NotFoundPage />;
   if (error) {
-    return <div className="empty-state">Failed to load data: {error}</div>;
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Failed to load data: {error}
+      </div>
+    );
   }
   if (loading || !data) {
-    return <div className="empty-state">Loading...</div>;
+    return (
+      <div className="text-center py-12 text-muted-foreground">Loading...</div>
+    );
   }
 
   const tool = data.tools.find((t) => t.id === toolId);
@@ -56,7 +63,7 @@ export function ToolPage() {
 
   if (selectedServer) {
     return (
-      <div className="app">
+      <div className="max-w-6xl mx-auto px-4 py-8">
         <ToolServerDetail
           server={selectedServer}
           toolId={toolId!}
@@ -69,39 +76,49 @@ export function ToolPage() {
   }
 
   return (
-    <div className="app">
-      <div className="tool-header">
-        <Link to="/" className="back-link">
-          &larr; All tools
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="mb-8">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          All tools
         </Link>
-        <div className="tool-header-title">
-          {safeCssColor(org?.color) && (
+        <div className="flex items-center gap-3 mt-3">
+          {org?.color && (
             <span
-              className="org-color-dot org-color-dot-lg"
+              className="w-5 h-5 rounded-full shrink-0"
               style={{ backgroundColor: safeCssColor(org?.color) }}
             />
           )}
-          <h1>{tool?.name ?? toolId}</h1>
+          <h1 className="text-2xl font-bold">{tool?.name ?? toolId}</h1>
         </div>
-        {org && <p>by {org.name}</p>}
-        <p className="tool-header-subtitle">
+        {org && <p className="text-muted-foreground mt-1">by {org.name}</p>}
+        <p className="text-muted-foreground mt-1">
           Showing artifacts approved for {tool?.name ?? toolId}
         </p>
       </div>
 
-      <div className="search-bar">
-        <input
-          type="text"
-          placeholder={`Search servers for ${tool?.name ?? toolId}...`}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder={`Search servers for ${tool?.name ?? toolId}...`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-12 h-12 text-base bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/50 placeholder:text-muted-foreground"
+          />
+        </div>
       </div>
 
       {filteredServers.length > 0 && (
         <>
-          <h2>MCP Servers ({filteredServers.length})</h2>
-          <div className="server-list">
+          <h2 className="text-lg font-semibold mb-4">
+            MCP Servers ({filteredServers.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             {filteredServers.map((server) => (
               <ToolServerCard
                 key={server.serverId}
@@ -118,8 +135,10 @@ export function ToolPage() {
 
       {filteredSkills.length > 0 && (
         <>
-          <h2>Skills ({filteredSkills.length})</h2>
-          <div className="server-list">
+          <h2 className="text-lg font-semibold mb-4">
+            Skills ({filteredSkills.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {filteredSkills.map((skill) => (
               <ToolSkillCard
                 key={skill.skillId}
@@ -134,7 +153,9 @@ export function ToolPage() {
       )}
 
       {filteredServers.length === 0 && filteredSkills.length === 0 && (
-        <div className="empty-state">No artifacts found</div>
+        <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+          No artifacts found.
+        </div>
       )}
     </div>
   );
@@ -162,30 +183,46 @@ function ToolServerCard({
     .filter(Boolean);
 
   return (
-    <div className="server-card" onClick={() => onSelect(server.serverId)}>
-      <div className="server-card-header">
-        <h3>{server.name}</h3>
-        {server.mcpRegistryVerified ? (
-          <span className="badge badge-verified">Verified</span>
-        ) : (
-          <span className="badge badge-unverified">Unverified</span>
+    <div
+      className="group bg-card border border-border rounded-xl p-5 hover:border-primary/50 transition-all shadow-sm flex flex-col cursor-pointer"
+      onClick={() => onSelect(server.serverId)}
+    >
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <h3 className="text-base font-semibold text-foreground">
+            {server.name}
+          </h3>
+          {server.mcpRegistryVerified ? (
+            <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              <ShieldCheck className="h-3 w-3" />
+              Verified
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20">
+              <AlertTriangle className="h-3 w-3" />
+              Unverified
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-foreground mb-3">{server.description}</p>
+        {toolApproval && (
+          <div className="mb-3">
+            {toolApproval.installConfigs
+              .filter((ic) => ic.tool === toolId)
+              .map((config, j) => (
+                <InstallConfigView key={j} config={config} getTool={getTool} />
+              ))}
+          </div>
+        )}
+        {otherOrgs.length > 0 && (
+          <p className="text-xs text-muted-foreground italic">
+            Also approved by: {otherOrgs.join(", ")}
+          </p>
         )}
       </div>
-      <p>{server.description}</p>
-      {toolApproval && (
-        <div className="tool-install-configs">
-          {toolApproval.installConfigs
-            .filter((ic) => ic.tool === toolId)
-            .map((config, j) => (
-              <InstallConfigView key={j} config={config} getTool={getTool} />
-            ))}
-        </div>
-      )}
-      {otherOrgs.length > 0 && (
-        <div className="also-approved">
-          Also approved by: {otherOrgs.join(", ")}
-        </div>
-      )}
+      <button className="w-full py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-colors mt-auto text-foreground">
+        View Details
+      </button>
     </div>
   );
 }
@@ -209,34 +246,54 @@ function ToolServerDetail({
   const otherApprovals = server.approvals.filter((a) => a !== toolApproval);
 
   return (
-    <div className="server-detail">
-      <button className="back-link" onClick={onBack}>
-        &larr; Back to list
+    <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
+      <button
+        className="inline-flex items-center gap-1 text-sm text-primary hover:underline mb-4"
+        onClick={onBack}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to list
       </button>
-      <h2>{server.name}</h2>
-      <p>{server.description}</p>
-      <div className="meta-row">
+      <h2 className="text-xl font-bold mb-1">{server.name}</h2>
+      <p className="text-muted-foreground mb-4">{server.description}</p>
+      <div className="flex gap-3 mb-6 flex-wrap items-center text-sm">
         {server.mcpRegistryVerified ? (
-          <span className="badge badge-verified">Verified</span>
+          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            <ShieldCheck className="h-3 w-3" />
+            Verified
+          </span>
         ) : (
-          <span className="badge badge-unverified">Unverified</span>
+          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20">
+            <AlertTriangle className="h-3 w-3" />
+            Unverified
+          </span>
         )}
-        <span>{server.serverId}</span>
-        {server.latestVersion && <span>Latest: {server.latestVersion}</span>}
+        <span className="text-muted-foreground font-mono text-xs">
+          {server.serverId}
+        </span>
+        {server.latestVersion && (
+          <span className="text-muted-foreground">
+            Latest: {server.latestVersion}
+          </span>
+        )}
       </div>
 
       {toolApproval && (
-        <div className="approvals-section">
-          <h3>Installation</h3>
-          <div className="approval-card">
-            <div className="approval-card-header">
-              <span className="badge badge-org">
+        <div className="mb-6">
+          <h3 className="text-base font-semibold mb-3">Installation</h3>
+          <div className="bg-background border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
+              <span className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                 {getOrg(toolApproval.organizationId)?.name ??
                   toolApproval.organizationId}
               </span>
-              <span>Approved: {toolApproval.date}</span>
+              <span className="text-muted-foreground">
+                Approved: {toolApproval.date}
+              </span>
               {toolApproval.version && (
-                <span>Version: {toolApproval.version}</span>
+                <span className="text-muted-foreground">
+                  Version: {toolApproval.version}
+                </span>
               )}
             </div>
             {toolApproval.installConfigs
@@ -249,13 +306,16 @@ function ToolServerDetail({
       )}
 
       {otherApprovals.length > 0 && (
-        <div className="approvals-section">
-          <h3>Also approved by</h3>
-          <div className="also-approved-list">
+        <div>
+          <h3 className="text-base font-semibold mb-3">Also approved by</h3>
+          <div className="flex gap-2 flex-wrap">
             {otherApprovals.map((a, i) => {
               const org = getOrg(a.organizationId);
               return (
-                <span key={i} className="badge badge-org">
+                <span
+                  key={i}
+                  className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
+                >
                   {org?.name ?? a.organizationId}
                 </span>
               );
@@ -287,36 +347,45 @@ function ToolSkillCard({
   const toolObj = getTool(toolId);
 
   return (
-    <div className="server-card">
-      <div className="server-card-header">
-        <h3>{skill.name}</h3>
-        {skill.approvals.map((a) => {
-          const org = getOrg(a.organizationId);
-          return org ? (
-            <span key={a.organizationId} className="badge badge-org">
-              {org.name}
-            </span>
-          ) : undefined;
-        })}
-      </div>
-      <p>{skill.description}</p>
-      {sanitizeUrl(installConfig?.installUrl) && (
-        <div className="tool-install-configs">
-          <div className="install-config">
-            {toolObj && <div className="label">Tool: {toolObj.name}</div>}
+    <div className="group bg-card border border-border rounded-xl p-5 hover:border-primary/50 transition-all shadow-sm flex flex-col">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <h3 className="text-base font-semibold text-foreground">
+            {skill.name}
+          </h3>
+          {skill.approvals.map((a) => {
+            const org = getOrg(a.organizationId);
+            return org ? (
+              <span
+                key={a.organizationId}
+                className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
+              >
+                {org.name}
+              </span>
+            ) : undefined;
+          })}
+        </div>
+        <p className="text-sm text-foreground mb-3">{skill.description}</p>
+        {sanitizeUrl(installConfig?.installUrl) && (
+          <div className="mt-2 p-3 bg-card border border-border rounded-md text-sm mb-3">
+            {toolObj && (
+              <div className="font-medium text-muted-foreground mb-1">
+                Tool: {toolObj.name}
+              </div>
+            )}
             <a
               href={sanitizeUrl(installConfig?.installUrl)}
-              className="install-link"
+              className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
               onClick={(e) => e.stopPropagation()}
             >
               Install
             </a>
           </div>
+        )}
+        <div className="flex gap-3 text-xs text-muted-foreground font-mono">
+          <span>{skill.skillId}</span>
+          <span>Hash: {skill.contentHash}</span>
         </div>
-      )}
-      <div className="server-card-meta">
-        <span>{skill.skillId}</span>
-        <span>Hash: {skill.contentHash}</span>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import type { Skill, Organization } from "../types";
+import { safeCssColor } from "../sanitize";
 
 export function SkillList({
   skills,
@@ -10,40 +11,57 @@ export function SkillList({
   onSelect: (id: string) => void;
 }) {
   if (skills.length === 0) {
-    return <div className="empty-state">No skills found</div>;
+    return (
+      <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+        No skills found.
+      </div>
+    );
   }
 
   return (
-    <div className="server-list">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {skills.map((skill) => (
         <div
           key={skill.skillId}
-          className="server-card"
+          className="group bg-card border border-border rounded-xl p-5 hover:border-primary/50 transition-all shadow-sm flex flex-col cursor-pointer"
           onClick={() => onSelect(skill.skillId)}
         >
-          <div className="server-card-header">
-            <h3>{skill.name}</h3>
-            {skill.approvals.map((a) => {
-              const org = getOrg(a.organizationId);
-              return org ? (
-                <span
-                  key={a.organizationId}
-                  className="badge badge-org"
-                  title={`Approved by ${org.name}`}
-                >
-                  {org.name}
-                </span>
-              ) : undefined;
-            })}
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <h3 className="text-base font-semibold text-foreground">
+                {skill.name}
+              </h3>
+            </div>
+            <div className="font-mono text-xs text-muted-foreground mb-3">
+              {skill.skillId}
+            </div>
+            <p className="text-sm text-foreground mb-4 line-clamp-3 break-words">
+              {skill.description}
+            </p>
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {skill.approvals.map((a) => {
+                const org = getOrg(a.organizationId);
+                return org ? (
+                  <span
+                    key={a.organizationId}
+                    className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity"
+                    title={`Approved by ${org.name}`}
+                  >
+                    {org.color && (
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: safeCssColor(org.color) }}
+                      />
+                    )}
+                    {org.name}
+                  </span>
+                ) : undefined;
+              })}
+            </div>
           </div>
-          <p>{skill.description}</p>
-          <div className="server-card-meta">
-            <span>
-              {skill.approvals.length} approval
-              {skill.approvals.length !== 1 ? "s" : ""}
-            </span>
-            <span>{skill.skillId}</span>
-          </div>
+          <button className="w-full py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-colors mt-auto text-foreground">
+            View Details
+          </button>
         </div>
       ))}
     </div>
