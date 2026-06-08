@@ -10,6 +10,7 @@ import {
 import { createHash } from "node:crypto";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import matter from "gray-matter";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -38,42 +39,15 @@ export function parseSkillFrontmatter(content: string): {
   name: string;
   description: string;
 } {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) {
+  try {
+    const { data } = matter(content);
+    const name = typeof data.name === "string" ? data.name : "";
+    const description =
+      typeof data.description === "string" ? data.description : "";
+    return { name, description };
+  } catch {
     return { name: "", description: "" };
   }
-
-  const frontmatter = match[1];
-
-  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
-  const name = nameMatch ? nameMatch[1].trim() : "";
-
-  // Handle both single-line and multi-line (>) description
-  let description = "";
-  const descLineIdx = frontmatter
-    .split("\n")
-    .findIndex((l) => /^description:\s*/.test(l));
-  if (descLineIdx !== -1) {
-    const descLine = frontmatter.split("\n")[descLineIdx];
-    const inlineValue = descLine.replace(/^description:\s*/, "").trim();
-    if (inlineValue === ">" || inlineValue === "|") {
-      // Multi-line: collect indented continuation lines
-      const lines = frontmatter.split("\n");
-      const continued: string[] = [];
-      for (let i = descLineIdx + 1; i < lines.length; i++) {
-        if (/^\s+\S/.test(lines[i])) {
-          continued.push(lines[i].trim());
-        } else {
-          break;
-        }
-      }
-      description = continued.join(" ");
-    } else {
-      description = inlineValue;
-    }
-  }
-
-  return { name, description };
 }
 
 // --- Content hashing ---

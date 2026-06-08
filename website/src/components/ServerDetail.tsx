@@ -6,6 +6,7 @@ import type {
   Approval,
   InstallConfig,
 } from "../types";
+import { sanitizeUrl } from "../sanitize";
 
 export function ServerDetail({
   server,
@@ -120,10 +121,10 @@ export function InstallConfigView({
   return (
     <div className="install-config">
       {tool && <div className="label">Tool: {tool.name}</div>}
-      {config.installUrl && (
+      {sanitizeUrl(config.installUrl) && (
         <div>
           <a
-            href={config.installUrl}
+            href={sanitizeUrl(config.installUrl)}
             className="install-link"
             onClick={(e) => e.stopPropagation()}
           >
@@ -131,10 +132,10 @@ export function InstallConfigView({
           </a>
         </div>
       )}
-      {config.openVsxUrl && (
+      {sanitizeUrl(config.openVsxUrl) && (
         <div>
           <a
-            href={config.openVsxUrl}
+            href={sanitizeUrl(config.openVsxUrl)}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}

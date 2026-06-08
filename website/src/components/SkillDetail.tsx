@@ -1,4 +1,5 @@
 import type { Skill, Organization, Tool, SkillApproval } from "../types";
+import { sanitizeUrl } from "../sanitize";
 
 export function SkillDetail({
   skill,
@@ -72,10 +73,10 @@ function SkillApprovalCard({
         return (
           <div key={j} className="install-config">
             {tool && <div className="label">Tool: {tool.name}</div>}
-            {config.installUrl && (
+            {sanitizeUrl(config.installUrl) && (
               <div>
                 <a
-                  href={config.installUrl}
+                  href={sanitizeUrl(config.installUrl)}
                   className="install-link"
                   onClick={(e) => e.stopPropagation()}
                 >

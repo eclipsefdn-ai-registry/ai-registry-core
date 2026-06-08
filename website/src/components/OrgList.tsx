@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Organization, McpServer, Tool } from "../types";
+import { sanitizeUrl, safeCssColor } from "../sanitize";
 
 export function OrgList({
   organizations,
@@ -28,18 +29,24 @@ export function OrgList({
         return (
           <div key={org.id} className="org-card">
             <div className="org-card-header">
-              {org.color && (
+              {safeCssColor(org.color) && (
                 <span
                   className="org-color-dot"
-                  style={{ backgroundColor: org.color }}
+                  style={{ backgroundColor: safeCssColor(org.color) }}
                 />
               )}
               <h3>{org.name}</h3>
             </div>
             <p>{org.description}</p>
-            <a href={org.website} target="_blank" rel="noopener noreferrer">
-              {org.website}
-            </a>
+            {sanitizeUrl(org.website) && (
+              <a
+                href={sanitizeUrl(org.website)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {org.website}
+              </a>
+            )}
             <div className="org-tools">
               {tools.map((tool) => (
                 <Link

@@ -332,6 +332,11 @@ body {
   color: var(--color-text-secondary);
   font-size: 0.875rem;
   margin-bottom: 0.5rem;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .server-card-meta {
@@ -360,6 +365,7 @@ body {
 .server-detail > p {
   color: var(--color-text-secondary);
   margin-bottom: 1rem;
+  overflow-wrap: break-word;
 }
 
 .server-detail .meta-row {
