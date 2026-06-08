@@ -102,9 +102,11 @@ export function ApprovalCard({
 export function InstallConfigView({
   config,
   getTool,
+  compact,
 }: {
   config: InstallConfig;
   getTool: (id: string) => Tool | undefined;
+  compact?: boolean;
 }) {
   const tool = config.tool ? getTool(config.tool) : undefined;
   const [configExpanded, setConfigExpanded] = useState(false);
@@ -182,7 +184,9 @@ export function InstallConfigView({
         </div>
       )}
       {config.instructions && (
-        <div className="mt-2 text-muted-foreground italic">
+        <div
+          className={`mt-2 text-muted-foreground italic break-words overflow-hidden ${compact ? "line-clamp-2" : ""}`}
+        >
           {config.instructions}
         </div>
       )}

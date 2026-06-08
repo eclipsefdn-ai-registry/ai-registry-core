@@ -7,10 +7,13 @@ import { NotFoundPage } from "./NotFoundPage";
 import type { McpServer, Skill, Organization, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 
+type Tab = "servers" | "skills";
+
 export function ToolPage() {
   const { toolId } = useParams<{ toolId: string }>();
   const { data, error, loading, notFound } = useToolRegistryData(toolId!);
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<Tab>("servers");
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedServerId = searchParams.get("server") ?? undefined;
 
@@ -75,6 +78,11 @@ export function ToolPage() {
     );
   }
 
+  const tabs: { key: Tab; label: string; count: number }[] = [
+    { key: "servers", label: "MCP Servers", count: filteredServers.length },
+    { key: "skills", label: "Skills", count: filteredSkills.length },
+  ];
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8">
@@ -105,7 +113,7 @@ export function ToolPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
             type="text"
-            placeholder={`Search servers for ${tool?.name ?? toolId}...`}
+            placeholder={`Search ${tab === "servers" ? "MCP servers" : "skills"} for ${tool?.name ?? toolId}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-12 h-12 text-base bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/50 placeholder:text-muted-foreground"
@@ -113,12 +121,30 @@ export function ToolPage() {
         </div>
       </div>
 
-      {filteredServers.length > 0 && (
-        <>
-          <h2 className="text-lg font-semibold mb-4">
-            MCP Servers ({filteredServers.length})
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      {/* Tabs */}
+      <div className="flex items-end mb-8 border-b border-border">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => {
+              setTab(t.key);
+              setSearch("");
+            }}
+            className={`h-11 px-4 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t.label} ({t.count})
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {tab === "servers" &&
+        (filteredServers.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {filteredServers.map((server) => (
               <ToolServerCard
                 key={server.serverId}
@@ -130,14 +156,14 @@ export function ToolPage() {
               />
             ))}
           </div>
-        </>
-      )}
+        ) : (
+          <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+            No servers found.
+          </div>
+        ))}
 
-      {filteredSkills.length > 0 && (
-        <>
-          <h2 className="text-lg font-semibold mb-4">
-            Skills ({filteredSkills.length})
-          </h2>
+      {tab === "skills" &&
+        (filteredSkills.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {filteredSkills.map((skill) => (
               <ToolSkillCard
@@ -149,14 +175,11 @@ export function ToolPage() {
               />
             ))}
           </div>
-        </>
-      )}
-
-      {filteredServers.length === 0 && filteredSkills.length === 0 && (
-        <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
-          No artifacts found.
-        </div>
-      )}
+        ) : (
+          <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+            No skills found.
+          </div>
+        ))}
     </div>
   );
 }
@@ -177,10 +200,6 @@ function ToolServerCard({
   const toolApproval = server.approvals.find((a) =>
     a.installConfigs.some((ic) => ic.tool === toolId),
   );
-  const otherOrgs = server.approvals
-    .filter((a) => a !== toolApproval)
-    .map((a) => getOrg(a.organizationId)?.name ?? a.organizationId)
-    .filter(Boolean);
 
   return (
     <div
@@ -193,31 +212,62 @@ function ToolServerCard({
             {server.name}
           </h3>
           {server.mcpRegistryVerified ? (
-            <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            <span
+              className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 cursor-help hover:bg-primary/20 transition-colors"
+              title="This server exists in the Anthropic MCP registry"
+            >
               <ShieldCheck className="h-3 w-3" />
               Verified
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20">
+            <span
+              className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20 cursor-help hover:opacity-80 transition-opacity"
+              title="This server was not found in the Anthropic MCP registry"
+            >
               <AlertTriangle className="h-3 w-3" />
               Unverified
             </span>
           )}
         </div>
-        <p className="text-sm text-foreground mb-3">{server.description}</p>
+        <div className="font-mono text-xs text-muted-foreground mb-3">
+          {server.serverId}
+        </div>
+        <p className="text-sm text-foreground mb-3 line-clamp-3 break-words">
+          {server.description}
+        </p>
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {server.approvals.map((a) => {
+            const approvalOrg = getOrg(a.organizationId);
+            return approvalOrg ? (
+              <span
+                key={a.organizationId}
+                className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity"
+                title={`Approved by ${approvalOrg.name}`}
+              >
+                {approvalOrg.color && (
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: safeCssColor(approvalOrg.color) }}
+                  />
+                )}
+                {approvalOrg.name}
+              </span>
+            ) : undefined;
+          })}
+        </div>
         {toolApproval && (
           <div className="mb-3">
             {toolApproval.installConfigs
               .filter((ic) => ic.tool === toolId)
               .map((config, j) => (
-                <InstallConfigView key={j} config={config} getTool={getTool} />
+                <InstallConfigView
+                  key={j}
+                  config={config}
+                  getTool={getTool}
+                  compact
+                />
               ))}
           </div>
-        )}
-        {otherOrgs.length > 0 && (
-          <p className="text-xs text-muted-foreground italic">
-            Also approved by: {otherOrgs.join(", ")}
-          </p>
         )}
       </div>
       <button className="w-full py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-colors mt-auto text-foreground">
@@ -310,13 +360,13 @@ function ToolServerDetail({
           <h3 className="text-base font-semibold mb-3">Also approved by</h3>
           <div className="flex gap-2 flex-wrap">
             {otherApprovals.map((a, i) => {
-              const org = getOrg(a.organizationId);
+              const approvalOrg = getOrg(a.organizationId);
               return (
                 <span
                   key={i}
                   className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
                 >
-                  {org?.name ?? a.organizationId}
+                  {approvalOrg?.name ?? a.organizationId}
                 </span>
               );
             })}
@@ -354,18 +404,32 @@ function ToolSkillCard({
             {skill.name}
           </h3>
           {skill.approvals.map((a) => {
-            const org = getOrg(a.organizationId);
-            return org ? (
+            const approvalOrg = getOrg(a.organizationId);
+            return approvalOrg ? (
               <span
                 key={a.organizationId}
-                className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
+                className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity"
+                title={`Approved by ${approvalOrg.name}`}
               >
-                {org.name}
+                {approvalOrg.color && (
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: safeCssColor(approvalOrg.color),
+                    }}
+                  />
+                )}
+                {approvalOrg.name}
               </span>
             ) : undefined;
           })}
         </div>
-        <p className="text-sm text-foreground mb-3">{skill.description}</p>
+        <div className="font-mono text-xs text-muted-foreground mb-3">
+          {skill.skillId}
+        </div>
+        <p className="text-sm text-foreground mb-3 line-clamp-3 break-words">
+          {skill.description}
+        </p>
         {sanitizeUrl(installConfig?.installUrl) && (
           <div className="mt-2 p-3 bg-card border border-border rounded-md text-sm mb-3">
             {toolObj && (
@@ -383,7 +447,6 @@ function ToolSkillCard({
           </div>
         )}
         <div className="flex gap-3 text-xs text-muted-foreground font-mono">
-          <span>{skill.skillId}</span>
           <span>Hash: {skill.contentHash}</span>
         </div>
       </div>
