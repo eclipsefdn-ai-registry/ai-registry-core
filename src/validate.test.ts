@@ -334,4 +334,93 @@ describe("validateVendorData — skill approvals", () => {
     assert.equal(result.valid, true);
     assert.equal(result.skillApprovals.length, 0);
   });
+
+  it("passes for skill approval with array path", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example.json",
+        data: {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: ["skills/a", "skills/b"],
+          },
+        },
+      },
+    ]);
+    assert.equal(result.valid, true);
+    assert.equal(result.skillApprovals.length, 1);
+  });
+
+  it("passes for skill approval with glob path", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example.json",
+        data: {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/*",
+          },
+        },
+      },
+    ]);
+    assert.equal(result.valid, true);
+    assert.equal(result.skillApprovals.length, 1);
+  });
+
+  it("fails for skill approval with empty path array", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example.json",
+        data: {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: [],
+          },
+        },
+      },
+    ]);
+    assert.equal(result.valid, false);
+  });
+
+  it("fails when multi-path skillId contains /", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example--bad.json",
+        data: {
+          skillId: "io.example/bad",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: ["skills/a", "skills/b"],
+          },
+        },
+      },
+    ]);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("must not contain")));
+  });
+
+  it("fails when glob-path skillId contains /", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example--bad.json",
+        data: {
+          skillId: "io.example/bad",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/*",
+          },
+        },
+      },
+    ]);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("must not contain")));
+  });
 });

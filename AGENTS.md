@@ -7,7 +7,7 @@ Vendor-neutral, federated trust registry for MCP servers and Agent Skills, hoste
 Two artifact types, same approval model:
 
 - **MCP servers** — referenced by `serverId` in the Anthropic MCP registry. Metadata (name, description, version) enriched during consolidation.
-- **Agent Skills** — referenced by `skillId` pointing to a git repo + path. Metadata (name, description) extracted from SKILL.md frontmatter; content hash computed via sparse checkout during consolidation.
+- **Agent Skills** — referenced by `skillId` pointing to a git repo + path. `source.path` can be a single string, an array of paths, or a glob pattern (`"skills/*"`) for batch approvals — consolidation expands these into individual entries. Metadata (name, description) extracted from SKILL.md frontmatter; content hash computed via sparse checkout during consolidation.
 
 Organizations can provide tools (with `installConfigs`) or just approve artifacts without tool-specific configuration. Both use the same approval file format — `installConfigs` is optional.
 

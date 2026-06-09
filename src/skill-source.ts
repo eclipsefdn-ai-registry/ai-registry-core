@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
+import type { SkillEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -20,16 +21,6 @@ const ROOT = resolve(__dirname, "..");
 export interface SkillMetadata {
   name: string;
   description: string;
-  contentHash: string;
-}
-
-// SkillEntry is imported from consolidate.ts by callers; we only need a
-// minimal shape here to avoid circular imports.
-export interface SkillEntryLike {
-  skillId: string;
-  name: string;
-  description: string;
-  source: { url: string; path?: string };
   contentHash: string;
 }
 
@@ -167,11 +158,120 @@ export function fetchSkillMetadata(
   };
 }
 
+// --- Multi-path expansion ---
+
+const MAX_DISCOVERY = 100;
+
+export function isGlobPattern(path: string): boolean {
+  return path === "*" || path.endsWith("/*");
+}
+
+function getCloneDir(sourceUrl: string, tmpDir: string): string {
+  const repoHash = createHash("sha256")
+    .update(sourceUrl)
+    .digest("hex")
+    .slice(0, 8);
+  return join(tmpDir, `skill-${repoHash}`);
+}
+
+export function discoverSkillPaths(
+  cloneDir: string,
+  pattern: string,
+): string[] {
+  const prefix = pattern === "*" ? "" : pattern.replace(/\/?\*$/, "");
+  const treePath = prefix || ".";
+
+  let lsOutput: string;
+  try {
+    lsOutput = execSync(
+      `git -C ${cloneDir} ls-tree --name-only HEAD ${treePath}/`,
+      { stdio: "pipe", encoding: "utf-8" },
+    ).trim();
+  } catch {
+    return [];
+  }
+
+  if (!lsOutput) return [];
+
+  const children = lsOutput.split("\n").filter(Boolean);
+  const skillPaths: string[] = [];
+
+  for (const childPath of children) {
+    if (childPath.split("/").pop()!.startsWith(".")) continue;
+    try {
+      const result = execSync(
+        `git -C ${cloneDir} ls-tree HEAD "${childPath}/SKILL.md"`,
+        { stdio: "pipe", encoding: "utf-8" },
+      ).trim();
+      if (result) {
+        skillPaths.push(childPath);
+      }
+    } catch {
+      // No SKILL.md in this child — skip
+    }
+  }
+
+  const sorted = skillPaths.sort();
+
+  if (sorted.length > MAX_DISCOVERY) {
+    console.warn(
+      `  WARNING: glob "${pattern}" matched ${sorted.length} paths (>${MAX_DISCOVERY}). All included, but consider a narrower pattern.`,
+    );
+  }
+
+  return sorted;
+}
+
+function expandedEntry(template: SkillEntry, path: string): SkillEntry {
+  const pathSuffix = path.split("/").pop()!;
+  return {
+    skillId: `${template.skillId}/${pathSuffix}`,
+    name: "",
+    description: "",
+    source: { url: template.source.url, path },
+    contentHash: "",
+    approvals: template.approvals.map((a) => ({ ...a })),
+  };
+}
+
+function expandSkillEntry(entry: SkillEntry, tmpDir: string): SkillEntry[] {
+  const { source, skillId } = entry;
+
+  // No path or single non-glob string — no expansion
+  if (source.path === undefined) return [entry];
+
+  if (typeof source.path === "string") {
+    if (!isGlobPattern(source.path)) return [entry];
+
+    // Glob: clone and discover
+    const cloneDir = getCloneDir(source.url, tmpDir);
+    // Ensure the repo is cloned (cloneSkillFolder handles caching)
+    cloneSkillFolder(source.url, undefined, tmpDir);
+    const paths = discoverSkillPaths(cloneDir, source.path);
+    if (paths.length === 0) {
+      console.warn(
+        `  WARNING: ${skillId} — glob "${source.path}" matched no skill folders`,
+      );
+      return [];
+    }
+    return paths.map((p) => expandedEntry(entry, p));
+  }
+
+  // Array of paths — expand each, deduplicate
+  if (Array.isArray(source.path)) {
+    const uniquePaths = [...new Set(source.path)];
+    if (uniquePaths.length !== source.path.length) {
+      console.warn(`  WARNING: ${skillId} — duplicate paths removed`);
+    }
+    return uniquePaths.map((p) => expandedEntry(entry, p));
+  }
+
+  return [entry];
+}
+
 // --- Enrichment (called by consolidate.ts) ---
 
-export function enrichSkillMetadata<T extends SkillEntryLike>(
-  skills: T[],
-): T[] {
+export function enrichSkillMetadata(skills: SkillEntry[]): SkillEntry[] {
   if (skills.length === 0) return skills;
 
   console.log("Enriching skills with source metadata...\n");
@@ -180,16 +280,27 @@ export function enrichSkillMetadata<T extends SkillEntryLike>(
   if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
   mkdirSync(tmpDir, { recursive: true });
 
-  const enriched: T[] = [];
+  const enriched: SkillEntry[] = [];
 
   try {
+    // Phase 1: Expand multi-path and glob entries
+    const expanded: SkillEntry[] = [];
     for (const entry of skills) {
       try {
-        const metadata = fetchSkillMetadata(
-          entry.source.url,
-          entry.source.path,
-          tmpDir,
-        );
+        expanded.push(...expandSkillEntry(entry, tmpDir));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(`  WARNING: ${entry.skillId} — expansion failed, skipped`);
+        console.warn(`    ${message}`);
+      }
+    }
+
+    // Phase 2: Enrich each expanded entry
+    for (const entry of expanded) {
+      try {
+        const path =
+          typeof entry.source.path === "string" ? entry.source.path : undefined;
+        const metadata = fetchSkillMetadata(entry.source.url, path, tmpDir);
         entry.name = metadata.name;
         entry.description = metadata.description;
         entry.contentHash = metadata.contentHash;
