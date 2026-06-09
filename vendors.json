@@ -2,5 +2,13 @@
   {
     "id": "theia",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-theia.git"
+  },
+  {
+    "id": "anthropic",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-anthropic.git"
+  },
+  {
+    "id": "openai",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-openai.git"
   }
 ]
