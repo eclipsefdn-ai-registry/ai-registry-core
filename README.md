@@ -22,9 +22,9 @@ Vendor Repos                    Central Repo                    Consumers
 
 **Vendor repos** contain:
 
-- `organization.json` — vendor identity and tools
-- `mcp/*.json` — one approval file per endorsed MCP server, with tool-specific install configurations
-- `skills/*.json` — one approval file per endorsed Agent Skill, pointing to the skill's source repository
+- `organization.json` — organization identity and (optionally) tools
+- `mcp/*.json` — one approval file per approved MCP server, with optional tool-specific install configurations
+- `skills/*.json` — one approval file per approved Agent Skill, pointing to the skill's source repository
 
 **The central repo** provides:
 
@@ -69,7 +69,7 @@ skills/
 
 ### organization.json
 
-Declares your organization and the tools you provide. See the [organization schema](schemas/organization.schema.json) for the full field reference.
+Declares your organization and, if applicable, the tools you provide. Organizations that only approve artifacts without providing tools can omit the `tools` field. See the [organization schema](schemas/organization.schema.json) for the full field reference.
 
 ```json
 {
@@ -82,7 +82,7 @@ Declares your organization and the tools you provide. See the [organization sche
 }
 ```
 
-### Approval files
+### MCP approval files
 
 One JSON file per approved MCP server, stored in `mcp/`. The filename must be `<serverId>.json` with `/` replaced by `--`. See the [approval schema](schemas/mcp-approval.schema.json) for the full field reference.
 
@@ -109,7 +109,7 @@ Example: `mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`
 }
 ```
 
-The `serverId` must reference a server in the [Anthropic MCP registry](https://registry.modelcontextprotocol.io). Server metadata (name, description) is retrieved automatically during consolidation — you only supply the ID and install configuration.
+The `serverId` must reference a server in the [Anthropic MCP registry](https://registry.modelcontextprotocol.io). Server metadata (name, description) is retrieved automatically during consolidation — you only supply the ID and optionally install configurations. Approvals without `installConfigs` are valid and indicate the organization approves the server without providing tool-specific configuration.
 
 ### Skill approval files
 

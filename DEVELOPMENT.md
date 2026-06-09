@@ -6,7 +6,7 @@
 - **`vendors.json`** — Registered vendor repositories
 - **`src/`** — TypeScript scripts for consolidation and validation
 - **`website/`** — React static website (Vite + TypeScript)
-- **`skills/`** — AI agent skills (e.g., `create-mcp-approval`)
+- **`skills/`** — AI agent skills (e.g., `create-mcp-approval`, `create-skill-approval`)
 
 ## Local vendor repos
 

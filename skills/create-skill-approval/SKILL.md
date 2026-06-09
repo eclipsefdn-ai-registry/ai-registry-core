@@ -42,7 +42,7 @@ Example: Skill ID `io.github.anthropics/code-review` becomes filename `io.github
 - **skillId** (required): Reverse-domain identifier for the skill (e.g., `io.github.anthropics/code-review`).
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
 - **source** (required): Object with `url` (git repo URL) and optionally `path` (folder within the repo). Omit `path` if the skill is at the repository root.
-- **installConfigs** (required, at least one entry): Tool-specific installation configurations.
+- **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools.
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
   - **installUrl**: Deep-link URL for one-click install (optional, tool-specific protocol).
 
