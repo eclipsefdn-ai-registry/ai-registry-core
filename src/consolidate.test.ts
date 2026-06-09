@@ -57,6 +57,37 @@ describe("addOrganization", () => {
 
     assert.equal("tools" in output.organizations[0], false);
   });
+
+  it("carries the inferred flag through to the organization entry", () => {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "anthropic",
+        name: "Anthropic",
+        description: "Pre-seeded from an official public source",
+        website: "https://anthropic.com",
+        inferred: true,
+      },
+      output,
+    );
+
+    assert.equal(output.organizations[0].inferred, true);
+  });
+
+  it("omits inferred when not provided (direct participant)", () => {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "Test",
+        website: "https://acme.com",
+      },
+      output,
+    );
+
+    assert.equal("inferred" in output.organizations[0], false);
+  });
 });
 
 describe("addOrganization — duplicate tool IDs across vendors", () => {

@@ -29,6 +29,7 @@ interface OrganizationData {
   description: string;
   website: string;
   color?: string;
+  inferred?: boolean;
   tools?: { id: string; name: string }[];
 }
 
@@ -38,6 +39,7 @@ export interface Organization {
   description: string;
   website: string;
   color?: string;
+  inferred?: boolean;
 }
 
 export interface Tool {

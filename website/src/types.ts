@@ -4,6 +4,7 @@ export interface Organization {
   description: string;
   website: string;
   color?: string;
+  inferred?: boolean;
 }
 
 export interface Tool {

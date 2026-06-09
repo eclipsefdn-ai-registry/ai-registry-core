@@ -1,6 +1,7 @@
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import type { McpServer, Organization } from "../types";
 import { safeCssColor } from "../sanitize";
+import { orgBadge } from "../orgBadge";
 
 export function ServerList({
   servers,
@@ -59,11 +60,18 @@ export function ServerList({
             <div className="flex gap-2 mb-4 flex-wrap">
               {server.approvals.map((a) => {
                 const org = getOrg(a.organizationId);
-                return org ? (
+                if (!org) return undefined;
+                const badge = orgBadge(org, {
+                  fallbackId: a.organizationId,
+                  approvedTitle: `Approved by ${org.name} — this organization has reviewed and endorsed this server for use with their tools`,
+                });
+                return (
                   <span
                     key={a.organizationId}
-                    className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity"
-                    title={`Approved by ${org.name} — this organization has reviewed and endorsed this server for use with their tools`}
+                    className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
+                      badge.inferred ? "border-dashed" : ""
+                    }`}
+                    title={badge.title}
                   >
                     {org.color && (
                       <span
@@ -71,9 +79,9 @@ export function ServerList({
                         style={{ backgroundColor: safeCssColor(org.color) }}
                       />
                     )}
-                    {org.name}
+                    {badge.text}
                   </span>
-                ) : undefined;
+                );
               })}
             </div>
           </div>
