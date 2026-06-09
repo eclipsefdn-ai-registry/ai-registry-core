@@ -78,6 +78,18 @@ describe("validateVendorData", () => {
     assert.ok(result.errors[0].includes("organization.json"));
   });
 
+  it("passes for an inferred organization", () => {
+    const inferredOrg = {
+      id: "test-vendor",
+      name: "Test Vendor",
+      description: "Pre-seeded from an official public source",
+      website: "https://test.com",
+      inferred: true,
+    };
+    const result = validateVendorData(inferredOrg, []);
+    assert.equal(result.valid, true);
+  });
+
   it("fails when org id does not match expected vendor id", () => {
     const result = validateVendorData(validOrg, [], "wrong-id");
     assert.equal(result.valid, false);

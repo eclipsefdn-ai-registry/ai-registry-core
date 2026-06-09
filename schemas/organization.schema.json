@@ -31,6 +31,10 @@
       "pattern": "^#[0-9a-fA-F]{6}$",
       "description": "Brand color in hex format (e.g., #1a1f71)"
     },
+    "inferred": {
+      "type": "boolean",
+      "description": "True if this organization was pre-seeded from an official public source rather than participating directly in the registry. The website marks inferred organizations with a distinct \"Inferred\" badge and dashed-border treatment. Defaults to false when omitted."
+    },
     "tools": {
       "type": "array",
       "description": "Tools this organization provides. Omit if the organization does not provide tools.",

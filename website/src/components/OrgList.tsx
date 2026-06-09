@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Organization, McpServer, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
+import { INFERRED_DISCLAIMER } from "../orgBadge";
 
 export function OrgList({
   organizations,
@@ -36,7 +37,7 @@ export function OrgList({
             className="bg-card border border-border rounded-xl p-5 hover:border-primary/50 transition-all shadow-sm flex flex-col"
           >
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 {org.color && (
                   <span
                     className="w-3 h-3 rounded-full shrink-0"
@@ -46,6 +47,14 @@ export function OrgList({
                 <h3 className="text-base font-semibold text-foreground">
                   {org.name}
                 </h3>
+                {org.inferred && (
+                  <span
+                    className="inline-flex text-xs px-2 py-0.5 rounded-full border border-dashed border-border bg-background cursor-help"
+                    title={INFERRED_DISCLAIMER}
+                  >
+                    Inferred
+                  </span>
+                )}
               </div>
               <p className="text-sm text-muted-foreground mb-3 line-clamp-3 break-words">
                 {org.description}

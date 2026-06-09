@@ -69,7 +69,7 @@ skills/
 
 ### organization.json
 
-Declares your organization and, if applicable, the tools you provide. Organizations that only approve artifacts without providing tools can omit the `tools` field. See the [organization schema](schemas/organization.schema.json) for the full field reference.
+Declares your organization and, if applicable, the tools you provide. Organizations that only approve artifacts without providing tools can omit the `tools` field. Set the optional `inferred` field to `true` for organizations pre-seeded from an official public source rather than participating directly in the registry — the website marks them with a distinct "Inferred" badge and a dashed-border treatment, with an explanatory tooltip on hover. See the [organization schema](schemas/organization.schema.json) for the full field reference.
 
 ```json
 {

@@ -6,6 +6,7 @@ import { InstallConfigView } from "../components/ServerDetail";
 import { NotFoundPage } from "./NotFoundPage";
 import type { McpServer, Skill, Organization, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
+import { orgBadge } from "../orgBadge";
 
 type Tab = "servers" | "skills";
 
@@ -238,11 +239,18 @@ function ToolServerCard({
         <div className="flex gap-2 mb-3 flex-wrap">
           {server.approvals.map((a) => {
             const approvalOrg = getOrg(a.organizationId);
-            return approvalOrg ? (
+            if (!approvalOrg) return undefined;
+            const badge = orgBadge(approvalOrg, {
+              fallbackId: a.organizationId,
+              approvedTitle: `Approved by ${approvalOrg.name}`,
+            });
+            return (
               <span
                 key={a.organizationId}
-                className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity"
-                title={`Approved by ${approvalOrg.name}`}
+                className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
+                  badge.inferred ? "border-dashed" : ""
+                }`}
+                title={badge.title}
               >
                 {approvalOrg.color && (
                   <span
@@ -250,9 +258,9 @@ function ToolServerCard({
                     style={{ backgroundColor: safeCssColor(approvalOrg.color) }}
                   />
                 )}
-                {approvalOrg.name}
+                {badge.text}
               </span>
-            ) : undefined;
+            );
           })}
         </div>
         {toolApproval && (
@@ -333,10 +341,25 @@ function ToolServerDetail({
           <h3 className="text-base font-semibold mb-3">Installation</h3>
           <div className="bg-background border border-border rounded-lg p-4">
             <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
-              <span className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                {getOrg(toolApproval.organizationId)?.name ??
-                  toolApproval.organizationId}
-              </span>
+              {(() => {
+                const approvalOrg = getOrg(toolApproval.organizationId);
+                const badge = orgBadge(approvalOrg, {
+                  fallbackId: toolApproval.organizationId,
+                  approvedTitle: approvalOrg
+                    ? `Approved by ${approvalOrg.name}`
+                    : "",
+                });
+                return (
+                  <span
+                    className={`inline-flex text-xs px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/20 cursor-help ${
+                      badge.inferred ? "border-dashed" : ""
+                    }`}
+                    title={badge.title}
+                  >
+                    {badge.text}
+                  </span>
+                );
+              })()}
               <span className="text-muted-foreground">
                 Approved: {toolApproval.date}
               </span>
@@ -361,12 +384,21 @@ function ToolServerDetail({
           <div className="flex gap-2 flex-wrap">
             {otherApprovals.map((a, i) => {
               const approvalOrg = getOrg(a.organizationId);
+              const badge = orgBadge(approvalOrg, {
+                fallbackId: a.organizationId,
+                approvedTitle: approvalOrg
+                  ? `Approved by ${approvalOrg.name}`
+                  : "",
+              });
               return (
                 <span
                   key={i}
-                  className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
+                  className={`inline-flex text-xs px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/20 cursor-help ${
+                    badge.inferred ? "border-dashed" : ""
+                  }`}
+                  title={badge.title}
                 >
-                  {approvalOrg?.name ?? a.organizationId}
+                  {badge.text}
                 </span>
               );
             })}
@@ -405,11 +437,18 @@ function ToolSkillCard({
           </h3>
           {skill.approvals.map((a) => {
             const approvalOrg = getOrg(a.organizationId);
-            return approvalOrg ? (
+            if (!approvalOrg) return undefined;
+            const badge = orgBadge(approvalOrg, {
+              fallbackId: a.organizationId,
+              approvedTitle: `Approved by ${approvalOrg.name}`,
+            });
+            return (
               <span
                 key={a.organizationId}
-                className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity"
-                title={`Approved by ${approvalOrg.name}`}
+                className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
+                  badge.inferred ? "border-dashed" : ""
+                }`}
+                title={badge.title}
               >
                 {approvalOrg.color && (
                   <span
@@ -419,9 +458,9 @@ function ToolSkillCard({
                     }}
                   />
                 )}
-                {approvalOrg.name}
+                {badge.text}
               </span>
-            ) : undefined;
+            );
           })}
         </div>
         <div className="font-mono text-xs text-muted-foreground mb-3">
