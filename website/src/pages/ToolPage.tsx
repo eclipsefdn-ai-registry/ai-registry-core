@@ -21,23 +21,27 @@ export function ToolPage() {
   const filteredServers = useMemo(() => {
     if (!data) return [];
     const q = search.toLowerCase();
-    return data.mcp.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q) ||
-        s.serverId.toLowerCase().includes(q),
-    );
+    return data.mcp
+      .filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.description.toLowerCase().includes(q) ||
+          s.serverId.toLowerCase().includes(q),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [data, search]);
 
   const filteredSkills = useMemo(() => {
     if (!data) return [];
     const q = search.toLowerCase();
-    return (data.skills ?? []).filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q) ||
-        s.skillId.toLowerCase().includes(q),
-    );
+    return (data.skills ?? [])
+      .filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.description.toLowerCase().includes(q) ||
+          s.skillId.toLowerCase().includes(q),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [data, search]);
 
   if (notFound) return <NotFoundPage />;
