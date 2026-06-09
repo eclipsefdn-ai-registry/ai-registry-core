@@ -28,9 +28,18 @@
           "description": "Git repository URL containing the skill"
         },
         "path": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Path within the repository to the skill folder (must contain SKILL.md). Omit if the skill is at the repository root."
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1
+            }
+          ],
+          "description": "Path(s) within the repository to skill folder(s). A single string for one skill, an array for multiple explicit paths, or a glob pattern ending with /* (e.g. \"skills/*\") to discover all skill folders containing SKILL.md under a prefix. Omit if the skill is at the repository root."
         }
       }
     },

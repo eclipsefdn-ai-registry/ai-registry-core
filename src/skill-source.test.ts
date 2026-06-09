@@ -1,9 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseSkillFrontmatter, computeContentHash } from "./skill-source.js";
+import {
+  parseSkillFrontmatter,
+  computeContentHash,
+  isGlobPattern,
+  discoverSkillPaths,
+} from "./skill-source.js";
 
 // --- parseSkillFrontmatter ---
 
@@ -198,6 +204,124 @@ describe("computeContentHash", () => {
     } finally {
       rmSync(dir1, { recursive: true });
       rmSync(dir2, { recursive: true });
+    }
+  });
+});
+
+// --- isGlobPattern ---
+
+describe("isGlobPattern", () => {
+  it('recognizes "*" as a glob', () => {
+    assert.equal(isGlobPattern("*"), true);
+  });
+
+  it('recognizes "skills/*" as a glob', () => {
+    assert.equal(isGlobPattern("skills/*"), true);
+  });
+
+  it('recognizes "a/b/c/*" as a glob', () => {
+    assert.equal(isGlobPattern("a/b/c/*"), true);
+  });
+
+  it("does not treat normal paths as globs", () => {
+    assert.equal(isGlobPattern("skills/foo"), false);
+  });
+
+  it("does not treat mid-path wildcards as globs", () => {
+    assert.equal(isGlobPattern("*/foo"), false);
+  });
+});
+
+// --- discoverSkillPaths ---
+
+describe("discoverSkillPaths", () => {
+  function makeGitRepoWithSkills(
+    skills: string[],
+    nonSkills: string[] = [],
+  ): string {
+    const dir = mkdtempSync(join(tmpdir(), "discover-test-"));
+    execSync("git init", { cwd: dir, stdio: "pipe" });
+    execSync('git config user.email "test@test.com"', {
+      cwd: dir,
+      stdio: "pipe",
+    });
+    execSync('git config user.name "Test"', { cwd: dir, stdio: "pipe" });
+
+    // Create skill folders with SKILL.md
+    for (const skill of skills) {
+      const skillDir = join(dir, skill);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(
+        join(skillDir, "SKILL.md"),
+        `---\nname: ${skill.split("/").pop()}\n---\nContent`,
+      );
+    }
+
+    // Create non-skill folders (no SKILL.md)
+    for (const ns of nonSkills) {
+      const nsDir = join(dir, ns);
+      mkdirSync(nsDir, { recursive: true });
+      writeFileSync(join(nsDir, "README.md"), "Not a skill");
+    }
+
+    execSync("git add -A && git commit -m init", { cwd: dir, stdio: "pipe" });
+    return dir;
+  }
+
+  it("discovers skill folders under a prefix", () => {
+    const dir = makeGitRepoWithSkills(
+      ["skills/alpha", "skills/beta"],
+      ["skills/not-a-skill"],
+    );
+    try {
+      const paths = discoverSkillPaths(dir, "skills/*");
+      assert.deepEqual(paths, ["skills/alpha", "skills/beta"]);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("discovers skill folders at repo root with *", () => {
+    const dir = makeGitRepoWithSkills(["alpha", "beta"], ["gamma"]);
+    try {
+      const paths = discoverSkillPaths(dir, "*");
+      assert.deepEqual(paths, ["alpha", "beta"]);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("returns empty array when no skills found", () => {
+    const dir = makeGitRepoWithSkills([], ["skills/not-a-skill"]);
+    try {
+      const paths = discoverSkillPaths(dir, "skills/*");
+      assert.deepEqual(paths, []);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("skips hidden directories", () => {
+    const dir = makeGitRepoWithSkills(["skills/visible", "skills/.hidden"]);
+    try {
+      const paths = discoverSkillPaths(dir, "skills/*");
+      assert.deepEqual(paths, ["skills/visible"]);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("returns sorted results", () => {
+    const dir = makeGitRepoWithSkills([
+      "skills/zeta",
+      "skills/alpha",
+      "skills/mu",
+    ]);
+    try {
+      const paths = discoverSkillPaths(dir, "skills/*");
+      assert.deepEqual(paths, ["skills/alpha", "skills/mu", "skills/zeta"]);
+    } finally {
+      rmSync(dir, { recursive: true });
     }
   });
 });

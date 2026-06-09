@@ -39,14 +39,16 @@ Example: Skill ID `io.github.anthropics/code-review` becomes filename `io.github
 
 ## Key Rules
 
-- **skillId** (required): Reverse-domain identifier for the skill (e.g., `io.github.anthropics/code-review`).
+- **skillId** (required): Reverse-domain identifier for the skill (e.g., `io.github.anthropics/code-review`). For multi-path approvals, this is a prefix without `/` (e.g., `io.github.anthropics`) — the last segment of each discovered path is appended automatically.
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
-- **source** (required): Object with `url` (git repo URL) and optionally `path` (folder within the repo). Omit `path` if the skill is at the repository root.
+- **source** (required): Object with `url` (git repo URL) and optionally `path`.
+  - **Single skill**: `path` is a string pointing to the skill folder. Omit if the skill is at the repository root.
+  - **Multiple skills**: `path` can be an array of strings (explicit list) or a glob pattern ending with `/*` (e.g., `"skills/*"`) to discover all skill folders containing SKILL.md under a prefix.
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools.
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
   - **installUrl**: Deep-link URL for one-click install (optional, tool-specific protocol).
 
-## Example Approval File
+## Example: Single Skill Approval
 
 ```json
 {
@@ -66,6 +68,34 @@ Example: Skill ID `io.github.anthropics/code-review` becomes filename `io.github
       "installUrl": "theia-next://install-skill?id=io.github.anthropics/code-review"
     }
   ]
+}
+```
+
+## Example: Multi-Skill Approval (Glob)
+
+Approves all skills under `skills/` in one file. The `skillId` is a prefix — consolidation expands to `io.github.anthropics/pdf`, `io.github.anthropics/docx`, etc.
+
+```json
+{
+  "skillId": "io.github.anthropics",
+  "date": "2026-06-01",
+  "source": {
+    "url": "https://github.com/anthropics/skills.git",
+    "path": "skills/*"
+  }
+}
+```
+
+## Example: Multi-Skill Approval (Explicit Paths)
+
+```json
+{
+  "skillId": "io.github.anthropics",
+  "date": "2026-06-01",
+  "source": {
+    "url": "https://github.com/anthropics/skills.git",
+    "path": ["skills/pdf", "skills/docx", "skills/pptx"]
+  }
 }
 ```
 

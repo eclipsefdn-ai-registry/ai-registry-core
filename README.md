@@ -113,9 +113,9 @@ The `serverId` must reference a server in the [Anthropic MCP registry](https://r
 
 ### Skill approval files
 
-One JSON file per approved Agent Skill, stored in `skills/`. The filename must be `<skillId>.json` with `/` replaced by `--`. See the [skill approval schema](schemas/skill-approval.schema.json) for the full field reference.
+One JSON file per approved Agent Skill (or group of skills from the same repo), stored in `skills/`. The filename must be `<skillId>.json` with `/` replaced by `--`. See the [skill approval schema](schemas/skill-approval.schema.json) for the full field reference.
 
-Example: `skills/io.github.anthropics--code-review.json`
+**Single skill** — `source.path` is a string pointing to the skill folder:
 
 ```json
 {
@@ -134,7 +134,22 @@ Example: `skills/io.github.anthropics--code-review.json`
 }
 ```
 
-The `source` points to a git repository containing the skill folder. Skill metadata (name, description) and a content hash are extracted automatically during consolidation.
+**Multiple skills** — `source.path` can be an array of paths or a glob pattern (`"skills/*"`) to approve many skills from the same repo in a single file. In this case, `skillId` acts as a prefix — each discovered path's last segment is appended (e.g., `io.github.anthropics` + `skills/pdf` → `io.github.anthropics/pdf`):
+
+```json
+{
+  "skillId": "io.github.anthropics",
+  "date": "2026-06-01",
+  "source": {
+    "url": "https://github.com/anthropics/skills.git",
+    "path": "skills/*"
+  }
+}
+```
+
+Consolidation expands multi-path approvals into individual skill entries — the output format is unchanged. Consumers are not affected.
+
+The `source` points to a git repository containing the skill folder(s). Skill metadata (name, description) and a content hash are extracted automatically during consolidation.
 
 ### Validation
 

@@ -87,7 +87,7 @@ export interface SkillInstallConfig {
 export interface SkillApprovalData {
   skillId: string;
   date: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string | string[] };
   installConfigs?: SkillInstallConfig[];
 }
 
@@ -103,7 +103,7 @@ export interface SkillEntry {
   skillId: string;
   name: string;
   description: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string | string[] };
   contentHash: string;
   approvals: SkillApproval[];
 }
@@ -438,8 +438,17 @@ export async function main(): Promise<void> {
   // Step 2a: Enrich MCP with Anthropic registry (fails build on registry errors)
   await enrichRegistryMetadata(output);
 
-  // Step 2b: Enrich skills with source metadata (skips unreachable sources)
+  // Step 2b: Enrich skills with source metadata (expands multi-path, skips unreachable sources)
   output.skills = enrichSkillMetadata(output.skills);
+
+  // Check for duplicate skillIds after expansion
+  const seenSkillIds = new Set<string>();
+  for (const skill of output.skills) {
+    if (seenSkillIds.has(skill.skillId)) {
+      throw new Error(`Duplicate skillId after expansion: "${skill.skillId}"`);
+    }
+    seenSkillIds.add(skill.skillId);
+  }
 
   // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));

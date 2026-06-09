@@ -5,6 +5,7 @@ import { execSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
+import { isGlobPattern } from "./skill-source.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -42,7 +43,7 @@ export interface ApprovalEntry {
 export interface SkillApprovalData {
   skillId: string;
   date: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string | string[] };
   installConfigs?: { tool: string }[];
 }
 
@@ -204,6 +205,19 @@ export function validateVendorData(
     }
 
     const skill = data as SkillApprovalData;
+
+    // Multi-path: skillId must be a prefix (no /)
+    const isMultiPath =
+      Array.isArray(skill.source.path) ||
+      (typeof skill.source.path === "string" &&
+        isGlobPattern(skill.source.path));
+    if (isMultiPath && skill.skillId.includes("/")) {
+      result.valid = false;
+      result.errors.push(
+        `${file}: skillId "${skill.skillId}" must not contain "/" when using multi-path source (it acts as a prefix)`,
+      );
+      continue;
+    }
 
     if (seenSkillIds.has(skill.skillId)) {
       result.valid = false;
@@ -410,20 +424,37 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
   if (result.skillApprovals.length > 0) {
     console.log("\nPhase 3: Skill source verification");
     for (const { file, data } of result.skillApprovals) {
-      try {
-        const { fetchSkillMetadata } = await import("./skill-source.js");
-        const metadata = await fetchSkillMetadata(
-          data.source.url,
-          data.source.path,
+      const { path } = data.source;
+
+      // Glob patterns are expanded during consolidation, not here
+      if (typeof path === "string" && isGlobPattern(path)) {
+        console.log(
+          `  SKIP: ${file} — glob pattern "${path}" will be expanded during consolidation`,
         );
-        console.log(`  PASS: ${file}`);
-        console.log(`    Name: ${metadata.name}`);
-        console.log(`    Description: ${metadata.description}`);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `  WARNING: ${file} — could not verify skill source: ${message}`,
-        );
+        continue;
+      }
+
+      // Array paths: verify each individually
+      const paths: (string | undefined)[] = Array.isArray(path) ? path : [path];
+
+      for (const singlePath of paths) {
+        try {
+          const { fetchSkillMetadata } = await import("./skill-source.js");
+          const metadata = await fetchSkillMetadata(
+            data.source.url,
+            singlePath,
+          );
+          const label = singlePath ? `${file} (${singlePath})` : file;
+          console.log(`  PASS: ${label}`);
+          console.log(`    Name: ${metadata.name}`);
+          console.log(`    Description: ${metadata.description}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const label = singlePath ? `${file} (${singlePath})` : file;
+          console.warn(
+            `  WARNING: ${label} — could not verify skill source: ${message}`,
+          );
+        }
       }
     }
   }

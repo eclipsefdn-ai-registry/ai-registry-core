@@ -450,6 +450,44 @@ describe("addSkillApproval", () => {
       output2.skills[0].approvals[0].configHash,
     );
   });
+
+  it("stores array path as-is", () => {
+    const output = emptyOutput();
+    addSkillApproval(
+      {
+        skillId: "io.example",
+        date: "2026-06-01",
+        source: {
+          url: "https://github.com/example/repo.git",
+          path: ["skills/a", "skills/b"],
+        },
+        installConfigs: [],
+      },
+      "acme",
+      output,
+    );
+    assert.equal(output.skills.length, 1);
+    assert.deepEqual(output.skills[0].source.path, ["skills/a", "skills/b"]);
+  });
+
+  it("stores glob path as-is", () => {
+    const output = emptyOutput();
+    addSkillApproval(
+      {
+        skillId: "io.example",
+        date: "2026-06-01",
+        source: {
+          url: "https://github.com/example/repo.git",
+          path: "skills/*",
+        },
+        installConfigs: [],
+      },
+      "acme",
+      output,
+    );
+    assert.equal(output.skills.length, 1);
+    assert.equal(output.skills[0].source.path, "skills/*");
+  });
 });
 
 describe("buildToolSkillView", () => {
