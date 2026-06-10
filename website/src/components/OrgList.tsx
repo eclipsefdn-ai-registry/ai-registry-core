@@ -1,15 +1,17 @@
 import { Link } from "react-router-dom";
-import type { Organization, McpServer, Tool } from "../types";
+import type { Organization, McpServer, Skill, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { INFERRED_DISCLAIMER } from "../orgBadge";
 
 export function OrgList({
   organizations,
   servers,
+  skills,
   getToolsForOrg,
 }: {
   organizations: Organization[];
   servers: McpServer[];
+  skills: Skill[];
   getToolsForOrg: (orgId: string) => Tool[];
 }) {
   if (organizations.length === 0) {
@@ -23,12 +25,19 @@ export function OrgList({
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {organizations.map((org) => {
-        const approvalCount = servers.reduce(
-          (count, s) =>
-            count +
-            s.approvals.filter((a) => a.organizationId === org.id).length,
-          0,
-        );
+        const approvalCount =
+          servers.reduce(
+            (count, s) =>
+              count +
+              s.approvals.filter((a) => a.organizationId === org.id).length,
+            0,
+          ) +
+          skills.reduce(
+            (count, s) =>
+              count +
+              s.approvals.filter((a) => a.organizationId === org.id).length,
+            0,
+          );
         const tools = getToolsForOrg(org.id);
 
         return (

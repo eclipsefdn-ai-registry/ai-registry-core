@@ -218,6 +218,7 @@ export function HomePage() {
             <OrgList
               organizations={filteredOrgs}
               servers={data.mcp}
+              skills={data.skills ?? []}
               getToolsForOrg={getToolsForOrg}
             />
           )}
