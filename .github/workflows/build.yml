@@ -43,19 +43,20 @@ jobs:
           GH_TOKEN: ${{ secrets.VENDOR_REPOS_READ_TOKEN }}
 
       - name: Install website dependencies
-        run: cd website && npm ci
+        run: npm run website:install
 
       - name: Setup Pages
         if: github.event_name != 'pull_request'
         id: pages
         uses: actions/configure-pages@v6
 
+      - name: Prepare website
+        run: npm run website:prepare
+
       - name: Build website
-        run: |
-          mkdir -p website/public/api/v1 website/public/schemas
-          cp dist/api/v1/*.json website/public/api/v1/
-          cp schemas/*.json website/public/schemas/
-          cd website && BASE_PATH=${{ steps.pages.outputs.base_path || '/' }} npm run build
+        run: npm run website:build
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path || '/' }}
 
       - name: Upload artifact
         if: github.event_name != 'pull_request'
