@@ -52,6 +52,16 @@
             "type": "string",
             "minLength": 1,
             "description": "Display name of the tool"
+          },
+          "skillInstallUrlPrefix": {
+            "type": "string",
+            "description": "URL prefix for auto-generating skill install URLs. The artifact skillId is appended literally.",
+            "examples": ["theia://install-skill?id="]
+          },
+          "mcpInstallUrlPrefix": {
+            "type": "string",
+            "description": "URL prefix for auto-generating MCP server install URLs. The artifact serverId is appended literally.",
+            "examples": ["theia://install-mcp?id="]
           }
         }
       }

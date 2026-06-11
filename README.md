@@ -78,9 +78,18 @@ Declares your organization and, if applicable, the tools you provide. Organizati
   "description": "Short description",
   "website": "https://example.com",
   "color": "#1a1f71",
-  "tools": [{ "id": "your-tool", "name": "Your Tool" }]
+  "tools": [
+    {
+      "id": "your-tool",
+      "name": "Your Tool",
+      "skillInstallUrlPrefix": "your-tool://install-skill?id=",
+      "mcpInstallUrlPrefix": "your-tool://install-mcp?id="
+    }
+  ]
 }
 ```
+
+When a tool declares `skillInstallUrlPrefix` or `mcpInstallUrlPrefix`, consolidation auto-generates `installUrl` for any approval that targets that tool but omits it — `prefix + artifactId`. Explicit `installUrl` values in approval files always take precedence.
 
 ### MCP approval files
 
@@ -125,14 +134,11 @@ One JSON file per approved Agent Skill (or group of skills from the same repo), 
     "url": "https://github.com/anthropics/skills.git",
     "path": "skills/code-review"
   },
-  "installConfigs": [
-    {
-      "tool": "your-tool",
-      "installUrl": "your-tool://install-skill?id=io.github.anthropics/code-review"
-    }
-  ]
+  "installConfigs": [{ "tool": "your-tool" }]
 }
 ```
+
+If `your-tool` declares `skillInstallUrlPrefix` in `organization.json`, the `installUrl` is generated automatically during consolidation. You can also set it explicitly if the tool has no prefix or you need a custom URL.
 
 **Multiple skills** — `source.path` can be an array of paths or a glob pattern (`"skills/*"`) to approve many skills from the same repo in a single file. In this case, `skillId` acts as a prefix — each discovered path's last segment is appended (e.g., `io.github.anthropics` + `skills/pdf` → `io.github.anthropics/pdf`):
 

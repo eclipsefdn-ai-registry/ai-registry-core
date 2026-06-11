@@ -521,6 +521,139 @@ describe("addSkillApproval", () => {
   });
 });
 
+describe("installUrl auto-generation (MCP)", () => {
+  function outputWithTool(mcpInstallUrlPrefix?: string): ConsolidatedOutput {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "Test",
+        website: "https://acme.com",
+        tools: [{ id: "tool-a", name: "Tool A", mcpInstallUrlPrefix }],
+      },
+      output,
+    );
+    return output;
+  }
+
+  it("generates installUrl when prefix is set and installUrl is absent", () => {
+    const output = outputWithTool("tool-a://install-mcp?id=");
+    addApproval(
+      {
+        serverId: "ai.example/my-server",
+        date: "2026-06-01",
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.mcp[0].approvals[0].installConfigs[0];
+    assert.equal(
+      cfg.installUrl,
+      "tool-a://install-mcp?id=ai.example/my-server",
+    );
+  });
+
+  it("does not overwrite an explicit installUrl", () => {
+    const output = outputWithTool("tool-a://install-mcp?id=");
+    addApproval(
+      {
+        serverId: "ai.example/my-server",
+        date: "2026-06-01",
+        installConfigs: [{ tool: "tool-a", installUrl: "custom://explicit" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.mcp[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, "custom://explicit");
+  });
+
+  it("leaves installUrl absent when no prefix is defined", () => {
+    const output = outputWithTool(undefined);
+    addApproval(
+      {
+        serverId: "ai.example/my-server",
+        date: "2026-06-01",
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.mcp[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, undefined);
+  });
+});
+
+describe("installUrl auto-generation (skills)", () => {
+  function outputWithTool(skillInstallUrlPrefix?: string): ConsolidatedOutput {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "Test",
+        website: "https://acme.com",
+        tools: [{ id: "tool-a", name: "Tool A", skillInstallUrlPrefix }],
+      },
+      output,
+    );
+    return output;
+  }
+
+  it("generates installUrl when prefix is set and installUrl is absent", () => {
+    const output = outputWithTool("tool-a://install-skill?id=");
+    addSkillApproval(
+      {
+        skillId: "io.github.example/my-skill",
+        date: "2026-06-01",
+        source: { url: "https://github.com/example/skills.git" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.skills[0].approvals[0].installConfigs[0];
+    assert.equal(
+      cfg.installUrl,
+      "tool-a://install-skill?id=io.github.example/my-skill",
+    );
+  });
+
+  it("does not overwrite an explicit installUrl", () => {
+    const output = outputWithTool("tool-a://install-skill?id=");
+    addSkillApproval(
+      {
+        skillId: "io.github.example/my-skill",
+        date: "2026-06-01",
+        source: { url: "https://github.com/example/skills.git" },
+        installConfigs: [{ tool: "tool-a", installUrl: "custom://explicit" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.skills[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, "custom://explicit");
+  });
+
+  it("leaves installUrl absent when no prefix is defined", () => {
+    const output = outputWithTool(undefined);
+    addSkillApproval(
+      {
+        skillId: "io.github.example/my-skill",
+        date: "2026-06-01",
+        source: { url: "https://github.com/example/skills.git" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.skills[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, undefined);
+  });
+});
+
 describe("buildToolSkillView", () => {
   function skills(): SkillEntry[] {
     return [

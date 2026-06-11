@@ -46,9 +46,25 @@ Example: Skill ID `io.github.anthropics/code-review` becomes filename `io.github
   - **Multiple skills**: `path` can be an array of strings (explicit list) or a glob pattern ending with `/*` (e.g., `"skills/*"`) to discover all skill folders containing SKILL.md under a prefix.
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools.
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
-  - **installUrl**: Deep-link URL for one-click install (optional, tool-specific protocol).
+  - **installUrl**: Deep-link URL for one-click install (optional). **Omit if the tool declares `skillInstallUrlPrefix` in `organization.json`** — consolidation generates it automatically as `prefix + skillId`. Set it explicitly only when the tool has no prefix or you need a non-standard URL.
 
 ## Example: Single Skill Approval
+
+When the tools declare `skillInstallUrlPrefix` in `organization.json`, omit `installUrl` — it is generated automatically:
+
+```json
+{
+  "skillId": "io.github.anthropics/code-review",
+  "date": "2026-06-01",
+  "source": {
+    "url": "https://github.com/anthropics/skills.git",
+    "path": "skills/code-review"
+  },
+  "installConfigs": [{ "tool": "theia-ide" }, { "tool": "theia-ide-next" }]
+}
+```
+
+If no prefix is configured, include `installUrl` explicitly:
 
 ```json
 {
@@ -62,10 +78,6 @@ Example: Skill ID `io.github.anthropics/code-review` becomes filename `io.github
     {
       "tool": "theia-ide",
       "installUrl": "theia://install-skill?id=io.github.anthropics/code-review"
-    },
-    {
-      "tool": "theia-ide-next",
-      "installUrl": "theia-next://install-skill?id=io.github.anthropics/code-review"
     }
   ]
 }
@@ -101,7 +113,9 @@ Approves all skills under `skills/` in one file. The `skillId` is a prefix — c
 
 ## installUrl Pattern
 
-If the vendor's tools support deep-link installation, construct the URL using the skill's `skillId`:
+Check whether the tool declares `skillInstallUrlPrefix` in `organization.json`. If it does, omit `installUrl` from the approval file — consolidation will generate it as `prefix + skillId`.
+
+If no prefix is declared, construct the URL manually using the skill's `skillId`:
 
 ```
 <scheme>://install-skill?id=<skillId>

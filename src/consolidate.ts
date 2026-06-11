@@ -30,7 +30,12 @@ interface OrganizationData {
   website: string;
   color?: string;
   inferred?: boolean;
-  tools?: { id: string; name: string }[];
+  tools?: {
+    id: string;
+    name: string;
+    skillInstallUrlPrefix?: string;
+    mcpInstallUrlPrefix?: string;
+  }[];
 }
 
 export interface Organization {
@@ -46,6 +51,8 @@ export interface Tool {
   id: string;
   name: string;
   organizationId: string;
+  skillInstallUrlPrefix?: string;
+  mcpInstallUrlPrefix?: string;
 }
 
 export interface InstallConfig {
@@ -131,6 +138,8 @@ export function addOrganization(
       id: tool.id,
       name: tool.name,
       organizationId: orgData.id,
+      skillInstallUrlPrefix: tool.skillInstallUrlPrefix,
+      mcpInstallUrlPrefix: tool.mcpInstallUrlPrefix,
     });
   }
 }
@@ -157,11 +166,23 @@ export function addApproval(
     .digest("hex")
     .slice(0, 12);
 
+  const resolvedMcpConfigs = (approvalData.installConfigs ?? []).map((cfg) => {
+    if (cfg.installUrl) return cfg;
+    const tool = output.tools.find((t) => t.id === cfg.tool);
+    if (tool?.mcpInstallUrlPrefix) {
+      return {
+        ...cfg,
+        installUrl: tool.mcpInstallUrlPrefix + approvalData.serverId,
+      };
+    }
+    return cfg;
+  });
+
   const approval: Approval = {
     organizationId,
     date: approvalData.date,
     configHash,
-    installConfigs: approvalData.installConfigs ?? [],
+    installConfigs: resolvedMcpConfigs,
   };
   if (approvalData.version) {
     approval.version = approvalData.version;
@@ -227,11 +248,25 @@ export function addSkillApproval(
     .digest("hex")
     .slice(0, 12);
 
+  const resolvedSkillConfigs = (approvalData.installConfigs ?? []).map(
+    (cfg) => {
+      if (cfg.installUrl) return cfg;
+      const tool = output.tools.find((t) => t.id === cfg.tool);
+      if (tool?.skillInstallUrlPrefix) {
+        return {
+          ...cfg,
+          installUrl: tool.skillInstallUrlPrefix + approvalData.skillId,
+        };
+      }
+      return cfg;
+    },
+  );
+
   const approval: SkillApproval = {
     organizationId,
     date: approvalData.date,
     configHash,
-    installConfigs: approvalData.installConfigs ?? [],
+    installConfigs: resolvedSkillConfigs,
   };
   skillEntry.approvals.push(approval);
 }
