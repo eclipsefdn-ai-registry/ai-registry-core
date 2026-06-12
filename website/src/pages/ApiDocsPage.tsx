@@ -67,14 +67,14 @@ export function ApiDocsPage() {
             <tr className="border-b border-border">
               <td className="py-2 pr-3">
                 <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
-                  &lt;tool-id&gt;.json
+                  tools/&lt;tool-id&gt;.json
                 </code>
               </td>
               <td className="py-2">
                 Per-tool view — only servers and skills approved for that tool,
                 with install configs for other tools stripped. Example:{" "}
                 <a
-                  href={`${BASE_URL}api/v1/theia-ide.json`}
+                  href={`${BASE_URL}api/v1/tools/theia-ide.json`}
                   className="text-primary hover:underline"
                 >
                   <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
@@ -158,7 +158,7 @@ export function ApiDocsPage() {
           </code>{" "}
           plus its own{" "}
           <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
-            &lt;tool-id&gt;.json
+            tools/&lt;tool-id&gt;.json
           </code>{" "}
           to display approved MCP servers and skills for that tool.
         </p>

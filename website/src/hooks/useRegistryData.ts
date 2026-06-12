@@ -55,7 +55,7 @@ export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
     const base = import.meta.env.BASE_URL + "api/v1/";
 
     Promise.all([
-      fetch(base + encodeURIComponent(toolId) + ".json"),
+      fetch(base + "tools/" + encodeURIComponent(toolId) + ".json"),
       fetch(base + "organizations.json"),
     ])
       .then(async ([toolRes, orgsRes]) => {
