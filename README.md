@@ -189,11 +189,11 @@ https://eclipsefdn-ai-registry.github.io/ai-registry-core/api/v1/
 | :---------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------- |
 | [`all.json`](https://eclipsefdn-ai-registry.github.io/ai-registry-core/api/v1/all.json)                     | Full registry — organizations, tools, MCP servers, and skills with merged approvals                      |
 | [`organizations.json`](https://eclipsefdn-ai-registry.github.io/ai-registry-core/api/v1/organizations.json) | All organizations and their tools                                                                        |
-| `<tool-id>.json`                                                                                            | Per-tool view — servers and skills approved for that tool, with install configs for other tools stripped |
+| `tools/<tool-id>.json`                                                                                      | Per-tool view — servers and skills approved for that tool, with install configs for other tools stripped |
 
 Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://eclipsefdn-ai-registry.github.io/ai-registry-core/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://eclipsefdn-ai-registry.github.io/ai-registry-core/schemas/skill-approval.schema.json)).
 
-A tool integration typically fetches `organizations.json` + its own `<tool-id>.json`.
+A tool integration typically fetches `organizations.json` + its own `tools/<tool-id>.json`.
 
 ## Reliability
 

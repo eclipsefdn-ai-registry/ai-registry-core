@@ -415,8 +415,11 @@ function writeOutput(output: ConsolidatedOutput): void {
   });
   console.log(`Written: ${orgsPath}`);
 
+  const toolsDir = resolve(outputDir, "tools");
+  mkdirSync(toolsDir, { recursive: true });
+
   for (const tool of output.tools) {
-    const toolPath = resolve(outputDir, `${tool.id}.json`);
+    const toolPath = resolve(toolsDir, `${tool.id}.json`);
     writeJson(toolPath, {
       mcp: buildToolView(tool.id, output.mcp),
       skills: buildToolSkillView(tool.id, output.skills),

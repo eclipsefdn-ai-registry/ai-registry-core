@@ -7,9 +7,9 @@
   "scripts": {
     "validate-vendor": "tsx src/cli-validate.ts",
     "consolidate": "tsx src/cli-consolidate.ts",
-    "dev": "LOCAL_VENDORS_DIR=.. npm run consolidate && rm -rf website/public/api website/public/schemas && mkdir -p website/public/api/v1 website/public/schemas && cp dist/api/v1/*.json website/public/api/v1/ && cp schemas/*.json website/public/schemas/ && cd website && npm run dev",
+    "dev": "LOCAL_VENDORS_DIR=.. npm run consolidate && rm -rf website/public/api website/public/schemas && mkdir -p website/public/api/v1 website/public/schemas && cp -r dist/api/v1/* website/public/api/v1/ && cp schemas/*.json website/public/schemas/ && cd website && npm run dev",
     "website:install": "npm ci --prefix website",
-    "website:prepare": "rm -rf website/public/api website/public/schemas && mkdir -p website/public/api/v1 website/public/schemas && cp dist/api/v1/*.json website/public/api/v1/ && cp schemas/*.json website/public/schemas/",
+    "website:prepare": "rm -rf website/public/api website/public/schemas && mkdir -p website/public/api/v1 website/public/schemas && cp -r dist/api/v1/* website/public/api/v1/ && cp schemas/*.json website/public/schemas/",
     "website:build": "npm run build --prefix website",
     "ci:build": "npm ci && npm run website:install && npm run consolidate && npm run website:prepare && npm run website:build",
     "lint": "eslint src/",
