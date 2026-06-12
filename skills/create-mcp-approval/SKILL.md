@@ -41,7 +41,7 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
   - **config**: Tool-specific configuration object (e.g., MCP server settings for stdio).
   - **instructions**: Human-readable setup instructions.
-  - **installUrl**: Deep-link URL for one-click install (optional).
+  - **installUrl**: Deep-link URL for one-click install (optional). **Omit if the tool declares `mcpInstallUrlPrefix` in `organization.json`** — consolidation generates it automatically as `prefix + serverId`. Set it explicitly only when the tool has no prefix or you need a non-standard URL.
   - **openVsxUrl**: Link to an Open VSX extension (optional).
 
 ## Version Behavior
