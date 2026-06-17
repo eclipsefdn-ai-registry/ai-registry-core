@@ -18,8 +18,16 @@ export function AboutPage() {
           >
             Model Context Protocol (MCP)
           </a>{" "}
-          servers, with support for additional artifact types planned for the
-          future.
+          servers and{" "}
+          <a
+            href="https://agentskills.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Agent Skills
+          </a>
+          , with support for additional artifact types planned for the future.
         </p>
         <p className="mb-3 leading-relaxed text-card-foreground">
           Tool vendors maintain their own repositories with approval files for
