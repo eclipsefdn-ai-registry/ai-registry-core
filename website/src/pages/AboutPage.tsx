@@ -47,6 +47,24 @@ export function AboutPage() {
       </section>
 
       <section className="mb-6">
+        <h2 className="text-xl font-semibold mt-8 mb-3">Get Involved</h2>
+        <p className="mb-3 leading-relaxed text-card-foreground">
+          If you are interested in participating in the AI Registry — whether by
+          contributing artifacts, consolidating artifacts as a vendor, or
+          adapting the registry for your tool — please{" "}
+          <a
+            href="https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            open an issue
+          </a>{" "}
+          on our GitHub repository. We will guide you through the process.
+        </p>
+      </section>
+
+      <section className="mb-6">
         <h2 className="text-xl font-semibold mt-8 mb-3">Links</h2>
         <ul className="list-disc ml-6 mb-3 space-y-1">
           <li>
