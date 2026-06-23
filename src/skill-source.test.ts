@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -9,7 +10,9 @@ import {
   computeContentHash,
   isGlobPattern,
   discoverSkillPaths,
+  expandSkillEntry,
 } from "./skill-source.js";
+import type { SkillEntry } from "./consolidate.js";
 
 // --- parseSkillFrontmatter ---
 
@@ -322,6 +325,209 @@ describe("discoverSkillPaths", () => {
       assert.deepEqual(paths, ["skills/alpha", "skills/mu", "skills/zeta"]);
     } finally {
       rmSync(dir, { recursive: true });
+    }
+  });
+});
+
+// --- expandSkillEntry ---
+
+describe("expandSkillEntry", () => {
+  /**
+   * Sets up a tmpDir containing a pre-populated clone directory at the path
+   * `expandSkillEntry` will compute from `sourceUrl`. This lets us exercise
+   * the glob/array logic without an actual `git clone`.
+   */
+  function setup(
+    sourceUrl: string,
+    skills: string[],
+    nonSkills: string[] = [],
+  ): { tmpDir: string } {
+    const tmpDir = mkdtempSync(join(tmpdir(), "expand-test-"));
+    const repoHash = createHash("sha256")
+      .update(sourceUrl)
+      .digest("hex")
+      .slice(0, 8);
+    const cloneDir = join(tmpDir, `skill-${repoHash}`);
+    mkdirSync(cloneDir, { recursive: true });
+    execSync("git init", { cwd: cloneDir, stdio: "pipe" });
+    execSync('git config user.email "test@test.com"', {
+      cwd: cloneDir,
+      stdio: "pipe",
+    });
+    execSync('git config user.name "Test"', {
+      cwd: cloneDir,
+      stdio: "pipe",
+    });
+
+    for (const skill of skills) {
+      const skillDir = join(cloneDir, skill);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(
+        join(skillDir, "SKILL.md"),
+        `---\nname: ${skill.split("/").pop()}\n---\nContent`,
+      );
+    }
+    for (const ns of nonSkills) {
+      const nsDir = join(cloneDir, ns);
+      mkdirSync(nsDir, { recursive: true });
+      writeFileSync(join(nsDir, "README.md"), "Not a skill");
+    }
+
+    execSync("git add -A && git commit -m init", {
+      cwd: cloneDir,
+      stdio: "pipe",
+    });
+    return { tmpDir };
+  }
+
+  function makeEntry(
+    sourceUrl: string,
+    path: string | string[] | undefined,
+    skillId = "io.example",
+  ): SkillEntry {
+    return {
+      skillId,
+      name: "",
+      description: "",
+      source: { url: sourceUrl, path },
+      contentHash: "",
+      approvals: [],
+    };
+  }
+
+  it("expands a single glob in an array", () => {
+    const url = "https://example.test/single-glob.git";
+    const { tmpDir } = setup(url, ["skills/alpha", "skills/beta"]);
+    try {
+      const result = expandSkillEntry(makeEntry(url, ["skills/*"]), tmpDir);
+      assert.deepEqual(
+        result.map((e) => e.skillId),
+        ["io.example/alpha", "io.example/beta"],
+      );
+      assert.deepEqual(
+        result.map((e) => e.source.path),
+        ["skills/alpha", "skills/beta"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("expands multiple globs in an array", () => {
+    const url = "https://example.test/multi-glob.git";
+    const { tmpDir } = setup(url, [
+      "engineering/a",
+      "engineering/b",
+      "productivity/c",
+      "productivity/d",
+    ]);
+    try {
+      const result = expandSkillEntry(
+        makeEntry(url, ["engineering/*", "productivity/*"]),
+        tmpDir,
+      );
+      assert.deepEqual(
+        result.map((e) => e.skillId),
+        ["io.example/a", "io.example/b", "io.example/c", "io.example/d"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("mixes globs and literal paths in an array", () => {
+    const url = "https://example.test/mixed.git";
+    const { tmpDir } = setup(url, [
+      "engineering/a",
+      "engineering/b",
+      "productivity/keep",
+      "productivity/skip",
+    ]);
+    try {
+      const result = expandSkillEntry(
+        makeEntry(url, ["engineering/*", "productivity/keep"]),
+        tmpDir,
+      );
+      assert.deepEqual(
+        result.map((e) => e.skillId),
+        ["io.example/a", "io.example/b", "io.example/keep"],
+      );
+      assert.deepEqual(
+        result.map((e) => e.source.path),
+        ["engineering/a", "engineering/b", "productivity/keep"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("deduplicates when a glob result overlaps with a literal path", () => {
+    const url = "https://example.test/dedup.git";
+    const { tmpDir } = setup(url, ["skills/alpha", "skills/beta"]);
+    try {
+      const result = expandSkillEntry(
+        makeEntry(url, ["skills/*", "skills/alpha"]),
+        tmpDir,
+      );
+      assert.deepEqual(
+        result.map((e) => e.skillId),
+        ["io.example/alpha", "io.example/beta"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("continues when one glob in an array matches nothing", () => {
+    const url = "https://example.test/partial-match.git";
+    const { tmpDir } = setup(url, ["engineering/a"]);
+    try {
+      const result = expandSkillEntry(
+        makeEntry(url, ["engineering/*", "productivity/*"]),
+        tmpDir,
+      );
+      assert.deepEqual(
+        result.map((e) => e.skillId),
+        ["io.example/a"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("does not require a clone when the array has no globs", () => {
+    const url = "https://example.test/no-glob.git";
+    // No setup() call — the clone dir does not exist. Since there are no
+    // globs, expandSkillEntry must not attempt to clone.
+    const tmpDir = mkdtempSync(join(tmpdir(), "expand-noglob-"));
+    try {
+      const result = expandSkillEntry(
+        makeEntry(url, ["skills/foo", "skills/bar"]),
+        tmpDir,
+      );
+      assert.deepEqual(
+        result.map((e) => e.skillId),
+        ["io.example/foo", "io.example/bar"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("returns the entry unchanged when path is a literal string", () => {
+    const entry = makeEntry(
+      "https://example.test/literal.git",
+      "skills/foo",
+      "io.example/foo",
+    );
+    const tmpDir = mkdtempSync(join(tmpdir(), "expand-literal-"));
+    try {
+      const result = expandSkillEntry(entry, tmpDir);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].skillId, "io.example/foo");
+      assert.equal(result[0].source.path, "skills/foo");
+    } finally {
+      rmSync(tmpDir, { recursive: true });
     }
   });
 });
