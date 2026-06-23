@@ -234,7 +234,10 @@ function expandedEntry(template: SkillEntry, path: string): SkillEntry {
   };
 }
 
-function expandSkillEntry(entry: SkillEntry, tmpDir: string): SkillEntry[] {
+export function expandSkillEntry(
+  entry: SkillEntry,
+  tmpDir: string,
+): SkillEntry[] {
   const { source, skillId } = entry;
 
   // No path or single non-glob string — no expansion
@@ -257,12 +260,37 @@ function expandSkillEntry(entry: SkillEntry, tmpDir: string): SkillEntry[] {
     return paths.map((p) => expandedEntry(entry, p));
   }
 
-  // Array of paths — expand each, deduplicate
+  // Array of paths — expand globs, keep literals, deduplicate
   if (Array.isArray(source.path)) {
-    const uniquePaths = [...new Set(source.path)];
-    if (uniquePaths.length !== source.path.length) {
+    const hasGlob = source.path.some(isGlobPattern);
+    let cloneDir: string | undefined;
+    if (hasGlob) {
+      cloneDir = getCloneDir(source.url, tmpDir);
+      // Ensure the repo is cloned (cloneSkillFolder handles caching)
+      cloneSkillFolder(source.url, undefined, tmpDir);
+    }
+
+    const allPaths: string[] = [];
+    for (const p of source.path) {
+      if (isGlobPattern(p)) {
+        const discovered = discoverSkillPaths(cloneDir!, p);
+        if (discovered.length === 0) {
+          console.warn(
+            `  WARNING: ${skillId} — glob "${p}" matched no skill folders`,
+          );
+          continue;
+        }
+        allPaths.push(...discovered);
+      } else {
+        allPaths.push(p);
+      }
+    }
+
+    const uniquePaths = [...new Set(allPaths)];
+    if (uniquePaths.length !== allPaths.length) {
       console.warn(`  WARNING: ${skillId} — duplicate paths removed`);
     }
+
     return uniquePaths.map((p) => expandedEntry(entry, p));
   }
 

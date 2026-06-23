@@ -44,6 +44,39 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
   - **installUrl**: Deep-link URL for one-click install (optional).
   - **openVsxUrl**: Link to an Open VSX extension (optional).
 
+## Remote Servers and OAuth
+
+Some MCP servers are remote (HTTP/SSE) rather than local (stdio). A remote server is configured with a `serverUrl` instead of a `command`. Remote servers commonly protect access with OAuth 2.x. When a tool's config supports it, you can declare the OAuth parameters with an `oauth` object nested in the server entry. Always confirm the exact field support in `ai-docs/mcp-approval.md` for the target tool before adding it.
+
+### `oauth` fields
+
+All fields are optional — include only the ones the server actually requires. Read the MCP server's own documentation to determine which fields are needed (many servers support dynamic client registration and need none of them):
+
+- **clientId** (string): OAuth client ID issued to your application. Use the placeholder `<clientId>` so the user knows to replace it.
+- **clientSecret** (string): OAuth client secret. Use the placeholder `<clientSecret>`. Never embed a real secret in an approval file.
+- **scopes** (string[]): OAuth scopes the client should request (e.g., `["read", "write"]`). Include only when the server requires specific scopes.
+- **authorizationServer** (string): URL of the OAuth authorization server. Set this only when it cannot be discovered automatically or differs from the resource.
+- **resource** (string): The protected resource indicator (RFC 8707), typically the base URL of the MCP deployment (e.g., `https://mcp.example.com/v2`).
+
+### Example (remote server with OAuth)
+
+```json
+{
+  "servers": {
+    "example": {
+      "serverUrl": "https://mcp.example.com/v2/mcp",
+      "oauth": {
+        "clientId": "<clientId>",
+        "clientSecret": "<clientSecret>",
+        "resource": "https://mcp.example.com/v2"
+      }
+    }
+  }
+}
+```
+
+When you add `clientId`, `clientSecret`, or `scopes`, the user must obtain those values themselves. Document the concrete steps to retrieve them in the `instructions` field — for example, which provider dashboard or developer console to open, the page where an OAuth app/client is registered, the redirect URI to configure, and which scopes to grant. Keep the placeholders (`<clientId>`, `<clientSecret>`) in `config` and explain in `instructions` exactly what to replace them with.
+
 ## Version Behavior
 
 During consolidation, the registry enriches each approval with version information:

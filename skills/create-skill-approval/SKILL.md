@@ -43,7 +43,7 @@ Example: Skill ID `io.github.anthropics/code-review` becomes filename `io.github
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
 - **source** (required): Object with `url` (git repo URL) and optionally `path`.
   - **Single skill**: `path` is a string pointing to the skill folder. Omit if the skill is at the repository root.
-  - **Multiple skills**: `path` can be an array of strings (explicit list) or a glob pattern ending with `/*` (e.g., `"skills/*"`) to discover all skill folders containing SKILL.md under a prefix.
+  - **Multiple skills**: `path` can be a glob pattern ending with `/*` (e.g., `"skills/*"`) to discover all skill folders containing SKILL.md under a prefix, or an array. Array entries can be literal paths, glob patterns, or a mix — each glob is expanded, results are merged with any literal paths, and duplicates are removed.
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools.
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
   - **installUrl**: Deep-link URL for one-click install (optional, tool-specific protocol).
@@ -95,6 +95,25 @@ Approves all skills under `skills/` in one file. The `skillId` is a prefix — c
   "source": {
     "url": "https://github.com/anthropics/skills.git",
     "path": ["skills/pdf", "skills/docx", "skills/pptx"]
+  }
+}
+```
+
+## Example: Multi-Skill Approval (Mixed Array)
+
+Approve every skill under several category folders, plus a single explicit skill. Each glob in the array is expanded independently; literal paths are kept as-is.
+
+```json
+{
+  "skillId": "io.github.anthropics",
+  "date": "2026-06-01",
+  "source": {
+    "url": "https://github.com/anthropics/skills.git",
+    "path": [
+      "skills/engineering/*",
+      "skills/productivity/*",
+      "skills/misc/handoff"
+    ]
   }
 }
 ```
