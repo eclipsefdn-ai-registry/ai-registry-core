@@ -4,13 +4,13 @@
     <meta charset="utf-8" />
     <title>AI Registry</title>
     <script>
-      // GitHub Pages SPA redirect
-      // Stores the current path in sessionStorage and redirects to index.html
-      // The restore script in index.html picks it up via history.replaceState
+      // GitHub Pages SPA redirect.
+      // The site is served from the domain root, so redirect any unknown deep
+      // link to "/" (a real file: index.html) while remembering the originally
+      // requested URL. The restore script in index.html picks it up via
+      // history.replaceState so React Router can render the right route.
       sessionStorage.redirect = location.href;
-      location.replace(
-        location.pathname.split("/").slice(0, 2).join("/") + "/",
-      );
+      location.replace(location.origin + "/");
     </script>
   </head>
   <body></body>
