@@ -10,5 +10,9 @@
   {
     "id": "openai",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-openai.git"
+  },
+  {
+    "id": "aws",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-aws.git"
   }
 ]
