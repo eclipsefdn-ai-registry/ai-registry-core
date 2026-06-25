@@ -25,7 +25,7 @@ An Agent Skill is a folder containing a `SKILL.md` file with instructions that A
 2. **Verify the skill exists** — Clone or fetch the source and confirm `SKILL.md` exists at the given location. Read the `SKILL.md` to extract the skill's `name` and `description` from its YAML frontmatter.
 3. **Determine the skillId** — Construct a reverse-domain identifier from the source. For GitHub repos, follow the pattern: `io.github.<owner>/<skill-name>`. For example, a skill at `github.com/anthropics/skills` in folder `skills/code-review` becomes `io.github.anthropics/code-review`.
 4. **Read the vendor's organization.json** — Find `organization.json` in the repo root to determine the vendor ID and available tools.
-5. **Read the approval schema** — Fetch the schema from `https://eclipsefdn-ai-registry.github.io/ai-registry-core/schemas/skill-approval.schema.json` to ensure you follow the current contract.
+5. **Read the approval schema** — Fetch the schema from `https://ai.open-vsx.org/schemas/skill-approval.schema.json` to ensure you follow the current contract.
 6. **Read tool-specific install docs** — Check `ai-docs/skill-approval.md` in the repo. If it exists, read it to understand how to construct the `installUrl` for this vendor's tools.
 7. **Read an existing approval as reference** — Look for existing files in the `skills/` directory. If none exist, use the example below.
 8. **Generate the approval file** — Create a JSON file in the `skills/` directory following the schema and the naming convention below.
