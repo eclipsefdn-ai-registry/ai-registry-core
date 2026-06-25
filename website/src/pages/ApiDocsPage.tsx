@@ -1,4 +1,4 @@
-const BASE_URL = "https://eclipsefdn-ai-registry.github.io/ai-registry-core/";
+const BASE_URL = "https://ai.open-vsx.org/";
 
 export function ApiDocsPage() {
   return (
