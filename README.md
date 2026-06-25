@@ -2,7 +2,7 @@
 
 > **Preview** — This registry is currently in preview. Data, APIs, and the website may change as we iterate on the concept.
 
-A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclipse Foundation. Supports [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers and [Agent Skills](https://agentskills.io).
+A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclipse Foundation. Supports [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers and [Agent Skills](https://agentskills.io). Test Change
 
 ## How It Works
 
