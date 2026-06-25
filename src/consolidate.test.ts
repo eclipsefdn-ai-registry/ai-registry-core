@@ -4,6 +4,7 @@ import {
   addOrganization,
   addApproval,
   addSkillApproval,
+  resolveSkillInstallUrls,
   enrichWithRegistryData,
   buildToolView,
   buildToolSkillView,
@@ -614,10 +615,33 @@ describe("installUrl auto-generation (skills)", () => {
       "acme",
       output,
     );
+    resolveSkillInstallUrls(output);
     const cfg = output.skills[0].approvals[0].installConfigs[0];
     assert.equal(
       cfg.installUrl,
       "tool-a://install-skill?id=io.github.example/my-skill",
+    );
+  });
+
+  it("uses the expanded skillId, not the base approval skillId", () => {
+    const output = outputWithTool("tool-a://install-skill?id=");
+    addSkillApproval(
+      {
+        skillId: "io.github.mattpocock",
+        date: "2026-06-01",
+        source: { url: "https://github.com/mattpocock/skills.git" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    // Simulate glob expansion replacing the base entry with a sub-skill entry
+    output.skills[0].skillId = "io.github.mattpocock/test";
+    resolveSkillInstallUrls(output);
+    const cfg = output.skills[0].approvals[0].installConfigs[0];
+    assert.equal(
+      cfg.installUrl,
+      "tool-a://install-skill?id=io.github.mattpocock/test",
     );
   });
 
@@ -633,6 +657,7 @@ describe("installUrl auto-generation (skills)", () => {
       "acme",
       output,
     );
+    resolveSkillInstallUrls(output);
     const cfg = output.skills[0].approvals[0].installConfigs[0];
     assert.equal(cfg.installUrl, "custom://explicit");
   });
@@ -649,6 +674,7 @@ describe("installUrl auto-generation (skills)", () => {
       "acme",
       output,
     );
+    resolveSkillInstallUrls(output);
     const cfg = output.skills[0].approvals[0].installConfigs[0];
     assert.equal(cfg.installUrl, undefined);
   });

@@ -248,27 +248,35 @@ export function addSkillApproval(
     .digest("hex")
     .slice(0, 12);
 
-  const resolvedSkillConfigs = (approvalData.installConfigs ?? []).map(
-    (cfg) => {
-      if (cfg.installUrl) return cfg;
-      const tool = output.tools.find((t) => t.id === cfg.tool);
-      if (tool?.skillInstallUrlPrefix) {
-        return {
-          ...cfg,
-          installUrl: tool.skillInstallUrlPrefix + approvalData.skillId,
-        };
-      }
-      return cfg;
-    },
-  );
-
   const approval: SkillApproval = {
     organizationId,
     date: approvalData.date,
     configHash,
-    installConfigs: resolvedSkillConfigs,
+    installConfigs: approvalData.installConfigs ?? [],
   };
   skillEntry.approvals.push(approval);
+}
+
+// Resolve auto-generated skill install URLs against the final (possibly
+// glob-expanded) skillId. Must run after enrichSkillMetadata so that expanded
+// entries like "io.example/foo" get URLs matching their expanded skillId
+// rather than the base approval skillId.
+export function resolveSkillInstallUrls(output: ConsolidatedOutput): void {
+  for (const skill of output.skills) {
+    for (const approval of skill.approvals) {
+      approval.installConfigs = approval.installConfigs.map((cfg) => {
+        if (cfg.installUrl) return cfg;
+        const tool = output.tools.find((t) => t.id === cfg.tool);
+        if (tool?.skillInstallUrlPrefix) {
+          return {
+            ...cfg,
+            installUrl: tool.skillInstallUrlPrefix + skill.skillId,
+          };
+        }
+        return cfg;
+      });
+    }
+  }
 }
 
 export function buildToolSkillView(
@@ -480,6 +488,9 @@ export async function main(): Promise<void> {
 
   // Step 2b: Enrich skills with source metadata (expands multi-path, skips unreachable sources)
   output.skills = enrichSkillMetadata(output.skills);
+
+  // Resolve auto-generated install URLs against the final (expanded) skillIds
+  resolveSkillInstallUrls(output);
 
   // Check for duplicate skillIds after expansion
   const seenSkillIds = new Set<string>();

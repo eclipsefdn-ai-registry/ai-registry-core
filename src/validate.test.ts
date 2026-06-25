@@ -435,4 +435,46 @@ describe("validateVendorData — skill approvals", () => {
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("must not contain")));
   });
+
+  it("fails when a multi-path source sets an explicit installUrl", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example.json",
+        data: {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/*",
+          },
+          installConfigs: [
+            {
+              tool: "test-tool",
+              installUrl: "test-tool://install?id=io.example",
+            },
+          ],
+        },
+      },
+    ]);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("explicit installUrl")));
+  });
+
+  it("allows a multi-path source with prefix-based installConfigs", () => {
+    const result = validateVendorData(validOrg, [], undefined, [
+      {
+        file: "io.example.json",
+        data: {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: ["skills/a", "skills/b"],
+          },
+          installConfigs: [{ tool: "test-tool" }],
+        },
+      },
+    ]);
+    assert.equal(result.valid, true);
+  });
 });

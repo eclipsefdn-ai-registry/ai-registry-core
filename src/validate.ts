@@ -44,7 +44,7 @@ export interface SkillApprovalData {
   skillId: string;
   date: string;
   source: { url: string; path?: string | string[] };
-  installConfigs?: { tool: string }[];
+  installConfigs?: { tool: string; installUrl?: string }[];
 }
 
 export interface SkillApprovalEntry {
@@ -217,6 +217,20 @@ export function validateVendorData(
         `${file}: skillId "${skill.skillId}" must not contain "/" when using multi-path source (it acts as a prefix)`,
       );
       continue;
+    }
+
+    // Multi-path sources expand into multiple skills, so a single explicit
+    // installUrl cannot apply to all of them. Auto-generation via the tool's
+    // skillInstallUrlPrefix is required instead.
+    if (isMultiPath) {
+      const explicit = (skill.installConfigs ?? []).find((ic) => ic.installUrl);
+      if (explicit) {
+        result.valid = false;
+        result.errors.push(
+          `${file}: installConfig for tool "${explicit.tool}" sets an explicit installUrl, which is not allowed with a multi-path source (it expands to multiple skills; rely on the tool's skillInstallUrlPrefix instead)`,
+        );
+        continue;
+      }
     }
 
     if (seenSkillIds.has(skill.skillId)) {
