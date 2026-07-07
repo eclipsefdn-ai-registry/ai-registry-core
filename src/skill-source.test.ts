@@ -10,6 +10,7 @@ import {
   computeContentHash,
   isGlobPattern,
   discoverSkillPaths,
+  resolveSkillPaths,
   expandSkillEntry,
 } from "./skill-source.js";
 import type { SkillEntry } from "./consolidate.js";
@@ -325,6 +326,174 @@ describe("discoverSkillPaths", () => {
       assert.deepEqual(paths, ["skills/alpha", "skills/mu", "skills/zeta"]);
     } finally {
       rmSync(dir, { recursive: true });
+    }
+  });
+});
+
+// --- resolveSkillPaths ---
+
+describe("resolveSkillPaths", () => {
+  function setup(
+    sourceUrl: string,
+    skills: string[],
+    nonSkills: string[] = [],
+  ): { tmpDir: string } {
+    const tmpDir = mkdtempSync(join(tmpdir(), "resolve-test-"));
+    const repoHash = createHash("sha256")
+      .update(sourceUrl)
+      .digest("hex")
+      .slice(0, 8);
+    const cloneDir = join(tmpDir, `skill-${repoHash}`);
+    mkdirSync(cloneDir, { recursive: true });
+    execSync("git init", { cwd: cloneDir, stdio: "pipe" });
+    execSync('git config user.email "test@test.com"', {
+      cwd: cloneDir,
+      stdio: "pipe",
+    });
+    execSync('git config user.name "Test"', {
+      cwd: cloneDir,
+      stdio: "pipe",
+    });
+
+    for (const skill of skills) {
+      const skillDir = join(cloneDir, skill);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(
+        join(skillDir, "SKILL.md"),
+        `---\nname: ${skill.split("/").pop()}\n---\nContent`,
+      );
+    }
+    for (const ns of nonSkills) {
+      const nsDir = join(cloneDir, ns);
+      mkdirSync(nsDir, { recursive: true });
+      writeFileSync(join(nsDir, "README.md"), "Not a skill");
+    }
+
+    execSync("git add -A && git commit -m init", {
+      cwd: cloneDir,
+      stdio: "pipe",
+    });
+    return { tmpDir };
+  }
+
+  it("expands a single glob string", () => {
+    const url = "https://example.test/resolve-single-glob.git";
+    const { tmpDir } = setup(url, ["skills/alpha", "skills/beta"]);
+    try {
+      const { resolved, warnings } = resolveSkillPaths(url, "skills/*", tmpDir);
+      assert.deepEqual(resolved, ["skills/alpha", "skills/beta"]);
+      assert.deepEqual(warnings, []);
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("expands glob in an array", () => {
+    const url = "https://example.test/resolve-array-glob.git";
+    const { tmpDir } = setup(url, [
+      "engineering/a",
+      "engineering/b",
+      "productivity/c",
+    ]);
+    try {
+      const { resolved, warnings } = resolveSkillPaths(
+        url,
+        ["engineering/*", "productivity/*"],
+        tmpDir,
+      );
+      assert.deepEqual(resolved, [
+        "engineering/a",
+        "engineering/b",
+        "productivity/c",
+      ]);
+      assert.deepEqual(warnings, []);
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("returns literal paths as-is without cloning", () => {
+    const url = "https://example.test/resolve-literals.git";
+    const tmpDir = mkdtempSync(join(tmpdir(), "resolve-noglob-"));
+    try {
+      const { resolved, warnings } = resolveSkillPaths(
+        url,
+        ["skills/foo", "skills/bar"],
+        tmpDir,
+      );
+      assert.deepEqual(resolved, ["skills/foo", "skills/bar"]);
+      assert.deepEqual(warnings, []);
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("returns a single literal string as-is", () => {
+    const url = "https://example.test/resolve-single-literal.git";
+    const tmpDir = mkdtempSync(join(tmpdir(), "resolve-lit-"));
+    try {
+      const { resolved, warnings } = resolveSkillPaths(
+        url,
+        "skills/foo",
+        tmpDir,
+      );
+      assert.deepEqual(resolved, ["skills/foo"]);
+      assert.deepEqual(warnings, []);
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("mixes globs and literal paths", () => {
+    const url = "https://example.test/resolve-mixed.git";
+    const { tmpDir } = setup(url, ["engineering/a", "engineering/b"]);
+    try {
+      const { resolved, warnings } = resolveSkillPaths(
+        url,
+        ["engineering/*", "misc/keep"],
+        tmpDir,
+      );
+      assert.deepEqual(resolved, [
+        "engineering/a",
+        "engineering/b",
+        "misc/keep",
+      ]);
+      assert.deepEqual(warnings, []);
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("warns when a glob matches nothing", () => {
+    const url = "https://example.test/resolve-empty-glob.git";
+    const { tmpDir } = setup(url, ["engineering/a"]);
+    try {
+      const { resolved, warnings } = resolveSkillPaths(
+        url,
+        ["engineering/*", "empty/*"],
+        tmpDir,
+      );
+      assert.deepEqual(resolved, ["engineering/a"]);
+      assert.equal(warnings.length, 1);
+      assert.ok(warnings[0].includes("empty/*"));
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("deduplicates and warns", () => {
+    const url = "https://example.test/resolve-dedup.git";
+    const { tmpDir } = setup(url, ["skills/alpha", "skills/beta"]);
+    try {
+      const { resolved, warnings } = resolveSkillPaths(
+        url,
+        ["skills/*", "skills/alpha"],
+        tmpDir,
+      );
+      assert.deepEqual(resolved, ["skills/alpha", "skills/beta"]);
+      assert.ok(warnings.some((w) => w.includes("duplicate")));
+    } finally {
+      rmSync(tmpDir, { recursive: true });
     }
   });
 });
