@@ -213,3 +213,7 @@ If collection or MCP enrichment fails, the build stops and the previous deployme
 - [MCP approval skill](skills/create-mcp-approval/SKILL.md) — AI agent skill for generating MCP approval files
 - [Skill approval skill](skills/create-skill-approval/SKILL.md) — AI agent skill for generating skill approval files
 - [JSON schemas](schemas/) — organization and approval file schemas
+
+## License
+
+This project is licensed under the [Eclipse Public License 2.0](LICENSE).
