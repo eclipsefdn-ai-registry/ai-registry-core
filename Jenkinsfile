@@ -8,4 +8,7 @@ hugo (
     script: 'build.sh',
     destinationFolder: 'website/dist'
   ],
+  deployment: [
+    nginxServerConf: 'config/nginx/default.conf'
+  ],
 )
