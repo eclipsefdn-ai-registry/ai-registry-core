@@ -234,6 +234,49 @@ function expandedEntry(template: SkillEntry, path: string): SkillEntry {
   };
 }
 
+/**
+ * Resolve skill paths, expanding any glob patterns to concrete paths.
+ * Non-glob paths are returned as-is. Glob patterns are expanded by cloning
+ * the repo and discovering child folders that contain SKILL.md.
+ */
+export function resolveSkillPaths(
+  sourceUrl: string,
+  path: string | string[],
+  tmpDir: string,
+): { resolved: string[]; warnings: string[] } {
+  const rawPaths = typeof path === "string" ? [path] : path;
+  const warnings: string[] = [];
+
+  // No globs — return paths as-is
+  if (!rawPaths.some(isGlobPattern)) {
+    return { resolved: [...rawPaths], warnings };
+  }
+
+  // Clone repo (without sparse-checkout) for glob discovery
+  const cloneDir = getCloneDir(sourceUrl, tmpDir);
+  cloneSkillFolder(sourceUrl, undefined, tmpDir);
+
+  const allPaths: string[] = [];
+  for (const p of rawPaths) {
+    if (isGlobPattern(p)) {
+      const discovered = discoverSkillPaths(cloneDir, p);
+      if (discovered.length === 0) {
+        warnings.push(`glob "${p}" matched no skill folders`);
+      }
+      allPaths.push(...discovered);
+    } else {
+      allPaths.push(p);
+    }
+  }
+
+  const uniquePaths = [...new Set(allPaths)];
+  if (uniquePaths.length !== allPaths.length) {
+    warnings.push("duplicate paths removed");
+  }
+
+  return { resolved: uniquePaths, warnings };
+}
+
 export function expandSkillEntry(
   entry: SkillEntry,
   tmpDir: string,
@@ -242,59 +285,20 @@ export function expandSkillEntry(
 
   // No path or single non-glob string — no expansion
   if (source.path === undefined) return [entry];
-
-  if (typeof source.path === "string") {
-    if (!isGlobPattern(source.path)) return [entry];
-
-    // Glob: clone and discover
-    const cloneDir = getCloneDir(source.url, tmpDir);
-    // Ensure the repo is cloned (cloneSkillFolder handles caching)
-    cloneSkillFolder(source.url, undefined, tmpDir);
-    const paths = discoverSkillPaths(cloneDir, source.path);
-    if (paths.length === 0) {
-      console.warn(
-        `  WARNING: ${skillId} — glob "${source.path}" matched no skill folders`,
-      );
-      return [];
-    }
-    return paths.map((p) => expandedEntry(entry, p));
+  if (typeof source.path === "string" && !isGlobPattern(source.path)) {
+    return [entry];
   }
 
-  // Array of paths — expand globs, keep literals, deduplicate
-  if (Array.isArray(source.path)) {
-    const hasGlob = source.path.some(isGlobPattern);
-    let cloneDir: string | undefined;
-    if (hasGlob) {
-      cloneDir = getCloneDir(source.url, tmpDir);
-      // Ensure the repo is cloned (cloneSkillFolder handles caching)
-      cloneSkillFolder(source.url, undefined, tmpDir);
-    }
-
-    const allPaths: string[] = [];
-    for (const p of source.path) {
-      if (isGlobPattern(p)) {
-        const discovered = discoverSkillPaths(cloneDir!, p);
-        if (discovered.length === 0) {
-          console.warn(
-            `  WARNING: ${skillId} — glob "${p}" matched no skill folders`,
-          );
-          continue;
-        }
-        allPaths.push(...discovered);
-      } else {
-        allPaths.push(p);
-      }
-    }
-
-    const uniquePaths = [...new Set(allPaths)];
-    if (uniquePaths.length !== allPaths.length) {
-      console.warn(`  WARNING: ${skillId} — duplicate paths removed`);
-    }
-
-    return uniquePaths.map((p) => expandedEntry(entry, p));
+  const { resolved, warnings } = resolveSkillPaths(
+    source.url,
+    source.path,
+    tmpDir,
+  );
+  for (const w of warnings) {
+    console.warn(`  WARNING: ${skillId} — ${w}`);
   }
-
-  return [entry];
+  if (resolved.length === 0) return [];
+  return resolved.map((p) => expandedEntry(entry, p));
 }
 
 // --- Enrichment (called by consolidate.ts) ---

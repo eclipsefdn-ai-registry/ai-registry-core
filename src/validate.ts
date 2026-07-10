@@ -1,11 +1,17 @@
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+} from "node:fs";
 import { execSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
-import { isGlobPattern } from "./skill-source.js";
+import { isGlobPattern, resolveSkillPaths } from "./skill-source.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -437,39 +443,52 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
 
   if (result.skillApprovals.length > 0) {
     console.log("\nPhase 3: Skill source verification");
-    for (const { file, data } of result.skillApprovals) {
-      const { path } = data.source;
+    const { fetchSkillMetadata } = await import("./skill-source.js");
+    const tmpDir = join(repoDir, ".tmp-validate-skills");
+    mkdirSync(tmpDir, { recursive: true });
 
-      // Glob patterns are expanded during consolidation, not here
-      if (typeof path === "string" && isGlobPattern(path)) {
-        console.log(
-          `  SKIP: ${file} — glob pattern "${path}" will be expanded during consolidation`,
-        );
-        continue;
-      }
+    try {
+      for (const { file, data } of result.skillApprovals) {
+        const { path } = data.source;
 
-      // Array paths: verify each individually
-      const paths: (string | undefined)[] = Array.isArray(path) ? path : [path];
-
-      for (const singlePath of paths) {
-        try {
-          const { fetchSkillMetadata } = await import("./skill-source.js");
-          const metadata = await fetchSkillMetadata(
+        // Resolve paths, expanding any globs to concrete paths
+        let pathsToVerify: (string | undefined)[];
+        if (path === undefined) {
+          pathsToVerify = [undefined];
+        } else {
+          const { resolved, warnings } = resolveSkillPaths(
             data.source.url,
-            singlePath,
+            path,
+            tmpDir,
           );
-          const label = singlePath ? `${file} (${singlePath})` : file;
-          console.log(`  PASS: ${label}`);
-          console.log(`    Name: ${metadata.name}`);
-          console.log(`    Description: ${metadata.description}`);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          const label = singlePath ? `${file} (${singlePath})` : file;
-          console.warn(
-            `  WARNING: ${label} — could not verify skill source: ${message}`,
-          );
+          for (const w of warnings) {
+            console.warn(`  WARNING: ${file} — ${w}`);
+          }
+          pathsToVerify = resolved;
+        }
+
+        for (const singlePath of pathsToVerify) {
+          try {
+            const metadata = fetchSkillMetadata(
+              data.source.url,
+              singlePath,
+              tmpDir,
+            );
+            const label = singlePath ? `${file} (${singlePath})` : file;
+            console.log(`  PASS: ${label}`);
+            console.log(`    Name: ${metadata.name}`);
+            console.log(`    Description: ${metadata.description}`);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            const label = singlePath ? `${file} (${singlePath})` : file;
+            console.warn(
+              `  WARNING: ${label} — could not verify skill source: ${message}`,
+            );
+          }
         }
       }
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
     }
   }
 
