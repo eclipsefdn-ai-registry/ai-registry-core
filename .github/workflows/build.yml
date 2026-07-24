@@ -78,7 +78,7 @@ jobs:
 
       - name: Trigger Jenkins deployment
         run: |
-          curl -X POST -L --fail --silent --show-error --user "ai-registry-trigger-bot@eclipse.org:${JENKINS_API_TOKEN}" \
-            "https://foundation.eclipse.org/ci/webdev/job/public/job/ai.open-vsx.org/build"
+          curl -X POST -L --fail --silent --show-error -o /dev/null --user "ai-registry-trigger-bot@eclipse.org:${JENKINS_API_TOKEN}" \
+            "https://foundation.eclipse.org/ci/webdev/job/public/job/ai.open-vsx.org/job/main/build"
         env:
           JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
