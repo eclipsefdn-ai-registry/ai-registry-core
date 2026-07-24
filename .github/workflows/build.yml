@@ -77,6 +77,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
       - name: Trigger Jenkins deployment
+        if: github.event_name != 'push'
         run: |
           curl -X POST -L --fail --silent --show-error -o /dev/null --user "ai-registry-trigger-bot@eclipse.org:${JENKINS_API_TOKEN}" \
             "https://foundation.eclipse.org/ci/webdev/job/public/job/ai.open-vsx.org/job/main/build"
