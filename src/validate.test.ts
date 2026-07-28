@@ -2,9 +2,35 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   checkToolIds,
+  checkTrustedOrgIds,
   validateVendorData,
   type SkillApprovalEntry,
 } from "./validate.js";
+
+// --- checkTrustedOrgIds ---
+
+describe("checkTrustedOrgIds", () => {
+  const knownOrgIds = new Set(["anthropic", "openai", "aws"]);
+
+  it("returns no errors when every trusted org is registered", () => {
+    const errors = checkTrustedOrgIds(
+      [{ org: "anthropic" }, { org: "aws" }],
+      knownOrgIds,
+    );
+    assert.equal(errors.length, 0);
+  });
+
+  it("reports a trusted org that isn't registered", () => {
+    const errors = checkTrustedOrgIds([{ org: "nonexistent" }], knownOrgIds);
+    assert.equal(errors.length, 1);
+    assert.ok(errors[0].includes("nonexistent"));
+  });
+
+  it("returns no errors when trusts is undefined", () => {
+    const errors = checkTrustedOrgIds(undefined, knownOrgIds);
+    assert.equal(errors.length, 0);
+  });
+});
 
 // --- checkToolIds ---
 
@@ -132,6 +158,42 @@ describe("validateVendorData", () => {
     assert.ok(
       result.errors.some((e) => e.includes('duplicate tool ID "test-tool"')),
     );
+  });
+
+  it("passes with a valid trusts entry", () => {
+    const orgWithTrust = {
+      ...validOrg,
+      trusts: [{ org: "anthropic", artifactTypes: { skills: {} } }],
+    };
+    const result = validateVendorData(orgWithTrust, []);
+    assert.equal(result.valid, true);
+  });
+
+  it("fails on duplicate trust entries for the same organization", () => {
+    const orgWithDuplicateTrust = {
+      ...validOrg,
+      trusts: [
+        { org: "anthropic", artifactTypes: { skills: {} } },
+        { org: "anthropic", artifactTypes: { skills: {} } },
+      ],
+    };
+    const result = validateVendorData(orgWithDuplicateTrust, []);
+    assert.equal(result.valid, false);
+    assert.ok(
+      result.errors.some((e) =>
+        e.includes('duplicate trust entry for organization "anthropic"'),
+      ),
+    );
+  });
+
+  it("fails when an organization trusts itself", () => {
+    const orgTrustingItself = {
+      ...validOrg,
+      trusts: [{ org: "test-vendor", artifactTypes: { skills: {} } }],
+    };
+    const result = validateVendorData(orgTrustingItself, []);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("cannot trust itself")));
   });
 
   it("fails on duplicate serverId across approvals", () => {

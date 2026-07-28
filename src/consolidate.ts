@@ -36,6 +36,15 @@ interface OrganizationData {
     skillInstallUrlPrefix?: string;
     mcpInstallUrlPrefix?: string;
   }[];
+  trusts?: {
+    org: string;
+    artifactTypes: { skills?: Record<string, never> };
+  }[];
+}
+
+export interface SkillTrustEntry {
+  org: string;
+  trustedOrg: string;
 }
 
 export interface Organization {
@@ -106,6 +115,9 @@ export interface SkillApproval {
   configHash: string;
   installConfigs: SkillInstallConfig[];
   // installConfigs is always present in output (defaults to [])
+  viaTrust?: string;
+  // present only on trust-derived approvals; holds the id of the
+  // organization that actually filed the approval
 }
 
 export interface SkillEntry {
@@ -129,8 +141,9 @@ export interface ConsolidatedOutput {
 export function addOrganization(
   orgData: OrganizationData,
   output: ConsolidatedOutput,
+  skillTrusts: SkillTrustEntry[] = [],
 ): void {
-  const { tools: orgTools = [], ...orgMeta } = orgData;
+  const { tools: orgTools = [], trusts = [], ...orgMeta } = orgData;
   output.organizations.push(orgMeta);
 
   for (const tool of orgTools) {
@@ -141,6 +154,12 @@ export function addOrganization(
       skillInstallUrlPrefix: tool.skillInstallUrlPrefix,
       mcpInstallUrlPrefix: tool.mcpInstallUrlPrefix,
     });
+  }
+
+  for (const trust of trusts) {
+    if (trust.artifactTypes.skills) {
+      skillTrusts.push({ org: orgData.id, trustedOrg: trust.org });
+    }
   }
 }
 
@@ -257,6 +276,60 @@ export function addSkillApproval(
   skillEntry.approvals.push(approval);
 }
 
+// Splits skill trust entries into those referencing a registered vendor and
+// those that don't. A vendor's own CI fails on an unknown trusted org before
+// merge (see checkTrustedOrgIds in validate.ts); this is a defense-in-depth
+// check for the shared consolidation build, which should stay up even if one
+// vendor's reference is stale or CI was bypassed — so unknown entries are
+// dropped rather than failing the whole build.
+export function filterValidSkillTrusts(
+  skillTrusts: SkillTrustEntry[],
+  vendorIds: Set<string>,
+): { valid: SkillTrustEntry[]; unknown: SkillTrustEntry[] } {
+  const valid: SkillTrustEntry[] = [];
+  const unknown: SkillTrustEntry[] = [];
+  for (const trust of skillTrusts) {
+    (vendorIds.has(trust.trustedOrg) ? valid : unknown).push(trust);
+  }
+  return { valid, unknown };
+}
+
+// Resolve trust delegations into derived skill approvals. Must run after
+// enrichSkillMetadata so that trust matches against final, expanded
+// skillIds, and before resolveSkillInstallUrls so install URL generation
+// fills in installUrl for the derived installConfigs below, the same way it
+// does for direct approvals. Single-hop only: only directly-filed approvals
+// (no viaTrust) are used as a trust source, so trust never chains through
+// another organization's trust-derived approvals.
+//
+// A derived approval gets an installConfig entry for each tool the trusting
+// organization itself provides, so trusting an organization actually makes
+// the skill installable through the trusting organization's own tools —
+// otherwise trust would only add a name to the approvals list without ever
+// surfacing in a tool-specific view.
+export function resolveSkillTrust(
+  output: ConsolidatedOutput,
+  skillTrusts: SkillTrustEntry[],
+): void {
+  for (const { org, trustedOrg } of skillTrusts) {
+    const ownTools = output.tools.filter((t) => t.organizationId === org);
+    for (const skill of output.skills) {
+      const sourceApproval = skill.approvals.find(
+        (a) => a.organizationId === trustedOrg && !a.viaTrust,
+      );
+      if (!sourceApproval) continue;
+
+      skill.approvals.push({
+        organizationId: org,
+        date: sourceApproval.date,
+        configHash: sourceApproval.configHash,
+        installConfigs: ownTools.map((t) => ({ tool: t.id })),
+        viaTrust: trustedOrg,
+      });
+    }
+  }
+}
+
 // Resolve auto-generated skill install URLs against the final (possibly
 // glob-expanded) skillId. Must run after enrichSkillMetadata so that expanded
 // entries like "io.example/foo" get URLs matching their expanded skillId
@@ -349,6 +422,7 @@ function collectVendorData(
   vendorId: string,
   vendorPath: string,
   output: ConsolidatedOutput,
+  skillTrusts: SkillTrustEntry[],
 ): void {
   const result = validateVendorFiles(vendorPath, vendorId);
 
@@ -362,7 +436,11 @@ function collectVendorData(
     console.warn(`  WARNING [${vendorId}]: ${w}`);
   }
 
-  addOrganization(result.organization!.raw as OrganizationData, output);
+  addOrganization(
+    result.organization!.raw as OrganizationData,
+    output,
+    skillTrusts,
+  );
 
   for (const { data } of result.approvals) {
     addApproval(data, vendorId, output);
@@ -453,6 +531,7 @@ export async function main(): Promise<void> {
     mcp: [],
     skills: [],
   };
+  const skillTrusts: SkillTrustEntry[] = [];
 
   // Step 1: Collect all vendor data (fails build on any error)
   const tmpDir = resolve(ROOT, ".tmp-vendors");
@@ -465,7 +544,7 @@ export async function main(): Promise<void> {
     for (const vendor of vendors) {
       console.log(`Processing vendor: ${vendor.id}`);
       const vendorPath = cloneOrUseLocal(vendor, tmpDir);
-      collectVendorData(vendor.id, vendorPath, output);
+      collectVendorData(vendor.id, vendorPath, output, skillTrusts);
       console.log();
     }
   } finally {
@@ -483,11 +562,26 @@ export async function main(): Promise<void> {
     seenToolIds.add(tool.id);
   }
 
+  // Drop (with a warning) any trust entry referencing an unregistered org,
+  // rather than failing the whole build — a vendor's own CI already hard-
+  // fails on this before merge (see checkTrustedOrgIds in validate.ts)
+  const vendorIds = new Set(vendors.map((v) => v.id));
+  const { valid: validSkillTrusts, unknown: unknownSkillTrusts } =
+    filterValidSkillTrusts(skillTrusts, vendorIds);
+  for (const { org, trustedOrg } of unknownSkillTrusts) {
+    console.warn(
+      `  WARNING: organization.json for "${org}" trusts unknown organization "${trustedOrg}" — skipping`,
+    );
+  }
+
   // Step 2a: Enrich MCP with Anthropic registry (fails build on registry errors)
   await enrichRegistryMetadata(output);
 
   // Step 2b: Enrich skills with source metadata (expands multi-path, skips unreachable sources)
   output.skills = enrichSkillMetadata(output.skills);
+
+  // Resolve trust delegations into derived skill approvals
+  resolveSkillTrust(output, validSkillTrusts);
 
   // Resolve auto-generated install URLs against the final (expanded) skillIds
   resolveSkillInstallUrls(output);
