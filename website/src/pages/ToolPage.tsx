@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { Search, ShieldCheck, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Search, ArrowLeft } from "lucide-react";
 import { useToolRegistryData } from "../hooks/useRegistryData";
 import { InstallConfigView } from "../components/ServerDetail";
+import { McpVerificationBadge } from "../components/McpVerificationBadge";
 import { NotFoundPage } from "./NotFoundPage";
 import type { McpServer, Skill, Organization, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
@@ -216,23 +217,7 @@ function ToolServerCard({
           <h3 className="text-base font-semibold text-foreground">
             {server.name}
           </h3>
-          {server.mcpRegistryVerified ? (
-            <span
-              className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 cursor-help hover:bg-primary/20 transition-colors"
-              title="This server exists in the Anthropic MCP registry"
-            >
-              <ShieldCheck className="h-3 w-3" />
-              Verified
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20 cursor-help hover:opacity-80 transition-opacity"
-              title="This server was not found in the Anthropic MCP registry"
-            >
-              <AlertTriangle className="h-3 w-3" />
-              Unverified
-            </span>
-          )}
+          <McpVerificationBadge server={server} getOrg={getOrg} interactive />
         </div>
         <div className="font-mono text-xs text-muted-foreground mb-3">
           {server.serverId}
@@ -319,17 +304,7 @@ function ToolServerDetail({
       <h2 className="text-xl font-bold mb-1">{server.name}</h2>
       <p className="text-muted-foreground mb-4">{server.description}</p>
       <div className="flex gap-3 mb-6 flex-wrap items-center text-sm">
-        {server.mcpRegistryVerified ? (
-          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-            <ShieldCheck className="h-3 w-3" />
-            Verified
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20">
-            <AlertTriangle className="h-3 w-3" />
-            Unverified
-          </span>
-        )}
+        <McpVerificationBadge server={server} getOrg={getOrg} />
         <span className="text-muted-foreground font-mono text-xs">
           {server.serverId}
         </span>

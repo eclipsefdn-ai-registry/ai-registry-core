@@ -120,6 +120,32 @@ Example: `mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`
 
 The `serverId` must reference a server in the [Anthropic MCP registry](https://registry.modelcontextprotocol.io). Server metadata (name, description) is retrieved automatically during consolidation — you only supply the ID and optionally install configurations. Approvals without `installConfigs` are valid and indicate the organization approves the server without providing tool-specific configuration.
 
+#### Vendor-supplied metadata for servers not in the Anthropic registry
+
+Not every MCP server a vendor wants to approve is registered with Anthropic yet. For these, an approval can optionally include `metadata` and `selfPublished`:
+
+```json
+{
+  "serverId": "io.github.some-org/not-yet-registered-server",
+  "date": "2026-07-01",
+  "metadata": {
+    "name": "Not Yet Registered Server",
+    "description": "Does something useful, pending registration with the Anthropic MCP registry."
+  },
+  "selfPublished": true
+}
+```
+
+- **`metadata`** (`{ name, description }`) — a fallback name/description used only while the server is absent from the Anthropic registry. Once the server appears there, registry data always takes precedence and `metadata` is ignored.
+- **`selfPublished`** (boolean) — set this only if your organization actually publishes/maintains the server (not merely approves or recommends it). It renders a distinct "Verified by {vendor}" badge on the website, separate from Anthropic-registry verification.
+
+These two fields are independent: any approving vendor may supply `metadata` as a suggestion without self-attesting, and self-attestation implies stronger trust in that vendor's `metadata` if supplied.
+
+Resolution when a server has no registry entry:
+
+1. If exactly one vendor set `selfPublished: true`, that vendor's `metadata` (if present) wins, and the website shows "Verified by {vendor}". **Two different vendors self-attesting for the same server is a contradiction and fails the shared consolidation build** — a server can only have one publisher.
+2. Otherwise, among vendors that supplied plain `metadata`, the earliest-`date` approval wins (organization ID alphabetically as a tie-break on an exact date match). This is a deterministic, non-fatal fallback — vendors can't see each other's data before filing, so disagreement here is expected and only logged as a warning, not a build failure.
+
 ### Skill approval files
 
 One JSON file per approved Agent Skill (or group of skills from the same repo), stored in `skills/`. The filename must be `<skillId>.json` with `/` replaced by `--`. See the [skill approval schema](schemas/skill-approval.schema.json) for the full field reference.
@@ -200,7 +226,7 @@ A tool integration typically fetches `organizations.json` + its own `tools/<tool
 The consolidation pipeline follows a build-or-nothing approach:
 
 1. **Collect** — Clone all vendor repos and validate their data. Any failure (repo unreachable, invalid data) fails the build.
-2. **Enrich MCP** — Look up each server in the Anthropic MCP registry. Registry errors (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`.
+2. **Enrich MCP** — Look up each server in the Anthropic MCP registry. Registry errors (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`, then falls back to any vendor-supplied `metadata`/`selfPublished` (see [Vendor-supplied metadata](#vendor-supplied-metadata-for-servers-not-in-the-anthropic-registry)). Two different vendors self-attesting as publisher for the same server is treated the same as a registry error — it fails the build.
 3. **Enrich Skills** — Fetch each skill's source via sparse git checkout to extract metadata and compute a content hash. Unreachable sources are skipped with a warning — the skill is omitted from the output until its source is reachable again.
 4. **Write & Deploy** — Only reached if the previous steps succeed.
 

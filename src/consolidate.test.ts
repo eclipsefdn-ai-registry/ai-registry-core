@@ -6,6 +6,7 @@ import {
   addSkillApproval,
   resolveSkillInstallUrls,
   enrichWithRegistryData,
+  resolveVendorMetadata,
   buildToolView,
   buildToolSkillView,
   type ConsolidatedOutput,
@@ -307,6 +308,165 @@ describe("enrichWithRegistryData", () => {
 
     assert.equal(entry.approvals[0].version, "1.0.0");
     assert.equal(entry.latestVersion, "3.1.0");
+  });
+});
+
+describe("resolveVendorMetadata", () => {
+  function baseEntry(overrides: Partial<McpEntry> = {}): McpEntry {
+    return {
+      serverId: "io.example/server",
+      name: "io.example/server",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [],
+      ...overrides,
+    };
+  }
+
+  it("fills name/description from a single vendor-suggested metadata", () => {
+    const entry = baseEntry({
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+          metadata: { name: "Acme Server", description: "Suggested by Acme" },
+        },
+      ],
+    });
+
+    resolveVendorMetadata(entry);
+
+    assert.equal(entry.name, "Acme Server");
+    assert.equal(entry.description, "Suggested by Acme");
+    assert.equal(entry.mcpRegistryVerified, false);
+    assert.equal(entry.vendorVerifiedBy, undefined);
+  });
+
+  it("prefers the earliest-dated metadata when two vendors disagree", () => {
+    const entry = baseEntry({
+      approvals: [
+        {
+          organizationId: "later-org",
+          date: "2026-05-10",
+          configHash: "abc",
+          installConfigs: [],
+          metadata: { name: "Later Name", description: "Later description" },
+        },
+        {
+          organizationId: "earlier-org",
+          date: "2026-05-01",
+          configHash: "def",
+          installConfigs: [],
+          metadata: {
+            name: "Earlier Name",
+            description: "Earlier description",
+          },
+        },
+      ],
+    });
+
+    resolveVendorMetadata(entry);
+
+    assert.equal(entry.name, "Earlier Name");
+    assert.equal(entry.description, "Earlier description");
+  });
+
+  it("breaks an exact date tie alphabetically by org id", () => {
+    const entry = baseEntry({
+      approvals: [
+        {
+          organizationId: "zebra-org",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+          metadata: { name: "Zebra Name", description: "Zebra description" },
+        },
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "def",
+          installConfigs: [],
+          metadata: { name: "Acme Name", description: "Acme description" },
+        },
+      ],
+    });
+
+    resolveVendorMetadata(entry);
+
+    assert.equal(entry.name, "Acme Name");
+    assert.equal(entry.description, "Acme description");
+  });
+
+  it("sets vendorVerifiedBy and fills metadata for a self-published approval", () => {
+    const entry = baseEntry({
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+          selfPublished: true,
+          metadata: { name: "Acme Server", description: "We built this" },
+        },
+      ],
+    });
+
+    resolveVendorMetadata(entry);
+
+    assert.equal(entry.vendorVerifiedBy, "acme");
+    assert.equal(entry.name, "Acme Server");
+    assert.equal(entry.description, "We built this");
+  });
+
+  it("throws when two different organizations both self-publish the same server", () => {
+    const entry = baseEntry({
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+          selfPublished: true,
+        },
+        {
+          organizationId: "other-org",
+          date: "2026-05-02",
+          configHash: "def",
+          installConfigs: [],
+          selfPublished: true,
+        },
+      ],
+    });
+
+    assert.throws(() => {
+      resolveVendorMetadata(entry);
+    }, /io\.example\/server/);
+  });
+
+  it("does not overwrite registry-verified name/description with vendor metadata, but still marks vendorVerifiedBy", () => {
+    const entry = baseEntry({
+      name: "Registry Name",
+      description: "Registry description",
+      mcpRegistryVerified: true,
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+          selfPublished: true,
+          metadata: { name: "Vendor Name", description: "Vendor description" },
+        },
+      ],
+    });
+
+    resolveVendorMetadata(entry);
+
+    assert.equal(entry.name, "Registry Name");
+    assert.equal(entry.description, "Registry description");
+    assert.equal(entry.vendorVerifiedBy, "acme");
   });
 });
 

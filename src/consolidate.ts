@@ -63,11 +63,18 @@ export interface InstallConfig {
   instructions?: string;
 }
 
+export interface VendorMcpMetadata {
+  name: string;
+  description: string;
+}
+
 export interface ApprovalData {
   serverId: string;
   date: string;
   version?: string;
   installConfigs?: InstallConfig[];
+  metadata?: VendorMcpMetadata;
+  selfPublished?: boolean;
 }
 
 export interface Approval {
@@ -77,6 +84,8 @@ export interface Approval {
   configHash: string;
   installConfigs: InstallConfig[];
   // installConfigs is always present in output (defaults to [])
+  metadata?: VendorMcpMetadata;
+  selfPublished?: boolean;
 }
 
 export interface McpEntry {
@@ -86,6 +95,8 @@ export interface McpEntry {
   latestVersion?: string;
   mcpRegistryVerified: boolean;
   approvals: Approval[];
+  vendorVerifiedBy?: string;
+  // organization id of the single approval that self-attests as publisher
 }
 
 export interface SkillInstallConfig {
@@ -187,6 +198,12 @@ export function addApproval(
   if (approvalData.version) {
     approval.version = approvalData.version;
   }
+  if (approvalData.metadata) {
+    approval.metadata = approvalData.metadata;
+  }
+  if (approvalData.selfPublished) {
+    approval.selfPublished = approvalData.selfPublished;
+  }
   mcpEntry.approvals.push(approval);
 }
 
@@ -204,6 +221,67 @@ export function enrichWithRegistryData(
     if (!approval.version) {
       approval.version = result.latestVersion;
     }
+  }
+}
+
+/**
+ * Resolve vendor-supplied fallback metadata (name/description) and publisher
+ * self-attestation for an MCP entry.
+ *
+ * Precedence: Anthropic registry (already applied via enrichWithRegistryData)
+ * > self-attested publisher metadata > earliest-dated vendor-suggested metadata.
+ *
+ * Throws if two different organizations both self-attest as publisher for the
+ * same server — that's a genuine contradiction, not a matter of opinion.
+ */
+export function resolveVendorMetadata(entry: McpEntry): void {
+  const selfPublishedOrgs = [
+    ...new Set(
+      entry.approvals
+        .filter((a) => a.selfPublished)
+        .map((a) => a.organizationId),
+    ),
+  ];
+
+  if (selfPublishedOrgs.length > 1) {
+    throw new Error(
+      `Conflicting self-attestation for MCP server "${entry.serverId}": ${selfPublishedOrgs.join(", ")}`,
+    );
+  }
+
+  if (selfPublishedOrgs.length === 1) {
+    entry.vendorVerifiedBy = selfPublishedOrgs[0];
+  }
+
+  if (entry.mcpRegistryVerified) {
+    return;
+  }
+
+  const withMetadata = entry.approvals.filter((a) => a.metadata);
+  if (withMetadata.length === 0) {
+    return;
+  }
+
+  const selfPublishedWithMetadata = withMetadata.find((a) => a.selfPublished);
+  const winner =
+    selfPublishedWithMetadata ??
+    [...withMetadata].sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        a.organizationId.localeCompare(b.organizationId),
+    )[0];
+
+  entry.name = winner.metadata!.name;
+  entry.description = winner.metadata!.description;
+
+  const distinctOrgs = new Set(withMetadata.map((a) => a.organizationId));
+  console.log(
+    `  Vendor metadata: ${entry.serverId} (from ${winner.organizationId})`,
+  );
+  if (distinctOrgs.size > 1) {
+    console.warn(
+      `  WARNING: multiple vendor metadata suggestions for "${entry.serverId}" — using ${winner.organizationId}'s`,
+    );
   }
 }
 
@@ -485,6 +563,12 @@ export async function main(): Promise<void> {
 
   // Step 2a: Enrich MCP with Anthropic registry (fails build on registry errors)
   await enrichRegistryMetadata(output);
+
+  // Step 2a2: Resolve vendor-supplied fallback metadata + publisher self-attestation
+  // (fails build on conflicting self-attestation for the same server)
+  for (const entry of output.mcp) {
+    resolveVendorMetadata(entry);
+  }
 
   // Step 2b: Enrich skills with source metadata (expands multi-path, skips unreachable sources)
   output.skills = enrichSkillMetadata(output.skills);

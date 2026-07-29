@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldCheck, AlertTriangle, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type {
   McpServer,
   Organization,
@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
+import { McpVerificationBadge } from "./McpVerificationBadge";
 
 export function ServerDetail({
   server,
@@ -33,17 +34,7 @@ export function ServerDetail({
       <h2 className="text-xl font-bold mb-1">{server.name}</h2>
       <p className="text-muted-foreground mb-4">{server.description}</p>
       <div className="flex gap-3 mb-6 flex-wrap items-center text-sm">
-        {server.mcpRegistryVerified ? (
-          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-            <ShieldCheck className="h-3 w-3" />
-            Verified
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20">
-            <AlertTriangle className="h-3 w-3" />
-            Unverified
-          </span>
-        )}
+        <McpVerificationBadge server={server} getOrg={getOrg} />
         <span className="text-muted-foreground font-mono text-xs">
           {server.serverId}
         </span>

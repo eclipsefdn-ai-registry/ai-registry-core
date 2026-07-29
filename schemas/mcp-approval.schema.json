@@ -52,6 +52,26 @@
           }
         }
       }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "description"],
+      "additionalProperties": false,
+      "description": "Vendor-supplied fallback metadata, used only when the server is not found in the Anthropic MCP registry.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "selfPublished": {
+      "type": "boolean",
+      "description": "Attest that this organization publishes/maintains this MCP server. Renders a 'Verified by <org>' badge. Two organizations self-attesting for the same server fails consolidation."
     }
   }
 }
