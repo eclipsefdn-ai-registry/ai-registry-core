@@ -307,6 +307,13 @@ export function filterValidSkillTrusts(
 // the skill installable through the trusting organization's own tools —
 // otherwise trust would only add a name to the approvals list without ever
 // surfacing in a tool-specific view.
+//
+// If the trusting org already has its own direct approval for the skill, no
+// derived approval is added: the website keys badges and counts approvals
+// by organizationId, so a second entry for the same org would render as a
+// duplicate badge (React key collision) and an inflated approval count. The
+// org's own direct judgment already covers it — there's nothing a
+// trust-derived copy would add.
 export function resolveSkillTrust(
   output: ConsolidatedOutput,
   skillTrusts: SkillTrustEntry[],
@@ -318,6 +325,7 @@ export function resolveSkillTrust(
         (a) => a.organizationId === trustedOrg && !a.viaTrust,
       );
       if (!sourceApproval) continue;
+      if (skill.approvals.some((a) => a.organizationId === org)) continue;
 
       skill.approvals.push({
         organizationId: org,

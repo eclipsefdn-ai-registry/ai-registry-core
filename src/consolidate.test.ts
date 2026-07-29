@@ -720,7 +720,7 @@ describe("resolveSkillTrust", () => {
     assert.equal(output.skills[0].approvals.length, 1);
   });
 
-  it("keeps a trusting org's own direct approval alongside the derived one", () => {
+  it("does not add a derived approval when the trusting org already approved directly", () => {
     const output = emptyOutput();
     const skill = skillWithApproval("io.example/a", "anthropic");
     skill.approvals.push({
@@ -736,12 +736,11 @@ describe("resolveSkillTrust", () => {
     const theiaApprovals = output.skills[0].approvals.filter(
       (a) => a.organizationId === "theia",
     );
-    assert.equal(theiaApprovals.length, 2);
-    assert.equal(
-      theiaApprovals.filter((a) => a.viaTrust).length,
-      1,
-      "exactly one of the two theia approvals should be trust-derived",
-    );
+    // Two entries for the same org would render as a duplicate badge (the
+    // website keys badges by organizationId) and inflate the approval count,
+    // so the org's own direct approval wins and no derived copy is added.
+    assert.equal(theiaApprovals.length, 1);
+    assert.equal(theiaApprovals[0].viaTrust, undefined);
   });
 
   it("does not chain trust through a trust-derived approval", () => {
