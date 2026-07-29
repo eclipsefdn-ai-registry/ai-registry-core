@@ -5,7 +5,7 @@ import type { Organization } from "./types";
  * public source rather than participating directly in the registry.
  */
 export const INFERRED_DISCLAIMER =
-  "Based on an official public source. This does not indicate direct participation by the organisation in the AI Registry.";
+  "This entry is based solely on information published through the organisation's official public channels. The organisation has not endorsed, approved or validated this listing, and is not necessarily participating in the AI Registry.";
 
 export interface OrgBadge {
   inferred: boolean;
