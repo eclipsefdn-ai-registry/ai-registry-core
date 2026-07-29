@@ -1,7 +1,7 @@
-import { ShieldCheck, AlertTriangle } from "lucide-react";
 import type { McpServer, Organization } from "../types";
 import { safeCssColor } from "../sanitize";
 import { orgBadge } from "../orgBadge";
+import { McpVerificationBadge } from "./McpVerificationBadge";
 
 export function ServerList({
   servers,
@@ -33,23 +33,11 @@ export function ServerList({
               <h3 className="text-base font-semibold text-foreground">
                 {server.name}
               </h3>
-              {server.mcpRegistryVerified ? (
-                <span
-                  className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 cursor-help hover:bg-primary/20 transition-colors"
-                  title="This server exists in the Anthropic MCP registry"
-                >
-                  <ShieldCheck className="h-3 w-3" />
-                  Verified
-                </span>
-              ) : (
-                <span
-                  className="inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-warning-bg text-warning border border-warning/20 cursor-help hover:opacity-80 transition-opacity"
-                  title="This server was not found in the Anthropic MCP registry"
-                >
-                  <AlertTriangle className="h-3 w-3" />
-                  Unverified
-                </span>
-              )}
+              <McpVerificationBadge
+                server={server}
+                getOrg={getOrg}
+                interactive
+              />
             </div>
             <div className="font-mono text-xs text-muted-foreground mb-3">
               {server.serverId}
