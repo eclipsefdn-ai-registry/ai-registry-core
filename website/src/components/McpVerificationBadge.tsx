@@ -4,7 +4,7 @@ import type { McpServer, Organization } from "../types";
 /**
  * Three-way verification badge for an MCP server:
  *  - mcpRegistryVerified: found in the Anthropic MCP registry (purple).
- *  - vendorVerifiedBy: no registry entry, but a vendor claims to be the
+ *  - publisherClaimedBy: no registry entry, but a vendor claims to be the
  *    publisher/maintainer (blue) — a self-attested claim, not third-party
  *    registry verification. The claiming org's name is surfaced only in the
  *    tooltip, not the badge text.
@@ -40,9 +40,9 @@ export function McpVerificationBadge({
     );
   }
 
-  if (server.vendorVerifiedBy) {
-    const org = getOrg(server.vendorVerifiedBy);
-    const orgName = org ? org.name : server.vendorVerifiedBy;
+  if (server.publisherClaimedBy) {
+    const org = getOrg(server.publisherClaimedBy);
+    const orgName = org ? org.name : server.publisherClaimedBy;
     return (
       <span
         className={`inline-flex items-center gap-1 text-xs font-normal px-2 py-0.5 rounded-full bg-vendor-verified-bg text-vendor-verified border border-vendor-verified/20 ${interactiveClasses}`}

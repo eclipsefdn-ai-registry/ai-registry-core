@@ -95,8 +95,8 @@ export interface McpEntry {
   latestVersion?: string;
   mcpRegistryVerified: boolean;
   approvals: Approval[];
-  vendorVerifiedBy?: string;
-  // organization id of the single approval that self-attests as publisher
+  publisherClaimedBy?: string;
+  // organization id of the single approval claiming to be the publisher
 }
 
 export interface SkillInstallConfig {
@@ -226,16 +226,16 @@ export function enrichWithRegistryData(
 
 /**
  * Resolve vendor-supplied fallback metadata (name/description) and publisher
- * self-attestation for an MCP entry.
+ * claim status for an MCP entry.
  *
  * Precedence: Anthropic registry (already applied via enrichWithRegistryData)
- * > self-attested publisher metadata > earliest-dated vendor-suggested metadata.
+ * > publisher-claimed metadata > earliest-dated vendor-suggested metadata.
  *
- * Throws if two different organizations both self-attest as publisher for the
+ * Throws if two different organizations both claim to be the publisher of the
  * same server — that's a genuine contradiction, not a matter of opinion.
  */
 export function resolveVendorMetadata(entry: McpEntry): void {
-  const selfPublishedOrgs = [
+  const claimingOrgs = [
     ...new Set(
       entry.approvals
         .filter((a) => a.selfPublished)
@@ -243,14 +243,14 @@ export function resolveVendorMetadata(entry: McpEntry): void {
     ),
   ];
 
-  if (selfPublishedOrgs.length > 1) {
+  if (claimingOrgs.length > 1) {
     throw new Error(
-      `Conflicting self-attestation for MCP server "${entry.serverId}": ${selfPublishedOrgs.join(", ")}`,
+      `Conflicting publisher claim for MCP server "${entry.serverId}": ${claimingOrgs.join(", ")}`,
     );
   }
 
-  if (selfPublishedOrgs.length === 1) {
-    entry.vendorVerifiedBy = selfPublishedOrgs[0];
+  if (claimingOrgs.length === 1) {
+    entry.publisherClaimedBy = claimingOrgs[0];
   }
 
   if (entry.mcpRegistryVerified) {
@@ -262,9 +262,9 @@ export function resolveVendorMetadata(entry: McpEntry): void {
     return;
   }
 
-  const selfPublishedWithMetadata = withMetadata.find((a) => a.selfPublished);
+  const claimantWithMetadata = withMetadata.find((a) => a.selfPublished);
   const winner =
-    selfPublishedWithMetadata ??
+    claimantWithMetadata ??
     [...withMetadata].sort(
       (a, b) =>
         a.date.localeCompare(b.date) ||
@@ -564,8 +564,8 @@ export async function main(): Promise<void> {
   // Step 2a: Enrich MCP with Anthropic registry (fails build on registry errors)
   await enrichRegistryMetadata(output);
 
-  // Step 2a2: Resolve vendor-supplied fallback metadata + publisher self-attestation
-  // (fails build on conflicting self-attestation for the same server)
+  // Step 2a2: Resolve vendor-supplied fallback metadata + publisher claim
+  // (fails build on conflicting publisher claims for the same server)
   for (const entry of output.mcp) {
     resolveVendorMetadata(entry);
   }
