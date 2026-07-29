@@ -344,7 +344,7 @@ describe("resolveVendorMetadata", () => {
     assert.equal(entry.name, "Acme Server");
     assert.equal(entry.description, "Suggested by Acme");
     assert.equal(entry.mcpRegistryVerified, false);
-    assert.equal(entry.vendorVerifiedBy, undefined);
+    assert.equal(entry.publisherClaimedBy, undefined);
   });
 
   it("prefers the earliest-dated metadata when two vendors disagree", () => {
@@ -402,7 +402,7 @@ describe("resolveVendorMetadata", () => {
     assert.equal(entry.description, "Acme description");
   });
 
-  it("sets vendorVerifiedBy and fills metadata for a self-published approval", () => {
+  it("sets publisherClaimedBy and fills metadata for a publisher-claimed approval", () => {
     const entry = baseEntry({
       approvals: [
         {
@@ -418,7 +418,7 @@ describe("resolveVendorMetadata", () => {
 
     resolveVendorMetadata(entry);
 
-    assert.equal(entry.vendorVerifiedBy, "acme");
+    assert.equal(entry.publisherClaimedBy, "acme");
     assert.equal(entry.name, "Acme Server");
     assert.equal(entry.description, "We built this");
   });
@@ -448,7 +448,7 @@ describe("resolveVendorMetadata", () => {
     }, /io\.example\/server/);
   });
 
-  it("does not overwrite registry-verified name/description with vendor metadata, but still marks vendorVerifiedBy", () => {
+  it("does not overwrite registry-verified name/description with vendor metadata, but still marks publisherClaimedBy", () => {
     const entry = baseEntry({
       name: "Registry Name",
       description: "Registry description",
@@ -469,7 +469,7 @@ describe("resolveVendorMetadata", () => {
 
     assert.equal(entry.name, "Registry Name");
     assert.equal(entry.description, "Registry description");
-    assert.equal(entry.vendorVerifiedBy, "acme");
+    assert.equal(entry.publisherClaimedBy, "acme");
   });
 });
 

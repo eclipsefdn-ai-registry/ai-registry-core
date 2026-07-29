@@ -152,13 +152,13 @@ Not every MCP server a vendor wants to approve is registered with Anthropic yet.
 ```
 
 - **`metadata`** (`{ name, description }`) — a fallback name/description used only while the server is absent from the Anthropic registry. Once the server appears there, registry data always takes precedence and `metadata` is ignored.
-- **`selfPublished`** (boolean) — set this only if your organization actually publishes/maintains the server (not merely approves or recommends it). It renders a distinct "Verified by {vendor}" badge on the website, separate from Anthropic-registry verification.
+- **`selfPublished`** (boolean) — set this only if your organization actually publishes/maintains the server (not merely approves or recommends it). It renders a distinct "Publisher claim" badge on the website, separate from Anthropic-registry verification; the claiming organization's name appears in the badge's tooltip, not the badge text itself.
 
 These two fields are independent: any approving vendor may supply `metadata` as a suggestion without self-attesting, and self-attestation implies stronger trust in that vendor's `metadata` if supplied.
 
 Resolution when a server has no registry entry:
 
-1. If exactly one vendor set `selfPublished: true`, that vendor's `metadata` (if present) wins, and the website shows "Verified by {vendor}". **Two different vendors self-attesting for the same server is a contradiction and fails the shared consolidation build** — a server can only have one publisher.
+1. If exactly one vendor set `selfPublished: true`, that vendor's `metadata` (if present) wins, and the website shows a "Publisher claim" badge (the claiming vendor's name is in the tooltip). **Two different vendors self-attesting for the same server is a contradiction and fails the shared consolidation build** — a server can only have one publisher.
 2. Otherwise, among vendors that supplied plain `metadata`, the earliest-`date` approval wins (organization ID alphabetically as a tie-break on an exact date match). This is a deterministic, non-fatal fallback — vendors can't see each other's data before filing, so disagreement here is expected and only logged as a warning, not a build failure.
 
 ### Skill approval files

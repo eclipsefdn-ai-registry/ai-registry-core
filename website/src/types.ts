@@ -36,7 +36,7 @@ export interface McpServer {
   latestVersion?: string;
   mcpRegistryVerified: boolean;
   approvals: Approval[];
-  vendorVerifiedBy?: string;
+  publisherClaimedBy?: string;
 }
 
 export interface SkillInstallConfig {
