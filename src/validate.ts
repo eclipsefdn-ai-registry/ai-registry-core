@@ -116,6 +116,27 @@ export function checkToolIds(
   return errors;
 }
 
+// Checked separately from validateVendorData (which has no knowledge of
+// other vendors): only the vendor-local CLI entry point calls this, since it
+// alone knows to load vendors.json. A vendor trusting an org id that isn't
+// registered fails their own validation — the central consolidation build
+// only warns and skips it (see resolveSkillTrust's caller in consolidate.ts)
+// so one vendor's bad reference doesn't fail the shared build for everyone.
+export function checkTrustedOrgIds(
+  trusts: { org: string }[] | undefined,
+  knownOrgIds: Set<string>,
+): string[] {
+  const errors: string[] = [];
+  for (const trust of trusts ?? []) {
+    if (!knownOrgIds.has(trust.org)) {
+      errors.push(
+        `trusts unknown organization "${trust.org}" (not registered in vendors.json)`,
+      );
+    }
+  }
+  return errors;
+}
+
 // --- Core validation (pure, testable) ---
 
 /**
@@ -143,7 +164,11 @@ export function validateVendorData(
     return result;
   }
 
-  const org = orgData as { id: string; tools?: { id: string }[] };
+  const org = orgData as {
+    id: string;
+    tools?: { id: string }[];
+    trusts?: { org: string }[];
+  };
   if (expectedVendorId && org.id !== expectedVendorId) {
     result.valid = false;
     result.errors.push(
@@ -162,6 +187,23 @@ export function validateVendorData(
       result.errors.push(`organization.json: duplicate tool ID "${tool.id}"`);
     }
     toolIds.add(tool.id);
+  }
+
+  const seenTrustedOrgs = new Set<string>();
+  for (const trust of org.trusts ?? []) {
+    if (seenTrustedOrgs.has(trust.org)) {
+      result.valid = false;
+      result.errors.push(
+        `organization.json: duplicate trust entry for organization "${trust.org}"`,
+      );
+    }
+    if (trust.org === org.id) {
+      result.valid = false;
+      result.errors.push(
+        `organization.json: cannot trust itself ("${org.id}")`,
+      );
+    }
+    seenTrustedOrgs.add(trust.org);
   }
 
   const seenServerIds = new Set<string>();
@@ -395,6 +437,16 @@ function lookupVendorId(repoDir: string): string | undefined {
   return entry?.id;
 }
 
+function loadVendorIds(): Set<string> | undefined {
+  const vendorsPath = resolve(__dirname, "../vendors.json");
+  if (!existsSync(vendorsPath)) return undefined;
+
+  const vendors = JSON.parse(
+    readFileSync(vendorsPath, "utf-8"),
+  ) as VendorEntry[];
+  return new Set(vendors.map((v) => v.id));
+}
+
 // --- CLI entry point ---
 
 export async function validateVendorRepo(repoDir: string): Promise<boolean> {
@@ -416,6 +468,23 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
   }
   for (const { file } of result.approvals) {
     console.log(`  PASS: ${file}`);
+  }
+
+  const vendorIds = loadVendorIds();
+  let trustValid = true;
+  if (vendorIds) {
+    const org = result.organization?.raw as
+      | { trusts?: { org: string }[] }
+      | undefined;
+    const trustErrors = checkTrustedOrgIds(org?.trusts, vendorIds);
+    for (const e of trustErrors) {
+      console.error(`  FAIL: organization.json: ${e}`);
+    }
+    trustValid = trustErrors.length === 0;
+  } else {
+    console.warn(
+      "  WARNING: could not verify trusted organizations — vendors.json not found",
+    );
   }
 
   if (result.approvals.length > 0) {
@@ -493,7 +562,7 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
   }
 
   console.log("\n--- Summary ---");
-  if (!result.valid) {
+  if (!result.valid || !trustValid) {
     console.error("FAILED: Validation errors found");
     return false;
   }

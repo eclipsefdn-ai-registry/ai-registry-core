@@ -91,6 +91,21 @@ Declares your organization and, if applicable, the tools you provide. Organizati
 
 When a tool declares `skillInstallUrlPrefix` or `mcpInstallUrlPrefix`, consolidation auto-generates `installUrl` for any approval that targets that tool but omits it — `prefix + artifactId`. Explicit `installUrl` values in approval files always take precedence.
 
+An organization can also delegate to other organizations' judgment instead of filing its own approval per skill, via `trusts`:
+
+```json
+{
+  "id": "theia",
+  "name": "Theia IDE",
+  "trusts": [
+    { "org": "anthropic", "artifactTypes": { "skills": {} } },
+    { "org": "openai", "artifactTypes": { "skills": {} } }
+  ]
+}
+```
+
+Every skill a trusted organization directly approves is automatically treated as approved by the trusting organization too — no separate `skills/*.json` file needed. Trust is single-hop only (no transitive trust) and, today, only covers skills (`artifactTypes.skills`); `artifactTypes.mcp` isn't a recognized key yet. Trust-derived approvals are tagged with `viaTrust` (the trusted org's id) in the consolidated output for API consumers, but render identically to direct approvals on the website.
+
 ### MCP approval files
 
 One JSON file per approved MCP server, stored in `mcp/`. The filename must be `<serverId>.json` with `/` replaced by `--`. See the [approval schema](schemas/mcp-approval.schema.json) for the full field reference.

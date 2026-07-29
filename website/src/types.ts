@@ -49,6 +49,7 @@ export interface SkillApproval {
   date: string;
   configHash: string;
   installConfigs: SkillInstallConfig[];
+  viaTrust?: string;
 }
 
 export interface Skill {

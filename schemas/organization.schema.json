@@ -65,6 +65,34 @@
           }
         }
       }
+    },
+    "trusts": {
+      "type": "array",
+      "description": "Other organizations whose approvals this organization delegates to, so their approved artifacts are treated as approved here too, without duplicate approval files. Single-hop only — trust is not transitive.",
+      "items": {
+        "type": "object",
+        "required": ["org", "artifactTypes"],
+        "additionalProperties": false,
+        "properties": {
+          "org": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$",
+            "description": "ID of the trusted organization"
+          },
+          "artifactTypes": {
+            "type": "object",
+            "description": "Which artifact types this trust entry applies to. Only \"skills\" is supported today.",
+            "additionalProperties": false,
+            "properties": {
+              "skills": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Trust the organization's skill approvals. Empty today — reserved for future per-type conditions."
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

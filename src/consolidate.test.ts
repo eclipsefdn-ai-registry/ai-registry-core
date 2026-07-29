@@ -5,6 +5,8 @@ import {
   addApproval,
   addSkillApproval,
   resolveSkillInstallUrls,
+  resolveSkillTrust,
+  filterValidSkillTrusts,
   enrichWithRegistryData,
   resolveVendorMetadata,
   buildToolView,
@@ -14,6 +16,7 @@ import {
   type SkillApprovalData,
   type McpEntry,
   type SkillEntry,
+  type SkillTrustEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
@@ -679,6 +682,241 @@ describe("addSkillApproval", () => {
     );
     assert.equal(output.skills.length, 1);
     assert.equal(output.skills[0].source.path, "skills/*");
+  });
+});
+
+describe("addOrganization — trust extraction", () => {
+  it("collects a skill trust entry", () => {
+    const output = emptyOutput();
+    const skillTrusts: SkillTrustEntry[] = [];
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "Test",
+        website: "https://theia-ide.org",
+        trusts: [{ org: "anthropic", artifactTypes: { skills: {} } }],
+      },
+      output,
+      skillTrusts,
+    );
+
+    assert.deepEqual(skillTrusts, [{ org: "theia", trustedOrg: "anthropic" }]);
+  });
+
+  it("does not include trusts in the organization entry", () => {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "Test",
+        website: "https://theia-ide.org",
+        trusts: [{ org: "anthropic", artifactTypes: { skills: {} } }],
+      },
+      output,
+      [],
+    );
+
+    assert.equal("trusts" in output.organizations[0], false);
+  });
+
+  it("ignores a trust entry with no recognized artifact type", () => {
+    const output = emptyOutput();
+    const skillTrusts: SkillTrustEntry[] = [];
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "Test",
+        website: "https://theia-ide.org",
+        trusts: [{ org: "anthropic", artifactTypes: {} }],
+      },
+      output,
+      skillTrusts,
+    );
+
+    assert.deepEqual(skillTrusts, []);
+  });
+});
+
+describe("filterValidSkillTrusts", () => {
+  const vendorIds = new Set(["theia", "anthropic", "openai", "aws"]);
+
+  it("keeps trust entries referencing registered vendors", () => {
+    const { valid, unknown } = filterValidSkillTrusts(
+      [
+        { org: "theia", trustedOrg: "anthropic" },
+        { org: "theia", trustedOrg: "aws" },
+      ],
+      vendorIds,
+    );
+    assert.equal(valid.length, 2);
+    assert.equal(unknown.length, 0);
+  });
+
+  it("separates out trust entries referencing an unregistered org", () => {
+    const { valid, unknown } = filterValidSkillTrusts(
+      [
+        { org: "theia", trustedOrg: "anthropic" },
+        { org: "theia", trustedOrg: "nonexistent" },
+      ],
+      vendorIds,
+    );
+    assert.equal(valid.length, 1);
+    assert.equal(valid[0].trustedOrg, "anthropic");
+    assert.equal(unknown.length, 1);
+    assert.equal(unknown[0].trustedOrg, "nonexistent");
+  });
+});
+
+describe("resolveSkillTrust", () => {
+  function skillWithApproval(
+    skillId: string,
+    organizationId: string,
+  ): SkillEntry {
+    return {
+      skillId,
+      name: skillId,
+      description: "",
+      source: { url: "https://github.com/example/skills.git" },
+      contentHash: "",
+      approvals: [
+        {
+          organizationId,
+          date: "2026-06-01",
+          configHash: "abc123",
+          installConfigs: [],
+        },
+      ],
+    };
+  }
+
+  it("adds a derived approval tagged with viaTrust", () => {
+    const output = emptyOutput();
+    output.skills = [skillWithApproval("io.example/a", "anthropic")];
+
+    resolveSkillTrust(output, [{ org: "theia", trustedOrg: "anthropic" }]);
+
+    assert.equal(output.skills[0].approvals.length, 2);
+    const derived = output.skills[0].approvals[1];
+    assert.equal(derived.organizationId, "theia");
+    assert.equal(derived.viaTrust, "anthropic");
+    // "theia" has no tools in output.tools here, so there's nothing to
+    // generate an installConfig for — see the next test for the case where
+    // the trusting org does provide tools.
+    assert.deepEqual(derived.installConfigs, []);
+    assert.equal(derived.date, "2026-06-01");
+  });
+
+  it("gives the derived approval an installConfig for each of the trusting org's own tools", () => {
+    const output = emptyOutput();
+    output.tools = [
+      { id: "theia-ide", name: "Theia IDE", organizationId: "theia" },
+      { id: "theia-ide-next", name: "Theia IDE Next", organizationId: "theia" },
+      { id: "other-tool", name: "Other Tool", organizationId: "other-org" },
+    ];
+    output.skills = [skillWithApproval("io.example/a", "anthropic")];
+
+    resolveSkillTrust(output, [{ org: "theia", trustedOrg: "anthropic" }]);
+
+    const derived = output.skills[0].approvals[1];
+    assert.deepEqual(derived.installConfigs.map((c) => c.tool).sort(), [
+      "theia-ide",
+      "theia-ide-next",
+    ]);
+  });
+
+  it("lets resolveSkillInstallUrls fill in installUrl for a derived approval", () => {
+    const output = emptyOutput();
+    output.tools = [
+      {
+        id: "theia-ide",
+        name: "Theia IDE",
+        organizationId: "theia",
+        skillInstallUrlPrefix: "theia://install-skill?id=",
+      },
+    ];
+    output.skills = [skillWithApproval("io.example/a", "anthropic")];
+
+    resolveSkillTrust(output, [{ org: "theia", trustedOrg: "anthropic" }]);
+    resolveSkillInstallUrls(output);
+
+    const derived = output.skills[0].approvals[1];
+    assert.equal(
+      derived.installConfigs[0].installUrl,
+      "theia://install-skill?id=io.example/a",
+    );
+  });
+
+  it("merges trust from multiple trusted organizations", () => {
+    const output = emptyOutput();
+    output.skills = [
+      skillWithApproval("io.example/a", "anthropic"),
+      skillWithApproval("io.example/b", "openai"),
+      skillWithApproval("io.example/c", "aws"),
+    ];
+
+    resolveSkillTrust(output, [
+      { org: "theia", trustedOrg: "anthropic" },
+      { org: "theia", trustedOrg: "openai" },
+      { org: "theia", trustedOrg: "aws" },
+    ]);
+
+    for (const skill of output.skills) {
+      assert.ok(
+        skill.approvals.some((a) => a.organizationId === "theia"),
+        `expected ${skill.skillId} to have a theia approval`,
+      );
+    }
+  });
+
+  it("does not add a derived approval when the trusted org has none", () => {
+    const output = emptyOutput();
+    output.skills = [skillWithApproval("io.example/a", "openai")];
+
+    resolveSkillTrust(output, [{ org: "theia", trustedOrg: "anthropic" }]);
+
+    assert.equal(output.skills[0].approvals.length, 1);
+  });
+
+  it("does not add a derived approval when the trusting org already approved directly", () => {
+    const output = emptyOutput();
+    const skill = skillWithApproval("io.example/a", "anthropic");
+    skill.approvals.push({
+      organizationId: "theia",
+      date: "2026-06-02",
+      configHash: "def456",
+      installConfigs: [],
+    });
+    output.skills = [skill];
+
+    resolveSkillTrust(output, [{ org: "theia", trustedOrg: "anthropic" }]);
+
+    const theiaApprovals = output.skills[0].approvals.filter(
+      (a) => a.organizationId === "theia",
+    );
+    // Two entries for the same org would render as a duplicate badge (the
+    // website keys badges by organizationId) and inflate the approval count,
+    // so the org's own direct approval wins and no derived copy is added.
+    assert.equal(theiaApprovals.length, 1);
+    assert.equal(theiaApprovals[0].viaTrust, undefined);
+  });
+
+  it("does not chain trust through a trust-derived approval", () => {
+    const output = emptyOutput();
+    // "openai" has no direct approval, only one derived via trusting "anthropic"
+    output.skills = [skillWithApproval("io.example/a", "anthropic")];
+    resolveSkillTrust(output, [{ org: "openai", trustedOrg: "anthropic" }]);
+
+    // a third org trusting "openai" should get nothing, since openai's only
+    // approval for this skill is itself trust-derived
+    resolveSkillTrust(output, [{ org: "theia", trustedOrg: "openai" }]);
+
+    assert.equal(
+      output.skills[0].approvals.some((a) => a.organizationId === "theia"),
+      false,
+    );
   });
 });
 
