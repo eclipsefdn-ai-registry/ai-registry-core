@@ -14,5 +14,9 @@
   {
     "id": "aws",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-aws.git"
+  },
+  {
+    "id": "google",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-google.git"
   }
 ]
