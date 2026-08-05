@@ -55,6 +55,7 @@ export function ServerDetail({
             approval={approval}
             org={getOrg(approval.organizationId)}
             getTool={getTool}
+            serverId={server.serverId}
           />
         ))}
       </div>
@@ -66,10 +67,12 @@ export function ApprovalCard({
   approval,
   org,
   getTool,
+  serverId,
 }: {
   approval: Approval;
   org: Organization | undefined;
   getTool: (id: string) => Tool | undefined;
+  serverId: string;
 }) {
   const badge = orgBadge(org, {
     fallbackId: approval.organizationId,
@@ -96,7 +99,10 @@ export function ApprovalCard({
         )}
       </div>
       {approval.genericConfig && (
-        <GenericConfigView config={approval.genericConfig} />
+        <GenericConfigView
+          config={approval.genericConfig}
+          slug={serverIdSlug(serverId)}
+        />
       )}
       {approval.installConfigs.map((config, j) => (
         <InstallConfigView key={j} config={config} getTool={getTool} />
@@ -105,14 +111,26 @@ export function ApprovalCard({
   );
 }
 
+// The last "/"-segment of serverId — the same rule consolidate.ts uses to
+// key a derived config's server-name entry (e.g. "review-guard" from
+// "io.github.eclipsesource/review-guard"). Not stored in genericConfig
+// itself (that would duplicate serverId as a second, driftable identity) —
+// computed here purely so the copy box can show a paste-ready, name-keyed
+// snippet.
+function serverIdSlug(serverId: string): string {
+  return serverId.split("/").pop() ?? serverId;
+}
+
 export function GenericConfigView({
   config,
+  slug,
 }: {
   config: Record<string, unknown>;
+  slug: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const configString = JSON.stringify(config, null, 2);
+  const configString = JSON.stringify({ [slug]: config }, null, 2);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
