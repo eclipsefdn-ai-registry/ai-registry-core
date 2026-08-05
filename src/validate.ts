@@ -24,6 +24,12 @@ function loadSchema(name: string): object {
 }
 
 const validateOrg = ajv.compile(loadSchema("organization.schema.json"));
+// Must compile before mcp-approval.schema.json: that schema $refs this one by
+// its $id, and ajv resolves $refs against schemas already registered in the
+// instance (compile() registers as a side effect for any schema with an $id).
+const validateMcpServerConfigSchema = ajv.compile(
+  loadSchema("mcp-server-config.schema.json"),
+);
 const validateAppr = ajv.compile(loadSchema("mcp-approval.schema.json"));
 const validateSkillAppr = ajv.compile(loadSchema("skill-approval.schema.json"));
 
@@ -92,6 +98,14 @@ export function validateApproval(data: unknown): ValidationResult {
   return {
     valid: !!valid,
     errors: valid ? [] : formatErrors(validateAppr),
+  };
+}
+
+export function validateMcpServerConfig(data: unknown): ValidationResult {
+  const valid = validateMcpServerConfigSchema(data);
+  return {
+    valid: !!valid,
+    errors: valid ? [] : formatErrors(validateMcpServerConfigSchema),
   };
 }
 

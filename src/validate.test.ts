@@ -4,6 +4,9 @@ import {
   checkToolIds,
   checkTrustedOrgIds,
   validateVendorData,
+  validateMcpServerConfig,
+  validateApproval,
+  validateOrganization,
   type SkillApprovalEntry,
 } from "./validate.js";
 
@@ -538,5 +541,166 @@ describe("validateVendorData — skill approvals", () => {
       },
     ]);
     assert.equal(result.valid, true);
+  });
+});
+
+// --- validateMcpServerConfig ---
+
+describe("validateMcpServerConfig", () => {
+  it("accepts a plain remote config", () => {
+    const result = validateMcpServerConfig({ url: "https://mcp.example.com" });
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a remote config with type, headers, and oauth", () => {
+    const result = validateMcpServerConfig({
+      type: "http",
+      url: "https://mcp.example.com",
+      headers: { Authorization: "Bearer abc" },
+      oauth: { scopes: "read write", clientId: "abc123" },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts sse and ws as remote type values", () => {
+    assert.equal(
+      validateMcpServerConfig({ type: "sse", url: "https://mcp.example.com" })
+        .valid,
+      true,
+    );
+    assert.equal(
+      validateMcpServerConfig({ type: "ws", url: "wss://mcp.example.com" })
+        .valid,
+      true,
+    );
+  });
+
+  it("accepts a plain local config", () => {
+    const result = validateMcpServerConfig({
+      command: "npx",
+      args: ["-y", "pkg"],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a local config with type stdio", () => {
+    const result = validateMcpServerConfig({ type: "stdio", command: "npx" });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects headers on the local branch (additionalProperties false)", () => {
+    const result = validateMcpServerConfig({
+      command: "npx",
+      headers: { Authorization: "Bearer abc" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a mismatched type (stdio paired with url)", () => {
+    const result = validateMcpServerConfig({
+      type: "stdio",
+      url: "https://mcp.example.com",
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects an object with neither url nor command", () => {
+    const result = validateMcpServerConfig({ foo: "bar" });
+    assert.equal(result.valid, false);
+  });
+});
+
+// --- validateApproval — root config and derived marker ---
+
+describe("validateApproval — root config and derived marker", () => {
+  it("accepts an approval with a root remote config", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { url: "https://mcp.example.com" },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts an approval with a root local config", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { command: "npx", args: ["-y", "pkg"] },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a root config with neither url nor command", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { foo: "bar" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it('accepts an installConfigs entry with config: "derived"', () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      installConfigs: [{ tool: "some-tool", config: "derived" }],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("still accepts an installConfigs entry with an explicit object config", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      installConfigs: [{ tool: "some-tool", config: { servers: {} } }],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects an installConfigs entry with config set to any other string", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      installConfigs: [{ tool: "some-tool", config: "auto" }],
+    });
+    assert.equal(result.valid, false);
+  });
+});
+
+// --- validateOrganization — trusts.artifactTypes.mcp ---
+
+describe("validateOrganization — trusts.artifactTypes.mcp", () => {
+  it("accepts a trusts entry with artifactTypes.mcp", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      trusts: [{ org: "eclipsesource", artifactTypes: { mcp: {} } }],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("still accepts a trusts entry with artifactTypes.skills", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      trusts: [{ org: "anthropic", artifactTypes: { skills: {} } }],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects an unrecognized artifactTypes key", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      trusts: [{ org: "eclipsesource", artifactTypes: { bogus: {} } }],
+    });
+    assert.equal(result.valid, false);
   });
 });

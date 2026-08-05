@@ -81,13 +81,18 @@
           },
           "artifactTypes": {
             "type": "object",
-            "description": "Which artifact types this trust entry applies to. Only \"skills\" is supported today.",
+            "description": "Which artifact types this trust entry applies to.",
             "additionalProperties": false,
             "properties": {
               "skills": {
                 "type": "object",
                 "additionalProperties": false,
                 "description": "Trust the organization's skill approvals. Empty today — reserved for future per-type conditions."
+              },
+              "mcp": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Trust the organization's MCP server approvals. Empty today — reserved for future per-type conditions."
               }
             }
           }
