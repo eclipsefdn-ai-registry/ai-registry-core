@@ -18,5 +18,9 @@
   {
     "id": "google",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-google.git"
+  },
+  {
+    "id": "eclipsesource",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-eclipsesource.git"
   }
 ]
