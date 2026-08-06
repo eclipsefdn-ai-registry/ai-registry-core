@@ -1,9 +1,15 @@
+import { ApiPreviewNotice } from "../components/ApiPreviewNotice";
+
 const BASE_URL = "https://ai.open-vsx.org/";
 
 export function ApiDocsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">API Documentation</h1>
+
+      <section className="mb-6">
+        <ApiPreviewNotice />
+      </section>
 
       <section className="mb-6">
         <p className="mb-3 leading-relaxed">

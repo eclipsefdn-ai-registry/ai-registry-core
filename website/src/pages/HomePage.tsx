@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Search, ShieldCheck } from "lucide-react";
 import { useAllRegistryData } from "../hooks/useRegistryData";
 import { ServerList } from "../components/ServerList";
@@ -13,7 +13,7 @@ type Tab = "servers" | "skills" | "tools" | "organizations";
 
 const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
   servers: "Search MCP servers...",
-  skills: "Search skills...",
+  skills: "Search agent skills...",
   tools: "Search tools...",
   organizations: "Search organizations...",
 };
@@ -144,11 +144,12 @@ export function HomePage() {
           </span>
 
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-foreground mb-6">
-            Find trusted AI artifacts.
+            Find AI tools you can trust.
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-            Currently MCP servers and skills. More artifact types coming soon.
+            Discover MCP servers and agent skills, with transparent provenance
+            and approval signals from participating tool providers.
           </p>
 
           <div className="w-full max-w-2xl mb-3">
@@ -164,9 +165,16 @@ export function HomePage() {
             </div>
           </div>
 
-          <p className="text-sm text-muted-foreground mb-2">
-            Open governance. Free to use. No single vendor controls the catalog.
+          <p className="text-sm text-muted-foreground mb-6">
+            Open source. Open governance. Built for interoperability.
           </p>
+
+          <Link
+            to="/about"
+            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+          >
+            Join as a tool provider
+          </Link>
         </div>
       </section>
 
