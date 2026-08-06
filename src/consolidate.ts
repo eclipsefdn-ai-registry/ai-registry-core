@@ -78,11 +78,17 @@ export interface InstallConfig {
   tool: string;
   installUrl?: string;
   openVsxUrl?: string;
-  // "derived" means: resolve via the tool's registered transform function,
-  // from this approval's own root config or (if that's absent/insufficient)
-  // another vendor's, at consolidation time. Always resolved to a concrete
-  // object, or stripped back to the fields above, before the final output is
-  // written — see resolveMcpCrossVendorConfigs.
+  // "derived" means: resolve via the tool's registered transform function.
+  // Prefers this approval's own root config when present; falls through to
+  // another vendor's (newest by date) only when this approval has none at
+  // all. If the config that's used — own or fallen-through — can't be
+  // represented by the tool's transform (e.g. oauth, or 2+ headers), the
+  // card is dropped rather than retried against a different vendor's
+  // config: publishing a connection built from another vendor's stated
+  // requirements when this approval's own couldn't be honored would show
+  // details this approval never claimed. Always resolved to a concrete
+  // object, or stripped back to the fields above, before the final output
+  // is written — see resolveMcpCrossVendorConfigs.
   config?: Record<string, unknown> | "derived";
   instructions?: string;
 }

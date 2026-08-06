@@ -1410,6 +1410,47 @@ describe("resolveMcpCrossVendorConfigs", () => {
     });
   });
 
+  it("drops the card (does not fall back to another vendor) when the approval's own config can't be represented", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-01",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+          genericConfig: {
+            url: "https://mcp.example.com",
+            headers: { Authorization: "Bearer x", "X-Extra": "y" },
+          },
+        },
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-05",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: { url: "https://newer-vendor.example.com" },
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.equal(
+      "config" in output.mcp[0].approvals[0].installConfigs[0],
+      false,
+    );
+  });
+
   it("strips config to unset when no generic config is available anywhere", () => {
     const output = emptyOutput();
     output.tools.push({

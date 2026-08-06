@@ -132,10 +132,15 @@ function CollapsibleJson({
   label,
   json,
   caveat,
+  boxed = true,
 }: {
   label: string;
   json: Record<string, unknown> | undefined;
   caveat?: string;
+  // False when the caller already renders its own bordered card (e.g.
+  // InstallConfigView) — avoids nesting this component's own border/bg
+  // inside that card's identical one.
+  boxed?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -152,7 +157,13 @@ function CollapsibleJson({
   };
 
   return (
-    <div className="mt-2 p-3 bg-card border border-border rounded-md text-sm">
+    <div
+      className={
+        boxed
+          ? "mt-2 p-3 bg-card border border-border rounded-md text-sm"
+          : "mt-2"
+      }
+    >
       <div className="flex items-center justify-between gap-2">
         <button
           className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -195,7 +206,7 @@ export function GenericConfigView({
     <CollapsibleJson
       label="Generic config"
       json={{ [slug]: config }}
-      caveat="Generic, tool-agnostic connection info — not a finished config for any specific client, adapt the wrapper for yours."
+      caveat="Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers) instead of pasting it in as shown."
     />
   );
 }
@@ -242,7 +253,11 @@ export function InstallConfigView({
           </a>
         </div>
       )}
-      <CollapsibleJson label="Configuration" json={config.config} />
+      <CollapsibleJson
+        label="Configuration"
+        json={config.config}
+        boxed={false}
+      />
       {config.instructions && (
         <div
           className={`mt-2 text-muted-foreground italic break-words overflow-hidden ${compact ? "line-clamp-2" : ""}`}
