@@ -121,20 +121,31 @@ function serverIdSlug(serverId: string): string {
   return serverId.split("/").pop() ?? serverId;
 }
 
-export function GenericConfigView({
-  config,
-  slug,
+// Shared by GenericConfigView and InstallConfigView — both need an
+// expand/collapse toggle, a copy-to-clipboard button with a 2s "Copied!"
+// reset, and a syntax-highlighted <pre>. `caveat` is an optional italic note
+// shown only while expanded (GenericConfigView's "this isn't a finished
+// config" disclaimer); InstallConfigView's always-visible instructions text
+// has different visibility rules and is rendered separately, not through
+// this prop.
+function CollapsibleJson({
+  label,
+  json,
+  caveat,
 }: {
-  config: Record<string, unknown>;
-  slug: string;
+  label: string;
+  json: Record<string, unknown> | undefined;
+  caveat?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const configString = JSON.stringify({ [slug]: config }, null, 2);
+
+  if (!json) return null;
+  const jsonString = JSON.stringify(json, null, 2);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(configString).then(() => {
+    navigator.clipboard.writeText(jsonString).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -150,7 +161,7 @@ export function GenericConfigView({
             setExpanded(!expanded);
           }}
         >
-          {expanded ? "▾" : "▸"} Generic config
+          {expanded ? "▾" : "▸"} {label}
         </button>
         <button
           className="text-xs px-2 py-0.5 border border-border rounded hover:border-primary hover:text-primary transition-colors text-muted-foreground"
@@ -162,15 +173,30 @@ export function GenericConfigView({
       {expanded && (
         <>
           <pre className="mt-2 bg-[#1e293b] text-[#e2e8f0] p-3 rounded-md overflow-x-auto text-xs leading-relaxed">
-            {configString}
+            {jsonString}
           </pre>
-          <div className="mt-2 text-muted-foreground italic">
-            Generic, tool-agnostic connection info — not a finished config for
-            any specific client, adapt the wrapper for yours.
-          </div>
+          {caveat && (
+            <div className="mt-2 text-muted-foreground italic">{caveat}</div>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+export function GenericConfigView({
+  config,
+  slug,
+}: {
+  config: Record<string, unknown>;
+  slug: string;
+}) {
+  return (
+    <CollapsibleJson
+      label="Generic config"
+      json={{ [slug]: config }}
+      caveat="Generic, tool-agnostic connection info — not a finished config for any specific client, adapt the wrapper for yours."
+    />
   );
 }
 
@@ -184,22 +210,6 @@ export function InstallConfigView({
   compact?: boolean;
 }) {
   const tool = config.tool ? getTool(config.tool) : undefined;
-  const [configExpanded, setConfigExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const configString = config.config
-    ? JSON.stringify(config.config, null, 2)
-    : null;
-
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (configString) {
-      navigator.clipboard.writeText(configString).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
-    }
-  };
 
   return (
     <div className="mt-2 p-3 bg-card border border-border rounded-md text-sm">
@@ -232,32 +242,7 @@ export function InstallConfigView({
           </a>
         </div>
       )}
-      {configString && (
-        <div className="mt-2">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfigExpanded(!configExpanded);
-              }}
-            >
-              {configExpanded ? "\u25BE" : "\u25B8"} Configuration
-            </button>
-            <button
-              className="text-xs px-2 py-0.5 border border-border rounded hover:border-primary hover:text-primary transition-colors text-muted-foreground"
-              onClick={handleCopy}
-            >
-              {copied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-          {configExpanded && (
-            <pre className="mt-2 bg-[#1e293b] text-[#e2e8f0] p-3 rounded-md overflow-x-auto text-xs leading-relaxed">
-              {configString}
-            </pre>
-          )}
-        </div>
-      )}
+      <CollapsibleJson label="Configuration" json={config.config} />
       {config.instructions && (
         <div
           className={`mt-2 text-muted-foreground italic break-words overflow-hidden ${compact ? "line-clamp-2" : ""}`}

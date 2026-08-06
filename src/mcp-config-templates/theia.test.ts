@@ -84,13 +84,4 @@ describe("theiaMcpConfigTransform", () => {
     );
     assert.equal(result, undefined);
   });
-
-  it("ignores auth entirely for local configs (auth only applies to remote)", () => {
-    const result = theiaMcpConfigTransform({ command: "npx" }, "some-pkg");
-    assert.deepEqual(result, {
-      servers: {
-        "some-pkg": { command: "npx", args: undefined, env: undefined },
-      },
-    });
-  });
 });

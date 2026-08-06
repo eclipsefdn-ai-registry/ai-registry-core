@@ -4,7 +4,6 @@ import {
   checkToolIds,
   checkTrustedOrgIds,
   validateVendorData,
-  validateMcpServerConfig,
   validateApproval,
   validateOrganization,
   type SkillApprovalEntry,
@@ -544,72 +543,6 @@ describe("validateVendorData — skill approvals", () => {
   });
 });
 
-// --- validateMcpServerConfig ---
-
-describe("validateMcpServerConfig", () => {
-  it("accepts a plain remote config", () => {
-    const result = validateMcpServerConfig({ url: "https://mcp.example.com" });
-    assert.equal(result.valid, true);
-  });
-
-  it("accepts a remote config with type, headers, and oauth", () => {
-    const result = validateMcpServerConfig({
-      type: "http",
-      url: "https://mcp.example.com",
-      headers: { Authorization: "Bearer abc" },
-      oauth: { scopes: "read write", clientId: "abc123" },
-    });
-    assert.equal(result.valid, true);
-  });
-
-  it("accepts sse and ws as remote type values", () => {
-    assert.equal(
-      validateMcpServerConfig({ type: "sse", url: "https://mcp.example.com" })
-        .valid,
-      true,
-    );
-    assert.equal(
-      validateMcpServerConfig({ type: "ws", url: "wss://mcp.example.com" })
-        .valid,
-      true,
-    );
-  });
-
-  it("accepts a plain local config", () => {
-    const result = validateMcpServerConfig({
-      command: "npx",
-      args: ["-y", "pkg"],
-    });
-    assert.equal(result.valid, true);
-  });
-
-  it("accepts a local config with type stdio", () => {
-    const result = validateMcpServerConfig({ type: "stdio", command: "npx" });
-    assert.equal(result.valid, true);
-  });
-
-  it("rejects headers on the local branch (additionalProperties false)", () => {
-    const result = validateMcpServerConfig({
-      command: "npx",
-      headers: { Authorization: "Bearer abc" },
-    });
-    assert.equal(result.valid, false);
-  });
-
-  it("rejects a mismatched type (stdio paired with url)", () => {
-    const result = validateMcpServerConfig({
-      type: "stdio",
-      url: "https://mcp.example.com",
-    });
-    assert.equal(result.valid, false);
-  });
-
-  it("rejects an object with neither url nor command", () => {
-    const result = validateMcpServerConfig({ foo: "bar" });
-    assert.equal(result.valid, false);
-  });
-});
-
 // --- validateApproval — root config and derived marker ---
 
 describe("validateApproval — root config and derived marker", () => {
@@ -636,6 +569,66 @@ describe("validateApproval — root config and derived marker", () => {
       serverId: "io.example/foo",
       date: "2026-08-05",
       config: { foo: "bar" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts a root config with type, headers, and oauth", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "http",
+        url: "https://mcp.example.com",
+        headers: { Authorization: "Bearer abc" },
+        oauth: { scopes: "read write", clientId: "abc123" },
+      },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts sse and ws as remote type values", () => {
+    assert.equal(
+      validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { type: "sse", url: "https://mcp.example.com" },
+      }).valid,
+      true,
+    );
+    assert.equal(
+      validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { type: "ws", url: "wss://mcp.example.com" },
+      }).valid,
+      true,
+    );
+  });
+
+  it("accepts a root config with type stdio", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "npx" },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects headers on the local branch (additionalProperties false)", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { command: "npx", headers: { Authorization: "Bearer abc" } },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a mismatched type (stdio paired with url)", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", url: "https://mcp.example.com" },
     });
     assert.equal(result.valid, false);
   });

@@ -57,12 +57,6 @@ export interface McpTrustEntry {
   trustedOrg: string;
 }
 
-export interface GenericMcpConfigEntry {
-  organizationId: string;
-  date: string;
-  config: GenericMcpConfig;
-}
-
 export interface Organization {
   id: string;
   name: string;
@@ -87,8 +81,8 @@ export interface InstallConfig {
   // "derived" means: resolve via the tool's registered transform function,
   // from this approval's own root config or (if that's absent/insufficient)
   // another vendor's, at consolidation time. Always resolved to a concrete
-  // object, or stripped to undefined, before the final output is written —
-  // see resolveMcpCrossVendorConfigs in Task 7.
+  // object, or stripped back to the fields above, before the final output is
+  // written — see resolveMcpCrossVendorConfigs.
   config?: Record<string, unknown> | "derived";
   instructions?: string;
 }
@@ -118,9 +112,9 @@ export interface Approval {
   metadata?: VendorMcpMetadata;
   selfPublished?: boolean;
   genericConfig?: GenericMcpConfig;
-  viaTrust?: string;
   // present only on trust-derived approvals; holds the id of the
   // organization that actually filed the approval
+  viaTrust?: string;
 }
 
 export interface McpEntry {
@@ -208,7 +202,6 @@ export function addApproval(
   approvalData: ApprovalData,
   organizationId: string,
   output: ConsolidatedOutput,
-  genericConfigsByServerId: Map<string, GenericMcpConfigEntry[]>,
 ): void {
   let mcpEntry = output.mcp.find((m) => m.serverId === approvalData.serverId);
   if (!mcpEntry) {
@@ -227,18 +220,6 @@ export function addApproval(
     .digest("hex")
     .slice(0, 12);
 
-  if (approvalData.config) {
-    const existing = genericConfigsByServerId.get(approvalData.serverId) ?? [];
-    existing.push({
-      organizationId,
-      date: approvalData.date,
-      config: approvalData.config,
-    });
-    genericConfigsByServerId.set(approvalData.serverId, existing);
-  }
-
-  const slug = approvalData.serverId.split("/").pop()!;
-
   const resolvedMcpConfigs = (approvalData.installConfigs ?? []).map((cfg) => {
     let resolved: InstallConfig = cfg;
 
@@ -249,14 +230,6 @@ export function addApproval(
           ...resolved,
           installUrl: tool.mcpInstallUrlPrefix + approvalData.serverId,
         };
-      }
-    }
-
-    if (resolved.config === "derived" && approvalData.config) {
-      const transform = mcpConfigTransforms[cfg.tool];
-      const derived = transform?.(approvalData.config, slug);
-      if (derived) {
-        resolved = { ...resolved, config: derived };
       }
     }
 
@@ -301,46 +274,53 @@ export function enrichWithRegistryData(
   }
 }
 
+// preferOrg lets a caller make an approval's own organization win over a
+// newer submission from a different vendor — used when deriving a config
+// for that same approval, so a vendor's own stated connection info is never
+// second-guessed by someone else's (possibly stale, possibly wrong) config
+// for the same server.
 export function pickWinningGenericConfig(
-  candidates: GenericMcpConfigEntry[],
+  candidates: Approval[],
   serverId: string,
-): GenericMcpConfigEntry | undefined {
-  if (candidates.length === 0) return undefined;
+  preferOrg?: string,
+): GenericMcpConfig | undefined {
+  if (candidates.length <= 1) return candidates[0]?.genericConfig;
+
+  if (preferOrg) {
+    const own = candidates.find((c) => c.organizationId === preferOrg);
+    if (own) return own.genericConfig;
+  }
 
   const distinctOrgs = new Set(candidates.map((c) => c.organizationId));
-  if (distinctOrgs.size <= 1) return candidates[0];
-
   const winner = [...candidates].sort((a, b) =>
     b.date.localeCompare(a.date),
   )[0];
   console.warn(
     `  WARNING: multiple generic configs for MCP server "${serverId}" from ${[...distinctOrgs].join(", ")} — using ${winner.organizationId}'s (newest by date)`,
   );
-  return winner;
+  return winner.genericConfig;
 }
 
-// Resolves any installConfigs entry still marked config: "derived" after
-// same-approval derivation (addApproval) — i.e. entries whose own approval
-// had no usable root config — by looking across every vendor's contribution
-// for the same serverId. Must run after every vendor has been collected, so
-// genericConfigsByServerId reflects all of them.
-export function resolveMcpCrossVendorConfigs(
-  output: ConsolidatedOutput,
-  genericConfigsByServerId: Map<string, GenericMcpConfigEntry[]>,
-): void {
+// Resolves any installConfigs entry still marked config: "derived" — i.e.
+// entries whose own approval had no usable root config — by looking across
+// every vendor's contribution for the same serverId. Must run after every
+// vendor has been collected, so each entry's approvals reflect all of them.
+export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
   for (const entry of output.mcp) {
-    const winner = pickWinningGenericConfig(
-      genericConfigsByServerId.get(entry.serverId) ?? [],
-      entry.serverId,
-    );
+    const candidates = entry.approvals.filter((a) => a.genericConfig);
     const slug = entry.serverId.split("/").pop()!;
 
     for (const approval of entry.approvals) {
       approval.installConfigs = approval.installConfigs.map((cfg) => {
         if (cfg.config !== "derived") return cfg;
 
+        const winner = pickWinningGenericConfig(
+          candidates,
+          entry.serverId,
+          approval.organizationId,
+        );
         const transform = mcpConfigTransforms[cfg.tool];
-        const derived = winner && transform?.(winner.config, slug);
+        const derived = winner && transform?.(winner, slug);
         if (derived) {
           return { ...cfg, config: derived };
         }
@@ -348,12 +328,8 @@ export function resolveMcpCrossVendorConfigs(
         console.warn(
           `  WARNING: could not derive config for tool "${cfg.tool}" on MCP server "${entry.serverId}" — no generic config available or the tool can't represent it`,
         );
-        return {
-          tool: cfg.tool,
-          installUrl: cfg.installUrl,
-          openVsxUrl: cfg.openVsxUrl,
-          instructions: cfg.instructions,
-        };
+        const { config: _drop, ...rest } = cfg;
+        return rest;
       });
     }
   }
@@ -511,7 +487,6 @@ export function filterValidMcpTrusts(
 export function resolveMcpTrust(
   output: ConsolidatedOutput,
   mcpTrusts: McpTrustEntry[],
-  genericConfigsByServerId: Map<string, GenericMcpConfigEntry[]>,
 ): void {
   for (const { org, trustedOrg } of mcpTrusts) {
     const ownTools = output.tools.filter((t) => t.organizationId === org);
@@ -522,15 +497,17 @@ export function resolveMcpTrust(
       if (!sourceApproval) continue;
       if (entry.approvals.some((a) => a.organizationId === org)) continue;
 
+      const candidates = entry.approvals.filter((a) => a.genericConfig);
       const winner = pickWinningGenericConfig(
-        genericConfigsByServerId.get(entry.serverId) ?? [],
+        candidates,
         entry.serverId,
+        trustedOrg,
       );
       const slug = entry.serverId.split("/").pop()!;
 
       const installConfigs: InstallConfig[] = ownTools.map((tool) => {
         const transform = mcpConfigTransforms[tool.id];
-        const derived = winner && transform?.(winner.config, slug);
+        const derived = winner && transform?.(winner, slug);
         const installUrl = tool.mcpInstallUrlPrefix
           ? tool.mcpInstallUrlPrefix + entry.serverId
           : undefined;
@@ -690,7 +667,6 @@ function collectVendorData(
   output: ConsolidatedOutput,
   skillTrusts: SkillTrustEntry[],
   mcpTrusts: McpTrustEntry[],
-  genericConfigsByServerId: Map<string, GenericMcpConfigEntry[]>,
 ): void {
   const result = validateVendorFiles(vendorPath, vendorId);
 
@@ -712,7 +688,7 @@ function collectVendorData(
   );
 
   for (const { data } of result.approvals) {
-    addApproval(data, vendorId, output, genericConfigsByServerId);
+    addApproval(data, vendorId, output);
     console.log(`  Collected MCP: ${data.serverId}`);
   }
 
@@ -802,7 +778,6 @@ export async function main(): Promise<void> {
   };
   const skillTrusts: SkillTrustEntry[] = [];
   const mcpTrusts: McpTrustEntry[] = [];
-  const genericConfigsByServerId = new Map<string, GenericMcpConfigEntry[]>();
 
   // Step 1: Collect all vendor data (fails build on any error)
   const tmpDir = resolve(ROOT, ".tmp-vendors");
@@ -815,14 +790,7 @@ export async function main(): Promise<void> {
     for (const vendor of vendors) {
       console.log(`Processing vendor: ${vendor.id}`);
       const vendorPath = cloneOrUseLocal(vendor, tmpDir);
-      collectVendorData(
-        vendor.id,
-        vendorPath,
-        output,
-        skillTrusts,
-        mcpTrusts,
-        genericConfigsByServerId,
-      );
+      collectVendorData(vendor.id, vendorPath, output, skillTrusts, mcpTrusts);
       console.log();
     }
   } finally {
@@ -871,8 +839,8 @@ export async function main(): Promise<void> {
 
   // Resolve MCP trust delegations, then handle any remaining explicit
   // "derived" requests via cross-vendor lookup
-  resolveMcpTrust(output, validMcpTrusts, genericConfigsByServerId);
-  resolveMcpCrossVendorConfigs(output, genericConfigsByServerId);
+  resolveMcpTrust(output, validMcpTrusts);
+  resolveMcpCrossVendorConfigs(output);
 
   // Step 2b: Enrich skills with source metadata (expands multi-path, skips unreachable sources)
   output.skills = enrichSkillMetadata(output.skills);

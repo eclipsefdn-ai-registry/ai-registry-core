@@ -18,11 +18,11 @@ import {
   type ConsolidatedOutput,
   type ApprovalData,
   type SkillApprovalData,
+  type Approval,
   type McpEntry,
   type SkillEntry,
   type SkillTrustEntry,
   type McpTrustEntry,
-  type GenericMcpConfigEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
@@ -153,7 +153,7 @@ describe("addApproval", () => {
 
   it("creates a new MCP entry with serverId as name", () => {
     const output = emptyOutput();
-    addApproval(approval, "acme", output, new Map());
+    addApproval(approval, "acme", output);
 
     assert.equal(output.mcp.length, 1);
     assert.equal(output.mcp[0].serverId, "io.example/server");
@@ -166,7 +166,7 @@ describe("addApproval", () => {
 
   it("merges approvals from multiple vendors for the same server", () => {
     const output = emptyOutput();
-    addApproval(approval, "acme", output, new Map());
+    addApproval(approval, "acme", output);
     addApproval(
       {
         ...approval,
@@ -175,7 +175,6 @@ describe("addApproval", () => {
       },
       "other-org",
       output,
-      new Map(),
     );
 
     assert.equal(output.mcp.length, 1);
@@ -188,8 +187,8 @@ describe("addApproval", () => {
   it("produces a stable configHash from approval data", () => {
     const output1 = emptyOutput();
     const output2 = emptyOutput();
-    addApproval(approval, "acme", output1, new Map());
-    addApproval(approval, "acme", output2, new Map());
+    addApproval(approval, "acme", output1);
+    addApproval(approval, "acme", output2);
 
     const hash1 = output1.mcp[0].approvals[0].configHash;
     const hash2 = output2.mcp[0].approvals[0].configHash;
@@ -201,7 +200,7 @@ describe("addApproval", () => {
   it("produces different configHash when approval data changes", () => {
     const output1 = emptyOutput();
     const output2 = emptyOutput();
-    addApproval(approval, "acme", output1, new Map());
+    addApproval(approval, "acme", output1);
     addApproval(
       {
         ...approval,
@@ -209,7 +208,6 @@ describe("addApproval", () => {
       },
       "acme",
       output2,
-      new Map(),
     );
 
     assert.notEqual(
@@ -226,7 +224,7 @@ describe("addApproval", () => {
       date: "2026-05-01",
       installConfigs: [{ tool: "tool-a" }],
     };
-    addApproval(noVersion, "acme", output, new Map());
+    addApproval(noVersion, "acme", output);
 
     assert.equal("version" in output.mcp[0].approvals[0], false);
   });
@@ -237,7 +235,7 @@ describe("addApproval", () => {
       serverId: "io.example/server",
       date: "2026-05-01",
     };
-    addApproval(approval, "curator", output, new Map());
+    addApproval(approval, "curator", output);
 
     assert.equal(output.mcp[0].approvals[0].installConfigs.length, 0);
     assert.equal(output.mcp[0].approvals[0].organizationId, "curator");
@@ -954,7 +952,6 @@ describe("installUrl auto-generation (MCP)", () => {
       },
       "acme",
       output,
-      new Map(),
     );
     const cfg = output.mcp[0].approvals[0].installConfigs[0];
     assert.equal(
@@ -973,7 +970,6 @@ describe("installUrl auto-generation (MCP)", () => {
       },
       "acme",
       output,
-      new Map(),
     );
     const cfg = output.mcp[0].approvals[0].installConfigs[0];
     assert.equal(cfg.installUrl, "custom://explicit");
@@ -989,7 +985,6 @@ describe("installUrl auto-generation (MCP)", () => {
       },
       "acme",
       output,
-      new Map(),
     );
     const cfg = output.mcp[0].approvals[0].installConfigs[0];
     assert.equal(cfg.installUrl, undefined);
@@ -1217,10 +1212,9 @@ describe("addOrganization — mcp trust extraction", () => {
   });
 });
 
-describe("addApproval — genericConfig and same-approval derivation", () => {
+describe("addApproval — genericConfig", () => {
   it("populates Approval.genericConfig verbatim from the approval's own root config", () => {
     const output = emptyOutput();
-    const genericConfigs = new Map<string, GenericMcpConfigEntry[]>();
     addApproval(
       {
         serverId: "io.example/foo",
@@ -1229,7 +1223,6 @@ describe("addApproval — genericConfig and same-approval derivation", () => {
       },
       "eclipsesource",
       output,
-      genericConfigs,
     );
     assert.deepEqual(output.mcp[0].approvals[0].genericConfig, {
       url: "https://mcp.example.com",
@@ -1238,41 +1231,16 @@ describe("addApproval — genericConfig and same-approval derivation", () => {
 
   it("leaves genericConfig unset when the approval has no root config", () => {
     const output = emptyOutput();
-    const genericConfigs = new Map<string, GenericMcpConfigEntry[]>();
     addApproval(
       { serverId: "io.example/foo", date: "2026-08-05" },
       "eclipsesource",
       output,
-      genericConfigs,
     );
     assert.equal("genericConfig" in output.mcp[0].approvals[0], false);
   });
 
-  it("records the approval's root config in the genericConfigsByServerId side table", () => {
+  it('leaves installConfigs config: "derived" untouched — resolveMcpCrossVendorConfigs resolves it later', () => {
     const output = emptyOutput();
-    const genericConfigs = new Map<string, GenericMcpConfigEntry[]>();
-    addApproval(
-      {
-        serverId: "io.example/foo",
-        date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
-      },
-      "eclipsesource",
-      output,
-      genericConfigs,
-    );
-    assert.deepEqual(genericConfigs.get("io.example/foo"), [
-      {
-        organizationId: "eclipsesource",
-        date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
-      },
-    ]);
-  });
-
-  it('derives installConfigs config: "derived" from this approval\'s own root config', () => {
-    const output = emptyOutput();
-    const genericConfigs = new Map<string, GenericMcpConfigEntry[]>();
     output.tools.push({
       id: "theia-ide",
       name: "Theia IDE",
@@ -1287,31 +1255,6 @@ describe("addApproval — genericConfig and same-approval derivation", () => {
       },
       "theia",
       output,
-      genericConfigs,
-    );
-    assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
-      servers: { foo: { serverUrl: "https://mcp.example.com" } },
-    });
-  });
-
-  it('leaves config as the literal "derived" string when no transform is registered for the tool', () => {
-    const output = emptyOutput();
-    const genericConfigs = new Map<string, GenericMcpConfigEntry[]>();
-    output.tools.push({
-      id: "unregistered-tool",
-      name: "Unregistered Tool",
-      organizationId: "acme",
-    });
-    addApproval(
-      {
-        serverId: "io.example/foo",
-        date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
-        installConfigs: [{ tool: "unregistered-tool", config: "derived" }],
-      },
-      "acme",
-      output,
-      genericConfigs,
     );
     assert.equal(
       output.mcp[0].approvals[0].installConfigs[0].config,
@@ -1321,7 +1264,6 @@ describe("addApproval — genericConfig and same-approval derivation", () => {
 
   it("leaves an explicit object config untouched, ignoring any root config", () => {
     const output = emptyOutput();
-    const genericConfigs = new Map<string, GenericMcpConfigEntry[]>();
     output.tools.push({
       id: "theia-ide",
       name: "Theia IDE",
@@ -1338,7 +1280,6 @@ describe("addApproval — genericConfig and same-approval derivation", () => {
       },
       "theia",
       output,
-      genericConfigs,
     );
     assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
       servers: { custom: {} },
@@ -1347,36 +1288,50 @@ describe("addApproval — genericConfig and same-approval derivation", () => {
 });
 
 describe("pickWinningGenericConfig", () => {
+  function candidate(
+    organizationId: string,
+    date: string,
+    url: string,
+  ): Approval {
+    return {
+      organizationId,
+      date,
+      configHash: "abc",
+      installConfigs: [],
+      genericConfig: { url },
+    };
+  }
+
   it("returns undefined for an empty candidate list", () => {
     assert.equal(pickWinningGenericConfig([], "io.example/foo"), undefined);
   });
 
-  it("returns the only candidate when there's exactly one", () => {
-    const candidate = {
-      organizationId: "eclipsesource",
-      date: "2026-08-01",
-      config: { url: "https://a.example.com" },
-    };
-    assert.deepEqual(
-      pickWinningGenericConfig([candidate], "io.example/foo"),
-      candidate,
+  it("returns the only candidate's config when there's exactly one", () => {
+    const only = candidate(
+      "eclipsesource",
+      "2026-08-01",
+      "https://a.example.com",
     );
+    assert.deepEqual(pickWinningGenericConfig([only], "io.example/foo"), {
+      url: "https://a.example.com",
+    });
   });
 
   it("picks the newest by date when two different orgs both contribute one", () => {
-    const older = {
-      organizationId: "vendor-a",
-      date: "2026-01-01",
-      config: { url: "https://a.example.com" },
-    };
-    const newer = {
-      organizationId: "vendor-b",
-      date: "2026-06-01",
-      config: { url: "https://b.example.com" },
-    };
+    const older = candidate("vendor-a", "2026-01-01", "https://a.example.com");
+    const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
     assert.deepEqual(
       pickWinningGenericConfig([older, newer], "io.example/foo"),
-      newer,
+      { url: "https://b.example.com" },
+    );
+  });
+
+  it("prefers preferOrg's config over another org's newer one", () => {
+    const older = candidate("vendor-a", "2026-01-01", "https://a.example.com");
+    const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
+    assert.deepEqual(
+      pickWinningGenericConfig([older, newer], "io.example/foo", "vendor-a"),
+      { url: "https://a.example.com" },
     );
   });
 });
@@ -1396,6 +1351,13 @@ describe("resolveMcpCrossVendorConfigs", () => {
       mcpRegistryVerified: false,
       approvals: [
         {
+          organizationId: "eclipsesource",
+          date: "2026-08-01",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: { url: "https://mcp.example.com" },
+        },
+        {
           organizationId: "theia",
           date: "2026-08-05",
           configHash: "abc",
@@ -1403,23 +1365,48 @@ describe("resolveMcpCrossVendorConfigs", () => {
         },
       ],
     });
-    const genericConfigs = new Map([
-      [
-        "io.example/foo",
-        [
-          {
-            organizationId: "eclipsesource",
-            date: "2026-08-01",
-            config: { url: "https://mcp.example.com" },
-          },
-        ],
-      ],
-    ]);
 
-    resolveMcpCrossVendorConfigs(output, genericConfigs);
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.deepEqual(output.mcp[0].approvals[1].installConfigs[0].config, {
+      servers: { foo: { serverUrl: "https://mcp.example.com" } },
+    });
+  });
+
+  it("prefers the approval's own org's config over another vendor's newer one when deriving", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-01",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+          genericConfig: { url: "https://theias-own.example.com" },
+        },
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-05",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: { url: "https://newer-vendor.example.com" },
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
 
     assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
-      servers: { foo: { serverUrl: "https://mcp.example.com" } },
+      servers: { foo: { serverUrl: "https://theias-own.example.com" } },
     });
   });
 
@@ -1445,7 +1432,67 @@ describe("resolveMcpCrossVendorConfigs", () => {
       ],
     });
 
-    resolveMcpCrossVendorConfigs(output, new Map());
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.equal(
+      "config" in output.mcp[0].approvals[0].installConfigs[0],
+      false,
+    );
+  });
+
+  it("strips without leaving any undefined-valued keys behind", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0], {
+      tool: "theia-ide",
+    });
+  });
+
+  it("strips to unset when a generic config exists but no transform is registered for the tool", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "unregistered-tool",
+      name: "Unregistered Tool",
+      organizationId: "acme",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "unregistered-tool", config: "derived" }],
+          genericConfig: { url: "https://mcp.example.com" },
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
 
     assert.equal(
       "config" in output.mcp[0].approvals[0].installConfigs[0],
@@ -1472,7 +1519,7 @@ describe("resolveMcpCrossVendorConfigs", () => {
       ],
     });
 
-    resolveMcpCrossVendorConfigs(output, new Map());
+    resolveMcpCrossVendorConfigs(output);
 
     assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
       servers: { custom: {} },
@@ -1540,24 +1587,8 @@ describe("resolveMcpTrust", () => {
 
   it("adds a viaTrust-tagged approval with derived tool cards for both of the trusting org's tools", () => {
     const output = baseOutput();
-    const genericConfigs = new Map([
-      [
-        "io.github.eclipsesource/review-guard",
-        [
-          {
-            organizationId: "eclipsesource",
-            date: "2026-08-04",
-            config: { url: "https://review-guard.example.com/mcp" },
-          },
-        ],
-      ],
-    ]);
 
-    resolveMcpTrust(
-      output,
-      [{ org: "theia", trustedOrg: "eclipsesource" }],
-      genericConfigs,
-    );
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
 
     const derived = output.mcp[0].approvals.find(
       (a) => a.organizationId === "theia",
@@ -1584,11 +1615,7 @@ describe("resolveMcpTrust", () => {
       installConfigs: [],
     });
 
-    resolveMcpTrust(
-      output,
-      [{ org: "theia", trustedOrg: "eclipsesource" }],
-      new Map(),
-    );
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
 
     const theiaApprovals = output.mcp[0].approvals.filter(
       (a) => a.organizationId === "theia",
@@ -1601,14 +1628,10 @@ describe("resolveMcpTrust", () => {
     const output = baseOutput();
     // "openai" trusts eclipsesource and gets a derived (viaTrust) approval —
     // but has no tools, so no installConfigs entries are added.
-    resolveMcpTrust(
-      output,
-      [{ org: "openai", trustedOrg: "eclipsesource" }],
-      new Map(),
-    );
+    resolveMcpTrust(output, [{ org: "openai", trustedOrg: "eclipsesource" }]);
     // A third org trusting "openai" should get nothing: openai's only
     // approval for this server is itself trust-derived.
-    resolveMcpTrust(output, [{ org: "acme", trustedOrg: "openai" }], new Map());
+    resolveMcpTrust(output, [{ org: "acme", trustedOrg: "openai" }]);
 
     assert.equal(
       output.mcp[0].approvals.some((a) => a.organizationId === "acme"),
@@ -1618,24 +1641,8 @@ describe("resolveMcpTrust", () => {
 
   it("auto-generates installUrl for derived installConfigs entries when the trusting org's tool defines mcpInstallUrlPrefix", () => {
     const output = baseOutput();
-    const genericConfigs = new Map([
-      [
-        "io.github.eclipsesource/review-guard",
-        [
-          {
-            organizationId: "eclipsesource",
-            date: "2026-08-04",
-            config: { url: "https://review-guard.example.com/mcp" },
-          },
-        ],
-      ],
-    ]);
 
-    resolveMcpTrust(
-      output,
-      [{ org: "theia", trustedOrg: "eclipsesource" }],
-      genericConfigs,
-    );
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
 
     const derived = output.mcp[0].approvals.find(
       (a) => a.organizationId === "theia",
@@ -1668,15 +1675,9 @@ describe("resolveMcpTrust", () => {
 
   it("still adds the derived approval (with no install cards) when no generic config is available", () => {
     const output = baseOutput();
-    // resolveMcpTrust only consults the genericConfigsByServerId map passed
-    // in below, never approval.genericConfig directly — passing an empty
-    // map here is what makes this "no generic config available" scenario.
+    delete output.mcp[0].approvals[0].genericConfig;
 
-    resolveMcpTrust(
-      output,
-      [{ org: "theia", trustedOrg: "eclipsesource" }],
-      new Map(),
-    );
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
 
     const derived = output.mcp[0].approvals.find(
       (a) => a.organizationId === "theia",
