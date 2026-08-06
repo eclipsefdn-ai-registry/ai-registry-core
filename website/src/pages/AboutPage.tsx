@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ApiPreviewNotice } from "../components/ApiPreviewNotice";
 
 export function AboutPage() {
   return (
@@ -38,12 +39,7 @@ export function AboutPage() {
       </section>
 
       <section className="mb-6">
-        <h2 className="text-xl font-semibold mt-8 mb-3">Preview</h2>
-        <p className="mb-3 leading-relaxed text-card-foreground">
-          This registry is currently in <strong>preview</strong>. Data, APIs,
-          and the website may change as we iterate on the concept. Feedback is
-          welcome.
-        </p>
+        <ApiPreviewNotice linkToApiDocs />
       </section>
 
       <section className="mb-6">
@@ -61,6 +57,18 @@ export function AboutPage() {
             open an issue
           </a>{" "}
           on our GitHub repository. We will guide you through the process.
+        </p>
+        <p className="mb-3 leading-relaxed text-card-foreground">
+          Ready to register your organization as a tool provider? See{" "}
+          <a
+            href="https://github.com/eclipsefdn-ai-registry/ai-registry-core#becoming-a-vendor"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Becoming a vendor
+          </a>{" "}
+          in the project README for the step-by-step process.
         </p>
       </section>
 

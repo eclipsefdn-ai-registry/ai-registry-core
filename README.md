@@ -213,10 +213,9 @@ See the [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registr
 
 ### Becoming a vendor
 
-1. Create a new repository following the structure above
-2. Add your `organization.json` and approval files in `mcp/` and/or `skills/`
-3. Set up CI using the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml) from the Theia repo as a template
-4. Request registration by opening a PR on this repo that adds your entry to `vendors.json`
+1. Request a vendor repository by [opening an issue](https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues) on this repo describing your organization and the artifacts you plan to approve
+2. We create a new repository for you from a template, with the structure above and CI (the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml)) already set up — you only need to fill in your `organization.json` and add approval files in `mcp/` and/or `skills/`
+3. Request registration by opening a PR on this repo that adds your entry to `vendors.json`
 
 ## API
 
