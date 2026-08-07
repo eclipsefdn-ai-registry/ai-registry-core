@@ -27,6 +27,8 @@ export interface Approval {
   version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
+  genericConfig?: Record<string, unknown>;
+  viaTrust?: string;
 }
 
 export interface McpServer {

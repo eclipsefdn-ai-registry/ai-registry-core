@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai.open-vsx.org/schemas/mcp-server-config.schema.json",
+  "title": "MCP Server Config",
+  "description": "Generic, tool-agnostic connection info for an MCP server — a remote URL or a local (stdio) command, with optional auth. Derived from the emerging de-facto standard shape used by mcp.json-style client configs (e.g. Claude Code, VS Code, and similar derivatives), which wrap a per-server entry like this one under an outer \"mcpServers\"/\"servers\" collection keyed by server name — this schema deliberately omits that wrapper; it describes one server, not a wrapped collection. Per-tool derivation (including the outer wrapper) is implemented as a registered transform function, not part of this schema — see ai-registry-core/src/mcp-config-templates/.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["http", "sse", "ws"],
+          "description": "Remote transport. Matches Claude Code's type values. Defaults to \"http\" (Streamable HTTP) if omitted."
+        },
+        "url": { "type": "string", "format": "uri" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Static header-based auth, e.g. {\"Authorization\": \"Bearer <token>\"}."
+        },
+        "oauth": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "authServerMetadataUrl": { "type": "string", "format": "uri" },
+            "scopes": { "type": "string" },
+            "clientId": { "type": "string" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "stdio" },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "env": { "type": "object" }
+      }
+    }
+  ]
+}

@@ -7,16 +7,22 @@ import {
   resolveSkillInstallUrls,
   resolveSkillTrust,
   filterValidSkillTrusts,
+  resolveMcpTrust,
+  filterValidMcpTrusts,
   enrichWithRegistryData,
   resolveVendorMetadata,
+  pickWinningGenericConfig,
+  resolveMcpCrossVendorConfigs,
   buildToolView,
   buildToolSkillView,
   type ConsolidatedOutput,
   type ApprovalData,
   type SkillApprovalData,
+  type Approval,
   type McpEntry,
   type SkillEntry,
   type SkillTrustEntry,
+  type McpTrustEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
@@ -1154,5 +1160,571 @@ describe("buildToolSkillView", () => {
 
     assert.equal(original.length, 2);
     assert.equal(original[0].approvals[1].installConfigs.length, 1);
+  });
+});
+
+describe("addOrganization — mcp trust extraction", () => {
+  it("collects an mcp trust entry", () => {
+    const output = emptyOutput();
+    const skillTrusts: SkillTrustEntry[] = [];
+    const mcpTrusts: McpTrustEntry[] = [];
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "IDE",
+        website: "https://theia-ide.org",
+        trusts: [{ org: "eclipsesource", artifactTypes: { mcp: {} } }],
+      },
+      output,
+      skillTrusts,
+      mcpTrusts,
+    );
+    assert.deepEqual(mcpTrusts, [
+      { org: "theia", trustedOrg: "eclipsesource" },
+    ]);
+    assert.deepEqual(skillTrusts, []);
+  });
+
+  it("collects both a skill and an mcp trust entry from the same organization", () => {
+    const output = emptyOutput();
+    const skillTrusts: SkillTrustEntry[] = [];
+    const mcpTrusts: McpTrustEntry[] = [];
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "IDE",
+        website: "https://theia-ide.org",
+        trusts: [
+          { org: "anthropic", artifactTypes: { skills: {} } },
+          { org: "eclipsesource", artifactTypes: { mcp: {} } },
+        ],
+      },
+      output,
+      skillTrusts,
+      mcpTrusts,
+    );
+    assert.deepEqual(skillTrusts, [{ org: "theia", trustedOrg: "anthropic" }]);
+    assert.deepEqual(mcpTrusts, [
+      { org: "theia", trustedOrg: "eclipsesource" },
+    ]);
+  });
+});
+
+describe("addApproval — genericConfig", () => {
+  it("populates Approval.genericConfig verbatim from the approval's own root config", () => {
+    const output = emptyOutput();
+    addApproval(
+      {
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { url: "https://mcp.example.com" },
+      },
+      "eclipsesource",
+      output,
+    );
+    assert.deepEqual(output.mcp[0].approvals[0].genericConfig, {
+      url: "https://mcp.example.com",
+    });
+  });
+
+  it("leaves genericConfig unset when the approval has no root config", () => {
+    const output = emptyOutput();
+    addApproval(
+      { serverId: "io.example/foo", date: "2026-08-05" },
+      "eclipsesource",
+      output,
+    );
+    assert.equal("genericConfig" in output.mcp[0].approvals[0], false);
+  });
+
+  it('leaves installConfigs config: "derived" untouched — resolveMcpCrossVendorConfigs resolves it later', () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    addApproval(
+      {
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { url: "https://mcp.example.com" },
+        installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      },
+      "theia",
+      output,
+    );
+    assert.equal(
+      output.mcp[0].approvals[0].installConfigs[0].config,
+      "derived",
+    );
+  });
+
+  it("leaves an explicit object config untouched, ignoring any root config", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    addApproval(
+      {
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { url: "https://mcp.example.com" },
+        installConfigs: [
+          { tool: "theia-ide", config: { servers: { custom: {} } } },
+        ],
+      },
+      "theia",
+      output,
+    );
+    assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
+      servers: { custom: {} },
+    });
+  });
+});
+
+describe("pickWinningGenericConfig", () => {
+  function candidate(
+    organizationId: string,
+    date: string,
+    url: string,
+  ): Approval {
+    return {
+      organizationId,
+      date,
+      configHash: "abc",
+      installConfigs: [],
+      genericConfig: { url },
+    };
+  }
+
+  it("returns undefined for an empty candidate list", () => {
+    assert.equal(pickWinningGenericConfig([], "io.example/foo"), undefined);
+  });
+
+  it("returns the only candidate's config when there's exactly one", () => {
+    const only = candidate(
+      "eclipsesource",
+      "2026-08-01",
+      "https://a.example.com",
+    );
+    assert.deepEqual(pickWinningGenericConfig([only], "io.example/foo"), {
+      url: "https://a.example.com",
+    });
+  });
+
+  it("picks the newest by date when two different orgs both contribute one", () => {
+    const older = candidate("vendor-a", "2026-01-01", "https://a.example.com");
+    const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
+    assert.deepEqual(
+      pickWinningGenericConfig([older, newer], "io.example/foo"),
+      { url: "https://b.example.com" },
+    );
+  });
+
+  it("prefers preferOrg's config over another org's newer one", () => {
+    const older = candidate("vendor-a", "2026-01-01", "https://a.example.com");
+    const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
+    assert.deepEqual(
+      pickWinningGenericConfig([older, newer], "io.example/foo", "vendor-a"),
+      { url: "https://a.example.com" },
+    );
+  });
+});
+
+describe("resolveMcpCrossVendorConfigs", () => {
+  it('resolves a "derived" entry using another vendor\'s root config for the same server', () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-01",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: { url: "https://mcp.example.com" },
+        },
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.deepEqual(output.mcp[0].approvals[1].installConfigs[0].config, {
+      servers: { foo: { serverUrl: "https://mcp.example.com" } },
+    });
+  });
+
+  it("prefers the approval's own org's config over another vendor's newer one when deriving", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-01",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+          genericConfig: { url: "https://theias-own.example.com" },
+        },
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-05",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: { url: "https://newer-vendor.example.com" },
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
+      servers: { foo: { serverUrl: "https://theias-own.example.com" } },
+    });
+  });
+
+  it("drops the card (does not fall back to another vendor) when the approval's own config can't be represented", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-01",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+          genericConfig: {
+            url: "https://mcp.example.com",
+            headers: { Authorization: "Bearer x", "X-Extra": "y" },
+          },
+        },
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-05",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: { url: "https://newer-vendor.example.com" },
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.equal(
+      "config" in output.mcp[0].approvals[0].installConfigs[0],
+      false,
+    );
+  });
+
+  it("strips config to unset when no generic config is available anywhere", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.equal(
+      "config" in output.mcp[0].approvals[0].installConfigs[0],
+      false,
+    );
+  });
+
+  it("strips without leaving any undefined-valued keys behind", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0], {
+      tool: "theia-ide",
+    });
+  });
+
+  it("strips to unset when a generic config exists but no transform is registered for the tool", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "unregistered-tool",
+      name: "Unregistered Tool",
+      organizationId: "acme",
+    });
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "unregistered-tool", config: "derived" }],
+          genericConfig: { url: "https://mcp.example.com" },
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.equal(
+      "config" in output.mcp[0].approvals[0].installConfigs[0],
+      false,
+    );
+  });
+
+  it("leaves an already-resolved config untouched", () => {
+    const output = emptyOutput();
+    output.mcp.push({
+      serverId: "io.example/foo",
+      name: "foo",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [
+            { tool: "theia-ide", config: { servers: { custom: {} } } },
+          ],
+        },
+      ],
+    });
+
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
+      servers: { custom: {} },
+    });
+  });
+});
+
+describe("filterValidMcpTrusts", () => {
+  it("keeps trust entries referencing registered vendors", () => {
+    const { valid, unknown } = filterValidMcpTrusts(
+      [{ org: "theia", trustedOrg: "eclipsesource" }],
+      new Set(["theia", "eclipsesource"]),
+    );
+    assert.equal(valid.length, 1);
+    assert.equal(unknown.length, 0);
+  });
+
+  it("separates out trust entries referencing an unregistered org", () => {
+    const { valid, unknown } = filterValidMcpTrusts(
+      [
+        { org: "theia", trustedOrg: "eclipsesource" },
+        { org: "theia", trustedOrg: "nonexistent" },
+      ],
+      new Set(["theia", "eclipsesource"]),
+    );
+    assert.equal(valid.length, 1);
+    assert.equal(valid[0].trustedOrg, "eclipsesource");
+    assert.equal(unknown.length, 1);
+    assert.equal(unknown[0].trustedOrg, "nonexistent");
+  });
+});
+
+describe("resolveMcpTrust", () => {
+  function baseOutput(): ConsolidatedOutput {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "theia-ide",
+      name: "Theia IDE",
+      organizationId: "theia",
+      mcpInstallUrlPrefix: "theia://install-mcp?id=",
+    });
+    output.tools.push({
+      id: "theia-ide-next",
+      name: "Theia IDE Next",
+      organizationId: "theia",
+      mcpInstallUrlPrefix: "theia-next://install-mcp?id=",
+    });
+    output.mcp.push({
+      serverId: "io.github.eclipsesource/review-guard",
+      name: "review-guard",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-04",
+          configHash: "abc",
+          installConfigs: [],
+          genericConfig: { url: "https://review-guard.example.com/mcp" },
+        },
+      ],
+    });
+    return output;
+  }
+
+  it("adds a viaTrust-tagged approval with derived tool cards for both of the trusting org's tools", () => {
+    const output = baseOutput();
+
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const derived = output.mcp[0].approvals.find(
+      (a) => a.organizationId === "theia",
+    );
+    assert.ok(derived);
+    assert.equal(derived!.viaTrust, "eclipsesource");
+    assert.equal(derived!.installConfigs.length, 2);
+    const theiaIde = derived!.installConfigs.find(
+      (ic) => ic.tool === "theia-ide",
+    );
+    assert.deepEqual(theiaIde!.config, {
+      servers: {
+        "review-guard": { serverUrl: "https://review-guard.example.com/mcp" },
+      },
+    });
+  });
+
+  it("does not add a derived approval when the trusting org already approved directly", () => {
+    const output = baseOutput();
+    output.mcp[0].approvals.push({
+      organizationId: "theia",
+      date: "2026-08-05",
+      configHash: "def",
+      installConfigs: [],
+    });
+
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const theiaApprovals = output.mcp[0].approvals.filter(
+      (a) => a.organizationId === "theia",
+    );
+    assert.equal(theiaApprovals.length, 1);
+    assert.equal(theiaApprovals[0].viaTrust, undefined);
+  });
+
+  it("does not chain trust through a trust-derived approval", () => {
+    const output = baseOutput();
+    // "openai" trusts eclipsesource and gets a derived (viaTrust) approval —
+    // but has no tools, so no installConfigs entries are added.
+    resolveMcpTrust(output, [{ org: "openai", trustedOrg: "eclipsesource" }]);
+    // A third org trusting "openai" should get nothing: openai's only
+    // approval for this server is itself trust-derived.
+    resolveMcpTrust(output, [{ org: "acme", trustedOrg: "openai" }]);
+
+    assert.equal(
+      output.mcp[0].approvals.some((a) => a.organizationId === "acme"),
+      false,
+    );
+  });
+
+  it("auto-generates installUrl for derived installConfigs entries when the trusting org's tool defines mcpInstallUrlPrefix", () => {
+    const output = baseOutput();
+
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const derived = output.mcp[0].approvals.find(
+      (a) => a.organizationId === "theia",
+    );
+    assert.ok(derived);
+    const theiaIde = derived!.installConfigs.find(
+      (ic) => ic.tool === "theia-ide",
+    );
+    const theiaIdeNext = derived!.installConfigs.find(
+      (ic) => ic.tool === "theia-ide-next",
+    );
+    assert.ok(theiaIde);
+    assert.ok(theiaIdeNext);
+    assert.equal(
+      theiaIde!.installUrl,
+      "theia://install-mcp?id=io.github.eclipsesource/review-guard",
+    );
+    assert.equal(
+      theiaIdeNext!.installUrl,
+      "theia-next://install-mcp?id=io.github.eclipsesource/review-guard",
+    );
+    // installUrl coexists with the derived config, matching what a real
+    // direct approval could produce.
+    assert.deepEqual(theiaIde!.config, {
+      servers: {
+        "review-guard": { serverUrl: "https://review-guard.example.com/mcp" },
+      },
+    });
+  });
+
+  it("still adds the derived approval (with no install cards) when no generic config is available", () => {
+    const output = baseOutput();
+    delete output.mcp[0].approvals[0].genericConfig;
+
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const derived = output.mcp[0].approvals.find(
+      (a) => a.organizationId === "theia",
+    );
+    assert.ok(derived);
+    assert.equal(derived!.installConfigs.length, 2);
+    assert.equal("config" in derived!.installConfigs[0], false);
   });
 });

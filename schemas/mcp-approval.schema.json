@@ -1,5 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai.open-vsx.org/schemas/mcp-approval.schema.json",
   "title": "MCP Server Approval",
   "description": "Vendor approval for an MCP server in the AI Registry",
   "type": "object",
@@ -19,6 +20,10 @@
     "version": {
       "type": "string",
       "description": "Pinned server version (e.g., 1.0.1). Omit to use the latest version from the MCP registry."
+    },
+    "config": {
+      "$ref": "mcp-server-config.schema.json",
+      "description": "Generic, tool-agnostic connection info for this server. Used to derive installConfigs entries (in this approval or another vendor's) that request derivation."
     },
     "installConfigs": {
       "type": "array",
@@ -43,8 +48,8 @@
             "description": "Link to an VS Code extension on OpenVSX that installs the MCP server configuration"
           },
           "config": {
-            "type": "object",
-            "description": "Tool-specific configuration object (e.g., MCP server settings)"
+            "description": "Tool-specific configuration object. Set to the literal string \"derived\" to request that this entry's config be automatically derived (from this approval's own root config, or another vendor's approval for the same server) using the tool's registered transform function.",
+            "oneOf": [{ "type": "object" }, { "const": "derived" }]
           },
           "instructions": {
             "type": "string",
