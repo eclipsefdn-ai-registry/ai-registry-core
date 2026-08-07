@@ -12,6 +12,7 @@ import { execSync } from "node:child_process";
 import { validateVendorFiles } from "./validate.js";
 import { lookupServer, type ServerLookupResult } from "./anthropic-registry.js";
 import { enrichSkillMetadata } from "./skill-source.js";
+import { enrichPluginMetadata } from "./plugin-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -166,11 +167,60 @@ export interface SkillEntry {
   approvals: SkillApproval[];
 }
 
+export interface PluginInstallConfig {
+  tool: string;
+  installUrl?: string;
+  config?: Record<string, unknown>;
+  instructions?: string;
+}
+
+export interface PluginApprovalData {
+  pluginId: string;
+  date: string;
+  source: { url: string; path?: string };
+  installConfigs?: PluginInstallConfig[];
+}
+
+export interface PluginApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: PluginInstallConfig[];
+  // installConfigs is always present in output (defaults to [])
+}
+
+export interface ContainedSkillRef {
+  name: string;
+  description: string;
+  path: string;
+}
+
+export interface ContainedMcpServerRef {
+  name: string;
+  transport: string;
+}
+
+export interface PluginEntry {
+  pluginId: string;
+  name: string;
+  description: string;
+  version?: string;
+  author?: string;
+  homepage?: string;
+  keywords?: string[];
+  source: { url: string; path?: string };
+  contentHash: string;
+  containedSkills: ContainedSkillRef[];
+  containedMcpServers: ContainedMcpServerRef[];
+  approvals: PluginApproval[];
+}
+
 export interface ConsolidatedOutput {
   organizations: Organization[];
   tools: Tool[];
   mcp: McpEntry[];
   skills: SkillEntry[];
+  plugins: PluginEntry[];
 }
 
 // --- Pure logic (testable) ---
@@ -452,6 +502,61 @@ export function addSkillApproval(
   skillEntry.approvals.push(approval);
 }
 
+export function addPluginApproval(
+  approvalData: PluginApprovalData,
+  organizationId: string,
+  output: ConsolidatedOutput,
+): void {
+  let pluginEntry = output.plugins.find(
+    (p) => p.pluginId === approvalData.pluginId,
+  );
+  if (!pluginEntry) {
+    pluginEntry = {
+      pluginId: approvalData.pluginId,
+      name: approvalData.pluginId,
+      description: "",
+      source: approvalData.source,
+      contentHash: "",
+      containedSkills: [],
+      containedMcpServers: [],
+      approvals: [],
+    };
+    output.plugins.push(pluginEntry);
+  }
+
+  const configHash = createHash("sha256")
+    .update(JSON.stringify(approvalData))
+    .digest("hex")
+    .slice(0, 12);
+
+  const approval: PluginApproval = {
+    organizationId,
+    date: approvalData.date,
+    configHash,
+    installConfigs: approvalData.installConfigs ?? [],
+  };
+  pluginEntry.approvals.push(approval);
+}
+
+export function buildToolPluginView(
+  toolId: string,
+  plugins: PluginEntry[],
+): PluginEntry[] {
+  return plugins
+    .filter((plugin) =>
+      plugin.approvals.some((a) =>
+        a.installConfigs.some((ic) => ic.tool === toolId),
+      ),
+    )
+    .map((plugin) => ({
+      ...plugin,
+      approvals: plugin.approvals.map((a) => ({
+        ...a,
+        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
+      })),
+    }));
+}
+
 // Splits skill trust entries into those referencing a registered vendor and
 // those that don't. A vendor's own CI fails on an unknown trusted org before
 // merge (see checkTrustedOrgIds in validate.ts); this is a defense-in-depth
@@ -702,6 +807,11 @@ function collectVendorData(
     addSkillApproval(data as SkillApprovalData, vendorId, output);
     console.log(`  Collected skill: ${data.skillId}`);
   }
+
+  for (const { data } of result.pluginApprovals) {
+    addPluginApproval(data as PluginApprovalData, vendorId, output);
+    console.log(`  Collected plugin: ${data.pluginId}`);
+  }
 }
 
 // --- Step 2: Enrich with Anthropic registry metadata (network, can fail systemically) ---
@@ -760,6 +870,7 @@ function writeOutput(output: ConsolidatedOutput): void {
     writeJson(toolPath, {
       mcp: buildToolView(tool.id, output.mcp),
       skills: buildToolSkillView(tool.id, output.skills),
+      plugins: buildToolPluginView(tool.id, output.plugins),
     });
     console.log(`Written: ${toolPath}`);
   }
@@ -768,6 +879,7 @@ function writeOutput(output: ConsolidatedOutput): void {
   console.log(`  Tools: ${output.tools.length}`);
   console.log(`  MCP servers: ${output.mcp.length}`);
   console.log(`  Skills: ${output.skills.length}`);
+  console.log(`  Plugins: ${output.plugins.length}`);
 }
 
 // --- Main ---
@@ -781,6 +893,7 @@ export async function main(): Promise<void> {
     tools: [],
     mcp: [],
     skills: [],
+    plugins: [],
   };
   const skillTrusts: SkillTrustEntry[] = [];
   const mcpTrusts: McpTrustEntry[] = [];
@@ -866,8 +979,12 @@ export async function main(): Promise<void> {
     seenSkillIds.add(skill.skillId);
   }
 
+  // Step 2c: Enrich plugins with source metadata (skips unreachable sources)
+  output.plugins = enrichPluginMetadata(output.plugins);
+
   // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));
   output.skills.sort((a, b) => a.skillId.localeCompare(b.skillId));
+  output.plugins.sort((a, b) => a.pluginId.localeCompare(b.pluginId));
   writeOutput(output);
 }

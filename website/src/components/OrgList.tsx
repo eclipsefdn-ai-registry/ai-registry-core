@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { Organization, McpServer, Skill, Tool } from "../types";
+import type { Organization, McpServer, Skill, Plugin, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { INFERRED_DISCLAIMER } from "../orgBadge";
 
@@ -7,11 +7,13 @@ export function OrgList({
   organizations,
   servers,
   skills,
+  plugins,
   getToolsForOrg,
 }: {
   organizations: Organization[];
   servers: McpServer[];
   skills: Skill[];
+  plugins: Plugin[];
   getToolsForOrg: (orgId: string) => Tool[];
 }) {
   if (organizations.length === 0) {
@@ -36,6 +38,12 @@ export function OrgList({
             (count, s) =>
               count +
               s.approvals.filter((a) => a.organizationId === org.id).length,
+            0,
+          ) +
+          plugins.reduce(
+            (count, p) =>
+              count +
+              p.approvals.filter((a) => a.organizationId === org.id).length,
             0,
           );
         const tools = getToolsForOrg(org.id);

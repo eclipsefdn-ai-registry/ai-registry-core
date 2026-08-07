@@ -7,6 +7,7 @@ import {
   validateApproval,
   validateOrganization,
   type SkillApprovalEntry,
+  type PluginApprovalEntry,
 } from "./validate.js";
 
 // --- checkTrustedOrgIds ---
@@ -540,6 +541,192 @@ describe("validateVendorData — skill approvals", () => {
       },
     ]);
     assert.equal(result.valid, true);
+  });
+});
+
+// --- Plugin approval validation ---
+
+function pluginApproval(
+  pluginId = "io.example/my-plugin",
+): PluginApprovalEntry {
+  return {
+    file: pluginId.replace(/\//g, "--") + ".json",
+    data: {
+      pluginId,
+      date: "2026-08-01",
+      source: {
+        url: "https://github.com/example/plugins.git",
+        path: "plugins/my-plugin",
+      },
+      installConfigs: [{ tool: "test-tool" }],
+    },
+  };
+}
+
+describe("validateVendorData — plugin approvals", () => {
+  it("passes for valid org with plugin approvals", () => {
+    const result = validateVendorData(
+      validOrg,
+      [],
+      undefined,
+      [],
+      [pluginApproval()],
+    );
+    assert.equal(result.valid, true);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("passes with MCP, skill, and plugin approvals together", () => {
+    const result = validateVendorData(
+      validOrg,
+      [approval()],
+      undefined,
+      [skillApproval()],
+      [pluginApproval()],
+    );
+    assert.equal(result.valid, true);
+    assert.equal(result.approvals.length, 1);
+    assert.equal(result.skillApprovals.length, 1);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("fails when plugin approval fails schema validation", () => {
+    const result = validateVendorData(
+      validOrg,
+      [],
+      undefined,
+      [],
+      [{ file: "bad.json", data: { pluginId: "x" } as never }],
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("fails on duplicate pluginId across plugin approvals", () => {
+    const result = validateVendorData(
+      validOrg,
+      [],
+      undefined,
+      [],
+      [
+        pluginApproval("io.example/my-plugin"),
+        {
+          file: "io.example--my-plugin-copy.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-02",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+            installConfigs: [{ tool: "test-tool" }],
+          },
+        },
+      ],
+    );
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("duplicate approval")));
+  });
+
+  it("fails when tool ID in plugin approval is not in organization", () => {
+    const result = validateVendorData(
+      validOrg,
+      [],
+      undefined,
+      [],
+      [
+        {
+          file: "io.example--my-plugin.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+            installConfigs: [{ tool: "nonexistent-tool" }],
+          },
+        },
+      ],
+    );
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("nonexistent-tool")));
+  });
+
+  it("warns on plugin filename mismatch", () => {
+    const result = validateVendorData(
+      validOrg,
+      [],
+      undefined,
+      [],
+      [
+        {
+          file: "wrong-name.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+            installConfigs: [{ tool: "test-tool" }],
+          },
+        },
+      ],
+    );
+    assert.equal(result.valid, true);
+    assert.ok(result.warnings.some((w) => w.includes("filename should be")));
+  });
+
+  it("passes for plugin approval without installConfigs", () => {
+    const result = validateVendorData(
+      validOrg,
+      [],
+      undefined,
+      [],
+      [
+        {
+          file: "io.example--my-plugin.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+          },
+        },
+      ],
+    );
+    assert.equal(result.valid, true);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("passes for plugin approval without a path (plugin at repo root)", () => {
+    const result = validateVendorData(
+      validOrg,
+      [],
+      undefined,
+      [],
+      [
+        {
+          file: "io.example--my-plugin.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: { url: "https://github.com/example/my-plugin.git" },
+          },
+        },
+      ],
+    );
+    assert.equal(result.valid, true);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("backward compatible — works without plugin approvals param", () => {
+    const result = validateVendorData(validOrg, [approval()]);
+    assert.equal(result.valid, true);
+    assert.equal(result.pluginApprovals.length, 0);
   });
 });
 

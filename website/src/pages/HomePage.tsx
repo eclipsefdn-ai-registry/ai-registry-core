@@ -6,14 +6,17 @@ import { ServerList } from "../components/ServerList";
 import { ServerDetail } from "../components/ServerDetail";
 import { SkillList } from "../components/SkillList";
 import { SkillDetail } from "../components/SkillDetail";
+import { PluginList } from "../components/PluginList";
+import { PluginDetail } from "../components/PluginDetail";
 import { OrgList } from "../components/OrgList";
 import { ToolList } from "../components/ToolList";
 
-type Tab = "servers" | "skills" | "tools" | "organizations";
+type Tab = "servers" | "skills" | "plugins" | "tools" | "organizations";
 
 const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
   servers: "Search MCP servers...",
   skills: "Search agent skills...",
+  plugins: "Search agent plugins...",
   tools: "Search tools...",
   organizations: "Search organizations...",
 };
@@ -25,6 +28,7 @@ export function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedServerId = searchParams.get("server") ?? undefined;
   const selectedSkillId = searchParams.get("skill") ?? undefined;
+  const selectedPluginId = searchParams.get("plugin") ?? undefined;
 
   const filteredServers = useMemo(() => {
     if (!data) return [];
@@ -70,6 +74,19 @@ export function HomePage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [data, search]);
 
+  const filteredPlugins = useMemo(() => {
+    if (!data) return [];
+    const q = search.toLowerCase();
+    return (data.plugins ?? [])
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.pluginId.toLowerCase().includes(q),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data, search]);
+
   if (error) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -89,6 +106,10 @@ export function HomePage() {
 
   const selectedSkill = selectedSkillId
     ? (data.skills ?? []).find((s) => s.skillId === selectedSkillId)
+    : undefined;
+
+  const selectedPlugin = selectedPluginId
+    ? (data.plugins ?? []).find((p) => p.pluginId === selectedPluginId)
     : undefined;
 
   const getOrg = (id: string) => data.organizations.find((o) => o.id === id);
@@ -122,9 +143,23 @@ export function HomePage() {
     );
   }
 
+  if (selectedPlugin) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <PluginDetail
+          plugin={selectedPlugin}
+          getOrg={getOrg}
+          getTool={getTool}
+          onBack={() => setSearchParams({})}
+        />
+      </div>
+    );
+  }
+
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "servers", label: "MCP Servers", count: filteredServers.length },
     { key: "skills", label: "Skills", count: filteredSkills.length },
+    { key: "plugins", label: "Plugins", count: filteredPlugins.length },
     { key: "tools", label: "Tools", count: filteredTools.length },
     {
       key: "organizations",
@@ -148,8 +183,9 @@ export function HomePage() {
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-            Discover MCP servers and agent skills, with transparent provenance
-            and approval signals from participating tool providers.
+            Discover MCP servers, agent skills, and agent plugins, with
+            transparent provenance and approval signals from participating tool
+            providers.
           </p>
 
           <div className="w-full max-w-2xl mb-3">
@@ -218,6 +254,14 @@ export function HomePage() {
             />
           )}
 
+          {tab === "plugins" && (
+            <PluginList
+              plugins={filteredPlugins}
+              getOrg={getOrg}
+              onSelect={(id) => setSearchParams({ plugin: id })}
+            />
+          )}
+
           {tab === "tools" && (
             <ToolList tools={filteredTools} getOrg={getOrg} />
           )}
@@ -227,6 +271,7 @@ export function HomePage() {
               organizations={filteredOrgs}
               servers={data.mcp}
               skills={data.skills ?? []}
+              plugins={data.plugins ?? []}
               getToolsForOrg={getToolsForOrg}
             />
           )}

@@ -5,11 +5,11 @@ import { useToolRegistryData } from "../hooks/useRegistryData";
 import { InstallConfigView } from "../components/ServerDetail";
 import { McpVerificationBadge } from "../components/McpVerificationBadge";
 import { NotFoundPage } from "./NotFoundPage";
-import type { McpServer, Skill, Organization, Tool } from "../types";
+import type { McpServer, Skill, Plugin, Organization, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { orgBadge } from "../orgBadge";
 
-type Tab = "servers" | "skills";
+type Tab = "servers" | "skills" | "plugins";
 
 export function ToolPage() {
   const { toolId } = useParams<{ toolId: string }>();
@@ -41,6 +41,19 @@ export function ToolPage() {
           s.name.toLowerCase().includes(q) ||
           s.description.toLowerCase().includes(q) ||
           s.skillId.toLowerCase().includes(q),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data, search]);
+
+  const filteredPlugins = useMemo(() => {
+    if (!data) return [];
+    const q = search.toLowerCase();
+    return (data.plugins ?? [])
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.pluginId.toLowerCase().includes(q),
       )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [data, search]);
@@ -87,6 +100,7 @@ export function ToolPage() {
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "servers", label: "MCP Servers", count: filteredServers.length },
     { key: "skills", label: "Skills", count: filteredSkills.length },
+    { key: "plugins", label: "Plugins", count: filteredPlugins.length },
   ];
 
   return (
@@ -119,7 +133,7 @@ export function ToolPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
             type="text"
-            placeholder={`Search ${tab === "servers" ? "MCP servers" : "skills"} for ${tool?.name ?? toolId}...`}
+            placeholder={`Search ${tab === "servers" ? "MCP servers" : tab} for ${tool?.name ?? toolId}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-12 h-12 text-base bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/50 placeholder:text-muted-foreground"
@@ -184,6 +198,25 @@ export function ToolPage() {
         ) : (
           <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
             No skills found.
+          </div>
+        ))}
+
+      {tab === "plugins" &&
+        (filteredPlugins.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {filteredPlugins.map((plugin) => (
+              <ToolPluginCard
+                key={plugin.pluginId}
+                plugin={plugin}
+                toolId={toolId!}
+                getOrg={getOrg}
+                getTool={getTool}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+            No plugins found.
           </div>
         ))}
     </div>
@@ -466,6 +499,84 @@ function ToolSkillCard({
         )}
         <div className="flex gap-3 text-xs text-muted-foreground font-mono">
           <span>Hash: {skill.contentHash}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToolPluginCard({
+  plugin,
+  toolId,
+  getOrg,
+  getTool,
+}: {
+  plugin: Plugin;
+  toolId: string;
+  getOrg: (id: string) => Organization | undefined;
+  getTool: (id: string) => Tool | undefined;
+}) {
+  const toolApproval = plugin.approvals.find((a) =>
+    a.installConfigs.some((ic) => ic.tool === toolId),
+  );
+
+  return (
+    <div className="group bg-card border border-border rounded-xl p-5 hover:border-primary/50 transition-all shadow-sm flex flex-col">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <h3 className="text-base font-semibold text-foreground">
+            {plugin.name}
+          </h3>
+          {plugin.approvals.map((a) => {
+            const approvalOrg = getOrg(a.organizationId);
+            if (!approvalOrg) return undefined;
+            const badge = orgBadge(approvalOrg, {
+              fallbackId: a.organizationId,
+              approvedTitle: `Approved by ${approvalOrg.name}`,
+            });
+            return (
+              <span
+                key={a.organizationId}
+                className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
+                  badge.inferred ? "border-dashed" : ""
+                }`}
+                title={badge.title}
+              >
+                {approvalOrg.color && (
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: safeCssColor(approvalOrg.color),
+                    }}
+                  />
+                )}
+                {badge.text}
+              </span>
+            );
+          })}
+        </div>
+        <div className="font-mono text-xs text-muted-foreground mb-3">
+          {plugin.pluginId}
+        </div>
+        <p className="text-sm text-foreground mb-3 line-clamp-3 break-words">
+          {plugin.description}
+        </p>
+        {toolApproval && (
+          <div className="mb-3">
+            {toolApproval.installConfigs
+              .filter((ic) => ic.tool === toolId)
+              .map((config, j) => (
+                <InstallConfigView
+                  key={j}
+                  config={config}
+                  getTool={getTool}
+                  compact
+                />
+              ))}
+          </div>
+        )}
+        <div className="flex gap-3 text-xs text-muted-foreground font-mono">
+          <span>Hash: {plugin.contentHash}</span>
         </div>
       </div>
     </div>

@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai.open-vsx.org/schemas/plugin-approval.schema.json",
+  "title": "Plugin Approval",
+  "description": "Vendor approval for an Agent Plugin (agent-plugins.org) in the AI Registry",
+  "type": "object",
+  "required": ["pluginId", "date", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "pluginId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Plugin identifier using reverse-domain notation (e.g., io.github.gemini-cli-extensions/bigquery-data-analytics)"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date of approval (YYYY-MM-DD)"
+    },
+    "source": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "description": "Location of the plugin folder in a git repository",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Git repository URL containing the plugin"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path within the repository to the plugin folder (containing plugin.json). Omit if the plugin is at the repository root."
+        }
+      }
+    },
+    "installConfigs": {
+      "type": "array",
+      "description": "Tool-specific installation configurations. Omit if no tool-specific configuration is needed.",
+      "items": {
+        "type": "object",
+        "required": ["tool"],
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Tool ID this config targets (must match a tool in the AI Registry)"
+          },
+          "installUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Deep-link URL for one-click install (tool-specific protocol)"
+          },
+          "config": {
+            "type": "object",
+            "description": "Tool-specific configuration object"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Human-readable setup instructions"
+          }
+        }
+      }
+    }
+  }
+}
