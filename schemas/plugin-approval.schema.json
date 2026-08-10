@@ -31,7 +31,8 @@
         "path": {
           "type": "string",
           "minLength": 1,
-          "description": "Path within the repository to the plugin folder (containing plugin.json). Omit if the plugin is at the repository root."
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$",
+          "description": "Path within the repository to the plugin folder (containing plugin.json). Omit if the plugin is at the repository root. Restricted to safe path characters — no whitespace or shell metacharacters — since this value is passed to a git sparse-checkout command during consolidation."
         }
       }
     },

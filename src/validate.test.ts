@@ -6,6 +6,7 @@ import {
   validateVendorData,
   validateApproval,
   validateOrganization,
+  validatePluginApproval,
   type SkillApprovalEntry,
   type PluginApprovalEntry,
 } from "./validate.js";
@@ -562,6 +563,55 @@ function pluginApproval(
     },
   };
 }
+
+describe("validatePluginApproval — source.path pattern", () => {
+  function pluginApprovalData(path: string) {
+    return {
+      pluginId: "io.example/my-plugin",
+      date: "2026-08-01",
+      source: {
+        url: "https://github.com/example/plugins.git",
+        path,
+      },
+    };
+  }
+
+  it("accepts a normal relative path", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData("plugins/my-plugin"),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a single path segment", () => {
+    const result = validatePluginApproval(pluginApprovalData("my-plugin"));
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a path with a shell command separator", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData("plugin; rm -rf /"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a path with a space", () => {
+    const result = validatePluginApproval(pluginApprovalData("my plugin"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a path with a backtick", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData("plugin`touch /tmp/x`"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a path with a dollar sign", () => {
+    const result = validatePluginApproval(pluginApprovalData("$(whoami)"));
+    assert.equal(result.valid, false);
+  });
+});
 
 describe("validateVendorData — plugin approvals", () => {
   it("passes for valid org with plugin approvals", () => {

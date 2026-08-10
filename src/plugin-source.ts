@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve, join, dirname } from "node:path";
@@ -113,8 +113,17 @@ function clonePluginRepo(
     : sourceUrl;
 
   try {
-    execSync(
-      `git clone --depth 1 --filter=blob:none --sparse ${repoUrl} ${cloneDir}`,
+    execFileSync(
+      "git",
+      [
+        "clone",
+        "--depth",
+        "1",
+        "--filter=blob:none",
+        "--sparse",
+        repoUrl,
+        cloneDir,
+      ],
       { stdio: "pipe" },
     );
   } catch {
@@ -128,13 +137,19 @@ function clonePluginRepo(
   // out everything — in cone mode it only materializes root-level files, not
   // subdirectories — so disable sparse-checkout entirely instead to get the
   // full repo.
+  //
+  // pluginPath comes from a vendor-supplied approval file — pass it as its
+  // own argv entry (execFileSync, no shell) rather than interpolating into a
+  // shell string, so a path like "a; rm -rf /" can't execute anything.
   try {
     if (pluginPath) {
-      execSync(`git -C ${cloneDir} sparse-checkout set ${pluginPath}`, {
-        stdio: "pipe",
-      });
+      execFileSync(
+        "git",
+        ["-C", cloneDir, "sparse-checkout", "set", pluginPath],
+        { stdio: "pipe" },
+      );
     } else {
-      execSync(`git -C ${cloneDir} sparse-checkout disable`, {
+      execFileSync("git", ["-C", cloneDir, "sparse-checkout", "disable"], {
         stdio: "pipe",
       });
     }
