@@ -108,16 +108,30 @@ export function normalizePluginPath(
 
 // --- Plugin source fetching ---
 
+// Keyed on url + path, not url alone — two plugin approvals pointing at
+// different directories within the same repo must get distinct clone dirs.
+// Keying on url alone made the second plugin's `git clone` hit the first's
+// already-populated (non-empty) directory, throw, and get silently dropped
+// by enrichPluginMetadata with a warning that read like a network failure.
+export function pluginCloneKey(
+  sourceUrl: string,
+  pluginPath: string | undefined,
+): string {
+  return createHash("sha256")
+    .update(`${sourceUrl}|${pluginPath ?? ""}`)
+    .digest("hex")
+    .slice(0, 8);
+}
+
 function clonePluginRepo(
   sourceUrl: string,
   pluginPath: string | undefined,
   tmpDir: string,
 ): { repoRoot: string; pluginDir: string } {
-  const repoHash = createHash("sha256")
-    .update(sourceUrl)
-    .digest("hex")
-    .slice(0, 8);
-  const cloneDir = join(tmpDir, `plugin-${repoHash}`);
+  const cloneDir = join(
+    tmpDir,
+    `plugin-${pluginCloneKey(sourceUrl, pluginPath)}`,
+  );
 
   const token = process.env.GH_TOKEN;
   const repoUrl = token

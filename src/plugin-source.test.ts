@@ -4,6 +4,7 @@ import {
   parsePluginManifest,
   parseMcpServers,
   normalizePluginPath,
+  pluginCloneKey,
 } from "./plugin-source.js";
 
 // --- normalizePluginPath ---
@@ -34,6 +35,40 @@ describe("normalizePluginPath", () => {
 
   it("returns undefined unchanged", () => {
     assert.equal(normalizePluginPath(undefined), undefined);
+  });
+});
+
+// --- pluginCloneKey ---
+
+describe("pluginCloneKey", () => {
+  it("produces the same key for the same url and path", () => {
+    const a = pluginCloneKey("https://github.com/example/repo.git", "a");
+    const b = pluginCloneKey("https://github.com/example/repo.git", "a");
+    assert.equal(a, b);
+  });
+
+  it("produces different keys for different paths in the same repo", () => {
+    const a = pluginCloneKey("https://github.com/example/repo.git", "plugin-a");
+    const b = pluginCloneKey("https://github.com/example/repo.git", "plugin-b");
+    assert.notEqual(a, b);
+  });
+
+  it("produces different keys for a root-level plugin vs a subdirectory one", () => {
+    const root = pluginCloneKey(
+      "https://github.com/example/repo.git",
+      undefined,
+    );
+    const sub = pluginCloneKey(
+      "https://github.com/example/repo.git",
+      "plugin-a",
+    );
+    assert.notEqual(root, sub);
+  });
+
+  it("produces different keys for different repos with the same path", () => {
+    const a = pluginCloneKey("https://github.com/example/repo-a.git", "p");
+    const b = pluginCloneKey("https://github.com/example/repo-b.git", "p");
+    assert.notEqual(a, b);
   });
 });
 
