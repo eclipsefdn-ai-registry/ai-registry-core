@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import type { Organization } from "../types";
-import { safeCssColor } from "../sanitize";
-import { orgBadge } from "../orgBadge";
+import { OrgBadges } from "./OrgBadges";
 
 interface ArtifactApproval {
   organizationId: string;
@@ -75,31 +74,11 @@ export function ArtifactList<T extends Artifact>({
               </p>
               {renderExtra?.(item)}
               <div className="flex gap-2 mb-4 flex-wrap">
-                {item.approvals.map((a) => {
-                  const org = getOrg(a.organizationId);
-                  if (!org) return undefined;
-                  const badge = orgBadge(org, {
-                    fallbackId: a.organizationId,
-                    approvedTitle: approvedTitle(org),
-                  });
-                  return (
-                    <span
-                      key={a.organizationId}
-                      className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
-                        badge.inferred ? "border-dashed" : ""
-                      }`}
-                      title={badge.title}
-                    >
-                      {org.color && (
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: safeCssColor(org.color) }}
-                        />
-                      )}
-                      {badge.text}
-                    </span>
-                  );
-                })}
+                <OrgBadges
+                  approvals={item.approvals}
+                  getOrg={getOrg}
+                  approvedTitle={approvedTitle}
+                />
               </div>
             </div>
             <button className="w-full py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted/50 transition-colors mt-auto text-foreground">

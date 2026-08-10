@@ -4,6 +4,7 @@ import { Search, ArrowLeft } from "lucide-react";
 import { useToolRegistryData } from "../hooks/useRegistryData";
 import { InstallConfigView } from "../components/ServerDetail";
 import { McpVerificationBadge } from "../components/McpVerificationBadge";
+import { OrgBadges } from "../components/OrgBadges";
 import { NotFoundPage } from "./NotFoundPage";
 import type { McpServer, Skill, Plugin, Organization, Tool } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
@@ -259,31 +260,11 @@ function ToolServerCard({
           {server.description}
         </p>
         <div className="flex gap-2 mb-3 flex-wrap">
-          {server.approvals.map((a) => {
-            const approvalOrg = getOrg(a.organizationId);
-            if (!approvalOrg) return undefined;
-            const badge = orgBadge(approvalOrg, {
-              fallbackId: a.organizationId,
-              approvedTitle: `Approved by ${approvalOrg.name}`,
-            });
-            return (
-              <span
-                key={a.organizationId}
-                className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
-                  badge.inferred ? "border-dashed" : ""
-                }`}
-                title={badge.title}
-              >
-                {approvalOrg.color && (
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: safeCssColor(approvalOrg.color) }}
-                  />
-                )}
-                {badge.text}
-              </span>
-            );
-          })}
+          <OrgBadges
+            approvals={server.approvals}
+            getOrg={getOrg}
+            approvedTitle={(org) => `Approved by ${org.name}`}
+          />
         </div>
         {toolApproval && (
           <div className="mb-3">
@@ -447,33 +428,11 @@ function ToolSkillCard({
           <h3 className="text-base font-semibold text-foreground">
             {skill.name}
           </h3>
-          {skill.approvals.map((a) => {
-            const approvalOrg = getOrg(a.organizationId);
-            if (!approvalOrg) return undefined;
-            const badge = orgBadge(approvalOrg, {
-              fallbackId: a.organizationId,
-              approvedTitle: `Approved by ${approvalOrg.name}`,
-            });
-            return (
-              <span
-                key={a.organizationId}
-                className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
-                  badge.inferred ? "border-dashed" : ""
-                }`}
-                title={badge.title}
-              >
-                {approvalOrg.color && (
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: safeCssColor(approvalOrg.color),
-                    }}
-                  />
-                )}
-                {badge.text}
-              </span>
-            );
-          })}
+          <OrgBadges
+            approvals={skill.approvals}
+            getOrg={getOrg}
+            approvedTitle={(org) => `Approved by ${org.name}`}
+          />
         </div>
         <div className="font-mono text-xs text-muted-foreground mb-3">
           {skill.skillId}
@@ -527,33 +486,11 @@ function ToolPluginCard({
           <h3 className="text-base font-semibold text-foreground">
             {plugin.name}
           </h3>
-          {plugin.approvals.map((a) => {
-            const approvalOrg = getOrg(a.organizationId);
-            if (!approvalOrg) return undefined;
-            const badge = orgBadge(approvalOrg, {
-              fallbackId: a.organizationId,
-              approvedTitle: `Approved by ${approvalOrg.name}`,
-            });
-            return (
-              <span
-                key={a.organizationId}
-                className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border border-border bg-background cursor-help hover:opacity-80 transition-opacity ${
-                  badge.inferred ? "border-dashed" : ""
-                }`}
-                title={badge.title}
-              >
-                {approvalOrg.color && (
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: safeCssColor(approvalOrg.color),
-                    }}
-                  />
-                )}
-                {badge.text}
-              </span>
-            );
-          })}
+          <OrgBadges
+            approvals={plugin.approvals}
+            getOrg={getOrg}
+            approvedTitle={(org) => `Approved by ${org.name}`}
+          />
         </div>
         <div className="font-mono text-xs text-muted-foreground mb-3">
           {plugin.pluginId}
