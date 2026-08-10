@@ -448,20 +448,46 @@ export function resolveVendorMetadata(entry: McpEntry): void {
   }
 }
 
-export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
-  return servers
-    .filter((server) =>
-      server.approvals.some((a) =>
+interface HasInstallConfigs {
+  installConfigs: { tool: string }[];
+}
+
+interface HasApprovals<A extends HasInstallConfigs> {
+  approvals: A[];
+}
+
+// Shared by buildToolView (MCP), buildToolSkillView, and buildToolPluginView
+// — all three were identical except for the entry/approval type, one filter
+// (keep entries approved for this tool) plus one map (strip other tools'
+// installConfigs from each surviving approval). The `as E` below is needed
+// because TS can't verify a generic spread-and-override reproduces exactly
+// E's shape — safe here since the only field touched, `approvals`, is
+// pinned to A[] by the HasApprovals<A> constraint, so the override always
+// produces an object structurally compatible with E.
+function buildToolEntryView<
+  A extends HasInstallConfigs,
+  E extends HasApprovals<A>,
+>(toolId: string, entries: E[]): E[] {
+  return entries
+    .filter((entry) =>
+      entry.approvals.some((a) =>
         a.installConfigs.some((ic) => ic.tool === toolId),
       ),
     )
-    .map((server) => ({
-      ...server,
-      approvals: server.approvals.map((a) => ({
-        ...a,
-        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
-      })),
-    }));
+    .map(
+      (entry) =>
+        ({
+          ...entry,
+          approvals: entry.approvals.map((a) => ({
+            ...a,
+            installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
+          })),
+        }) as E,
+    );
+}
+
+export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
+  return buildToolEntryView(toolId, servers);
 }
 
 export function addSkillApproval(
@@ -568,19 +594,7 @@ export function buildToolPluginView(
   toolId: string,
   plugins: PluginEntry[],
 ): PluginEntry[] {
-  return plugins
-    .filter((plugin) =>
-      plugin.approvals.some((a) =>
-        a.installConfigs.some((ic) => ic.tool === toolId),
-      ),
-    )
-    .map((plugin) => ({
-      ...plugin,
-      approvals: plugin.approvals.map((a) => ({
-        ...a,
-        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
-      })),
-    }));
+  return buildToolEntryView(toolId, plugins);
 }
 
 // Splits skill trust entries into those referencing a registered vendor and
@@ -736,19 +750,7 @@ export function buildToolSkillView(
   toolId: string,
   skills: SkillEntry[],
 ): SkillEntry[] {
-  return skills
-    .filter((skill) =>
-      skill.approvals.some((a) =>
-        a.installConfigs.some((ic) => ic.tool === toolId),
-      ),
-    )
-    .map((skill) => ({
-      ...skill,
-      approvals: skill.approvals.map((a) => ({
-        ...a,
-        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
-      })),
-    }));
+  return buildToolEntryView(toolId, skills);
 }
 
 // --- Step 1: Collect vendor data (I/O + validation, no network) ---
