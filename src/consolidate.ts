@@ -12,7 +12,11 @@ import { execSync } from "node:child_process";
 import { validateVendorFiles } from "./validate.js";
 import { lookupServer, type ServerLookupResult } from "./anthropic-registry.js";
 import { enrichSkillMetadata } from "./skill-source.js";
-import { enrichPluginMetadata } from "./plugin-source.js";
+import {
+  enrichPluginMetadata,
+  type ContainedSkill,
+  type ContainedMcpServer,
+} from "./plugin-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -191,17 +195,6 @@ export interface PluginApproval {
   // installConfigs is always present in output (defaults to [])
 }
 
-export interface ContainedSkillRef {
-  name: string;
-  description: string;
-  path: string;
-}
-
-export interface ContainedMcpServerRef {
-  name: string;
-  transport: string;
-}
-
 export interface PluginEntry {
   pluginId: string;
   name: string;
@@ -212,8 +205,8 @@ export interface PluginEntry {
   keywords?: string[];
   source: { url: string; path?: string };
   contentHash: string;
-  containedSkills: ContainedSkillRef[];
-  containedMcpServers: ContainedMcpServerRef[];
+  containedSkills: ContainedSkill[];
+  containedMcpServers: ContainedMcpServer[];
   approvals: PluginApproval[];
 }
 
