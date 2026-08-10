@@ -117,10 +117,10 @@ describe("parsePluginManifest", () => {
     const result = parsePluginManifest(content);
     assert.equal(result.name, "minimal-plugin");
     assert.equal(result.description, "");
-    assert.equal(result.version, "");
-    assert.equal(result.author, "");
-    assert.equal(result.homepage, "");
-    assert.deepEqual(result.keywords, []);
+    assert.equal(result.version, undefined);
+    assert.equal(result.author, undefined);
+    assert.equal(result.homepage, undefined);
+    assert.equal(result.keywords, undefined);
   });
 
   it("throws on invalid JSON", () => {
@@ -130,7 +130,7 @@ describe("parsePluginManifest", () => {
   it("ignores a non-string author.name", () => {
     const content = JSON.stringify({ name: "p", author: { name: 123 } });
     const result = parsePluginManifest(content);
-    assert.equal(result.author, "");
+    assert.equal(result.author, undefined);
   });
 });
 

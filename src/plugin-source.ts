@@ -18,10 +18,10 @@ const ROOT = resolve(__dirname, "..");
 export interface PluginManifestFields {
   name: string;
   description: string;
-  version: string;
-  author: string;
-  homepage: string;
-  keywords: string[];
+  version: string | undefined;
+  author: string | undefined;
+  homepage: string | undefined;
+  keywords: string[] | undefined;
 }
 
 export interface ContainedSkill {
@@ -53,23 +53,29 @@ export function parsePluginManifest(content: string): PluginManifestFields {
     keywords?: unknown;
   };
 
+  // name/description are always required downstream (PluginEntry falls back
+  // to pluginId when name is blank), so they stay "" when absent. The rest
+  // are genuinely optional metadata — undefined when absent, not "", so
+  // there's exactly one way to represent "not in the manifest" rather than
+  // two ("" here, undefined on PluginEntry) that a caller has to reconcile.
   const name = typeof data.name === "string" ? data.name : "";
   const description =
     typeof data.description === "string" ? data.description : "";
-  const version = typeof data.version === "string" ? data.version : "";
-  const homepage = typeof data.homepage === "string" ? data.homepage : "";
+  const version = typeof data.version === "string" ? data.version : undefined;
+  const homepage =
+    typeof data.homepage === "string" ? data.homepage : undefined;
 
-  let author = "";
+  let author: string | undefined;
   if (data.author && typeof data.author === "object") {
     const authorName = (data.author as { name?: unknown }).name;
-    author = typeof authorName === "string" ? authorName : "";
+    author = typeof authorName === "string" ? authorName : undefined;
   }
 
   const keywords =
     Array.isArray(data.keywords) &&
     data.keywords.every((k) => typeof k === "string")
       ? (data.keywords as string[])
-      : [];
+      : undefined;
 
   return { name, description, version, author, homepage, keywords };
 }
@@ -261,12 +267,10 @@ export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
         );
         entry.name = metadata.name || entry.pluginId;
         entry.description = metadata.description;
-        entry.version = metadata.version || undefined;
-        entry.author = metadata.author || undefined;
-        entry.homepage = metadata.homepage || undefined;
-        entry.keywords = metadata.keywords.length
-          ? metadata.keywords
-          : undefined;
+        entry.version = metadata.version;
+        entry.author = metadata.author;
+        entry.homepage = metadata.homepage;
+        entry.keywords = metadata.keywords;
         entry.contentHash = metadata.contentHash;
         entry.containedSkills = metadata.containedSkills;
         entry.containedMcpServers = metadata.containedMcpServers;
