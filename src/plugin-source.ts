@@ -114,11 +114,12 @@ export function normalizePluginPath(
 
 // --- Plugin source fetching ---
 
-// Keyed on url + path, not url alone — two plugin approvals pointing at
-// different directories within the same repo must get distinct clone dirs.
-// Keying on url alone made the second plugin's `git clone` hit the first's
-// already-populated (non-empty) directory, throw, and get silently dropped
-// by enrichPluginMetadata with a warning that read like a network failure.
+// Keyed on url + path, not url alone: two plugin approvals pointing at
+// different directories within the same repo need distinct clone dirs,
+// since `git clone` requires an empty target directory — reusing one dir
+// for both would make the second clone fail, and enrichPluginMetadata
+// would then drop that plugin with a warning that reads like a network
+// failure rather than a name collision.
 export function pluginCloneKey(
   sourceUrl: string,
   pluginPath: string | undefined,

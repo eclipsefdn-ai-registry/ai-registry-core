@@ -6,10 +6,9 @@ interface ApprovalLike {
   organizationId: string;
 }
 
-// The org-approval-badge span (dashed border if inferred, color dot, badge
-// text) was duplicated across every card/list component that shows which
-// orgs approved an artifact. approvedTitle lets each caller keep its own
-// tooltip wording (e.g. ServerList's longer MCP-specific text).
+// Renders one badge per approval (dashed border if inferred, color dot,
+// badge text). approvedTitle lets each caller customize the tooltip
+// wording — e.g. a server's badge can spell out what verification means.
 export function OrgBadges<A extends ApprovalLike>({
   approvals,
   getOrg,

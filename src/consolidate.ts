@@ -456,10 +456,8 @@ interface HasApprovals<A extends HasInstallConfigs> {
   approvals: A[];
 }
 
-// Shared by buildToolView (MCP), buildToolSkillView, and buildToolPluginView
-// — all three were identical except for the entry/approval type, one filter
-// (keep entries approved for this tool) plus one map (strip other tools'
-// installConfigs from each surviving approval). The `as E` below is needed
+// Filters entries to those with an approval targeting toolId, then strips
+// other tools' installConfigs from what's left. The `as E` below is needed
 // because TS can't verify a generic spread-and-override reproduces exactly
 // E's shape — safe here since the only field touched, `approvals`, is
 // pinned to A[] by the HasApprovals<A> constraint, so the override always
@@ -548,8 +546,7 @@ export function addPluginApproval(
     pluginEntry.source.url !== approvalData.source.url ||
     pluginEntry.source.path !== approvalData.source.path
   ) {
-    // First-collected vendor's source wins (unchanged from before) — this
-    // just stops that from being silent. Mirrors resolveVendorMetadata's
+    // First-collected vendor's source wins. Mirrors resolveVendorMetadata's
     // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a
     // genuine mismatch between vendors' claims is surfaced, not hidden,
     // but doesn't fail the shared build.

@@ -57,10 +57,9 @@ export function ServerDetail({
   );
 }
 
-// Minimal shape covering both MCP's Approval and (via ApprovalCard's use in
-// PluginDetail) PluginApproval — both already have every required field
-// here; version/genericConfig are MCP-only extras PluginApproval simply
-// omits, which structural typing allows for an optional property.
+// Minimal shape any artifact type's approval can satisfy — MCP's Approval
+// has every field here plus version/genericConfig, which other approval
+// types can simply omit since both are optional.
 interface ApprovalCardApproval {
   organizationId: string;
   date: string;
@@ -84,8 +83,8 @@ export function ApprovalCard({
   approval: ApprovalCardApproval;
   org: Organization | undefined;
   getTool: (id: string) => Tool | undefined;
-  // Only used for the genericConfig branch below, which PluginApproval never
-  // populates — optional so non-MCP callers (PluginDetail) don't need one.
+  // Only used for the genericConfig branch below — optional so callers with
+  // no server identity (and no genericConfig) don't need to supply one.
   serverId?: string;
   approvedTitle?: (org: Organization) => string;
 }) {

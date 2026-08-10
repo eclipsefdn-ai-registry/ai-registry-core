@@ -969,9 +969,9 @@ describe("validateOrganization — trusts.artifactTypes.mcp", () => {
 // --- validateVendorFiles ---
 //
 // validateVendorData (above) is exercised directly everywhere else in this
-// file with in-memory approval arrays — it never touches disk, so the
-// mcp/, skills/, and plugins/ directory-read branches in validateVendorFiles
-// itself were previously untested. One fixture vendor dir covers all three.
+// file with in-memory approval arrays and never touches disk, so this is
+// the only place the mcp/, skills/, and plugins/ directory-read branches in
+// validateVendorFiles are covered. One fixture vendor dir covers all three.
 
 describe("validateVendorFiles", () => {
   function makeFixtureVendor(withApprovals: boolean): string {

@@ -12,11 +12,10 @@ interface Artifact {
   approvals: ArtifactApproval[];
 }
 
-// Shared by ServerList, SkillList, and PluginList — all three were the same
-// card grid (title, id, description, approval badges, "View Details") with
-// only the artifact word swapped. renderBadge/renderExtra are the two real
-// differences: ServerList adds a verification badge next to the title,
-// PluginList adds a contained-skills/servers summary line before the
+// Generic card grid: title, id, description, approval badges, "View
+// Details". renderBadge and renderExtra are the two extension points a
+// specific artifact type can use to add its own content — e.g. a
+// verification badge next to the title, or a summary line before the
 // approval badges.
 export function ArtifactList<T extends Artifact>({
   items,
