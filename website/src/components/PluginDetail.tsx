@@ -77,7 +77,10 @@ export function PluginDetail({
       )}
       {plugin.keywords && plugin.keywords.length > 0 && (
         <div className="flex gap-2 flex-wrap mb-6">
-          {plugin.keywords.map((keyword) => (
+          {/* Keywords come straight from the manifest, unlike contained
+              skills/servers below which are keyed on unique fields — dedupe
+              here since a repeated keyword would otherwise collide on key. */}
+          {[...new Set(plugin.keywords)].map((keyword) => (
             <span
               key={keyword}
               className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted/30 text-muted-foreground"
