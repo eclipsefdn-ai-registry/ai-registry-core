@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import type {
-  McpServer,
-  Organization,
-  Tool,
-  Approval,
-  InstallConfig,
-} from "../types";
+import type { McpServer, Organization, Tool, InstallConfig } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
 import { McpVerificationBadge } from "./McpVerificationBadge";
@@ -63,22 +57,41 @@ export function ServerDetail({
   );
 }
 
+// Minimal shape covering both MCP's Approval and (via ApprovalCard's use in
+// PluginDetail) PluginApproval — both already have every required field
+// here; version/genericConfig are MCP-only extras PluginApproval simply
+// omits, which structural typing allows for an optional property.
+interface ApprovalCardApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: InstallConfig[];
+  version?: string;
+  genericConfig?: Record<string, unknown>;
+}
+
+function defaultApprovedTitle(org: Organization): string {
+  return `Approved by ${org.name} — this organization has reviewed and endorsed this server for use with their tools`;
+}
+
 export function ApprovalCard({
   approval,
   org,
   getTool,
   serverId,
+  approvedTitle = defaultApprovedTitle,
 }: {
-  approval: Approval;
+  approval: ApprovalCardApproval;
   org: Organization | undefined;
   getTool: (id: string) => Tool | undefined;
-  serverId: string;
+  // Only used for the genericConfig branch below, which PluginApproval never
+  // populates — optional so non-MCP callers (PluginDetail) don't need one.
+  serverId?: string;
+  approvedTitle?: (org: Organization) => string;
 }) {
   const badge = orgBadge(org, {
     fallbackId: approval.organizationId,
-    approvedTitle: org
-      ? `Approved by ${org.name} — this organization has reviewed and endorsed this server for use with their tools`
-      : "Approved by this organization",
+    approvedTitle: org ? approvedTitle(org) : "Approved by this organization",
   });
   return (
     <div className="bg-background border border-border rounded-lg p-4 mb-3">
@@ -98,7 +111,7 @@ export function ApprovalCard({
           </span>
         )}
       </div>
-      {approval.genericConfig && (
+      {approval.genericConfig && serverId && (
         <GenericConfigView
           config={approval.genericConfig}
           slug={serverIdSlug(serverId)}

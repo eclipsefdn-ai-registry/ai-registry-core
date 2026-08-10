@@ -3,13 +3,11 @@ import type {
   Plugin,
   Organization,
   Tool,
-  PluginApproval,
   ContainedSkill,
   ContainedMcpServer,
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
-import { orgBadge } from "../orgBadge";
-import { InstallConfigView } from "./ServerDetail";
+import { ApprovalCard } from "./ServerDetail";
 
 export function PluginDetail({
   plugin,
@@ -101,11 +99,12 @@ export function PluginDetail({
           Approvals ({plugin.approvals.length})
         </h3>
         {plugin.approvals.map((approval, i) => (
-          <PluginApprovalCard
+          <ApprovalCard
             key={i}
             approval={approval}
             org={getOrg(approval.organizationId)}
             getTool={getTool}
+            approvedTitle={(org) => `Approved by ${org.name}`}
           />
         ))}
       </div>
@@ -170,41 +169,6 @@ function ContainedComponents({
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function PluginApprovalCard({
-  approval,
-  org,
-  getTool,
-}: {
-  approval: PluginApproval;
-  org: Organization | undefined;
-  getTool: (id: string) => Tool | undefined;
-}) {
-  const badge = orgBadge(org, {
-    fallbackId: approval.organizationId,
-    approvedTitle: org
-      ? `Approved by ${org.name}`
-      : "Approved by this organization",
-  });
-  return (
-    <div className="bg-background border border-border rounded-lg p-4 mb-3">
-      <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
-        <span
-          className={`inline-flex text-xs px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/20 cursor-help ${
-            badge.inferred ? "border-dashed" : ""
-          }`}
-          title={badge.title}
-        >
-          {badge.text}
-        </span>
-        <span className="text-muted-foreground">Approved: {approval.date}</span>
-      </div>
-      {approval.installConfigs.map((config, j) => (
-        <InstallConfigView key={j} config={config} getTool={getTool} />
-      ))}
     </div>
   );
 }
