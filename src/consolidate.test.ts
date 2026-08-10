@@ -775,6 +775,75 @@ describe("addPluginApproval", () => {
     );
     assert.deepEqual(output.plugins[0].approvals[0].installConfigs, []);
   });
+
+  it("keeps the first-collected source when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+    addPluginApproval(
+      {
+        ...pluginApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.plugins.length, 1);
+    assert.deepEqual(output.plugins[0].source, pluginApproval.source);
+  });
+
+  it("still records both approvals when sources differ", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+    addPluginApproval(
+      {
+        ...pluginApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.plugins[0].approvals.length, 2);
+    assert.equal(output.plugins[0].approvals[0].organizationId, "acme");
+    assert.equal(output.plugins[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("does not warn when a second vendor's source matches exactly", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addPluginApproval(pluginApproval, "acme", output);
+      addPluginApproval(pluginApproval, "other-org", output);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 0);
+  });
+
+  it("warns when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addPluginApproval(pluginApproval, "acme", output);
+      addPluginApproval(
+        {
+          ...pluginApproval,
+          source: { url: "https://github.com/other/fork.git" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
+  });
 });
 
 describe("addOrganization — trust extraction", () => {

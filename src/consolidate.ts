@@ -525,6 +525,18 @@ export function addPluginApproval(
       approvals: [],
     };
     output.plugins.push(pluginEntry);
+  } else if (
+    pluginEntry.source.url !== approvalData.source.url ||
+    pluginEntry.source.path !== approvalData.source.path
+  ) {
+    // First-collected vendor's source wins (unchanged from before) — this
+    // just stops that from being silent. Mirrors resolveVendorMetadata's
+    // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a
+    // genuine mismatch between vendors' claims is surfaced, not hidden,
+    // but doesn't fail the shared build.
+    console.warn(
+      `  WARNING: plugin "${approvalData.pluginId}" approved with a different source by "${organizationId}" — using "${pluginEntry.approvals[0]?.organizationId}"'s (first collected)`,
+    );
   }
 
   const configHash = createHash("sha256")
