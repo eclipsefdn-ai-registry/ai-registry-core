@@ -94,6 +94,18 @@ export function parseMcpServers(content: string): ContainedMcpServer[] {
   );
 }
 
+// A trailing separator would otherwise shift every downstream computation
+// that assumes `${sourcePath}/${child}` — most notably the containedSkills
+// path stripping below, which would drop one character short (publishing
+// "kills/alpha" instead of "skills/alpha"). Normalizing once here, before
+// sourcePath is used anywhere, means every use site stays correct without
+// having to reason about trailing slashes individually.
+export function normalizePluginPath(
+  path: string | undefined,
+): string | undefined {
+  return path?.replace(/\/+$/, "");
+}
+
 // --- Plugin source fetching ---
 
 function clonePluginRepo(
@@ -170,6 +182,7 @@ export function fetchPluginManifest(
   sourcePath?: string,
   tmpDir?: string,
 ): PluginMetadata {
+  sourcePath = normalizePluginPath(sourcePath);
   const dir = tmpDir ?? join(ROOT, ".tmp-plugins");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });

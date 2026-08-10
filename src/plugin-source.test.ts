@@ -1,6 +1,41 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parsePluginManifest, parseMcpServers } from "./plugin-source.js";
+import {
+  parsePluginManifest,
+  parseMcpServers,
+  normalizePluginPath,
+} from "./plugin-source.js";
+
+// --- normalizePluginPath ---
+
+describe("normalizePluginPath", () => {
+  it("strips a single trailing slash", () => {
+    assert.equal(normalizePluginPath("pluginA/"), "pluginA");
+  });
+
+  it("strips multiple trailing slashes", () => {
+    assert.equal(normalizePluginPath("pluginA//"), "pluginA");
+  });
+
+  it("leaves a path without a trailing slash unchanged", () => {
+    assert.equal(normalizePluginPath("pluginA"), "pluginA");
+  });
+
+  it("leaves a nested path without a trailing slash unchanged", () => {
+    assert.equal(normalizePluginPath("plugins/my-plugin"), "plugins/my-plugin");
+  });
+
+  it("strips a trailing slash from a nested path", () => {
+    assert.equal(
+      normalizePluginPath("plugins/my-plugin/"),
+      "plugins/my-plugin",
+    );
+  });
+
+  it("returns undefined unchanged", () => {
+    assert.equal(normalizePluginPath(undefined), undefined);
+  });
+});
 
 // --- parsePluginManifest ---
 
