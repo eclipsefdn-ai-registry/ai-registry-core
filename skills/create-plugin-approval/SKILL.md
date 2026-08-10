@@ -44,7 +44,7 @@ Example: Plugin ID `io.github.gemini-cli-extensions/bigquery-data-analytics` bec
 - **source** (required): Object with `url` (git repo URL) and optionally `path` — the directory within the repo containing `plugin.json`. Omit `path` if the plugin is at the repository root. Unlike skill approvals, this does not support globs or arrays — one approval targets exactly one plugin directory.
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools.
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
-  - **installUrl**: Deep-link URL for one-click install (optional).
+  - **installUrl**: Deep-link URL for one-click install (optional). **Omit if the tool declares `pluginInstallUrlPrefix` in `organization.json`** — consolidation generates it automatically as `prefix + pluginId`. Set it explicitly only when the tool has no prefix or you need a non-standard URL.
   - **config**: Free-form tool-specific configuration object (e.g. a Docker image/tag/port/env for container-delivered plugins).
   - **instructions**: Human-readable setup instructions.
 
@@ -94,3 +94,15 @@ During consolidation, the whole plugin directory (not just `plugin.json`) is fet
 - `contentHash` — a hash covering the whole plugin directory, so it changes whenever any contained file changes.
 
 You do not need to enumerate any of this in the approval file — it's populated automatically from the source.
+
+## installUrl Pattern
+
+Check whether the tool declares `pluginInstallUrlPrefix` in `organization.json`. If it does, omit `installUrl` from the approval file — consolidation will generate it as `prefix + pluginId`.
+
+If no prefix is configured, construct the URL manually using the plugin's `pluginId`:
+
+```
+<scheme>://install-plugin?id=<pluginId>
+```
+
+The scheme and exact URL format depend on the vendor's tools. Check `ai-docs/` for documentation. If no plugin-specific docs exist, adapt the MCP/skill install URL pattern (replacing `install-mcp`/`install-skill` with `install-plugin`).

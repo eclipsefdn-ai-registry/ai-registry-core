@@ -87,13 +87,14 @@ Declares your organization and, if applicable, the tools you provide. Organizati
       "id": "your-tool",
       "name": "Your Tool",
       "skillInstallUrlPrefix": "your-tool://install-skill?id=",
-      "mcpInstallUrlPrefix": "your-tool://install-mcp?id="
+      "mcpInstallUrlPrefix": "your-tool://install-mcp?id=",
+      "pluginInstallUrlPrefix": "your-tool://install-plugin?id="
     }
   ]
 }
 ```
 
-When a tool declares `skillInstallUrlPrefix` or `mcpInstallUrlPrefix`, consolidation auto-generates `installUrl` for any approval that targets that tool but omits it — `prefix + artifactId`. Explicit `installUrl` values in approval files always take precedence.
+When a tool declares `skillInstallUrlPrefix`, `mcpInstallUrlPrefix`, or `pluginInstallUrlPrefix`, consolidation auto-generates `installUrl` for any approval that targets that tool but omits it — `prefix + artifactId`. Explicit `installUrl` values in approval files always take precedence.
 
 An organization can also delegate to other organizations' judgment instead of filing its own approval per skill, via `trusts`:
 
@@ -220,6 +221,8 @@ Example: `plugins/io.github.gemini-cli-extensions--bigquery-data-analytics.json`
 ```
 
 `source.path` points to the plugin's directory within the repository (containing `plugin.json`); omit it if the plugin lives at the repository root, as in the example above.
+
+If `your-tool` declares `pluginInstallUrlPrefix` in `organization.json`, the `installUrl` above is generated automatically during consolidation. You can also set it explicitly if the tool has no prefix or you need a custom URL.
 
 During consolidation, the plugin's directory is fetched to read its `plugin.json` manifest (name, description, version, author, homepage, keywords) and to enumerate its contents: skills under `skills/*/SKILL.md` and MCP servers declared in `mcp.json`. These are surfaced as read-only metadata (`containedSkills`, `containedMcpServers`) on the plugin entry — approving a plugin does not create separate standalone skill or MCP server entries. A content hash covering the whole plugin directory is also computed.
 

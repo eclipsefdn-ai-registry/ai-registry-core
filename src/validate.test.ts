@@ -898,6 +898,38 @@ describe("validateApproval — root config and derived marker", () => {
   });
 });
 
+// --- validateOrganization — tools[].pluginInstallUrlPrefix ---
+
+describe("validateOrganization — tools[].pluginInstallUrlPrefix", () => {
+  it("accepts a tool with pluginInstallUrlPrefix", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      tools: [
+        {
+          id: "theia-ide",
+          name: "Theia IDE",
+          pluginInstallUrlPrefix: "theia://install-plugin?id=",
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("still accepts a tool without pluginInstallUrlPrefix", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      tools: [{ id: "theia-ide", name: "Theia IDE" }],
+    });
+    assert.equal(result.valid, true);
+  });
+});
+
 // --- validateOrganization — trusts.artifactTypes.mcp ---
 
 describe("validateOrganization — trusts.artifactTypes.mcp", () => {

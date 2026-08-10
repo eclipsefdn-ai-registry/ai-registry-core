@@ -1077,6 +1077,74 @@ describe("installUrl auto-generation (MCP)", () => {
   });
 });
 
+describe("installUrl auto-generation (plugins)", () => {
+  function outputWithTool(pluginInstallUrlPrefix?: string): ConsolidatedOutput {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "Test",
+        website: "https://acme.com",
+        tools: [{ id: "tool-a", name: "Tool A", pluginInstallUrlPrefix }],
+      },
+      output,
+    );
+    return output;
+  }
+
+  it("generates installUrl when prefix is set and installUrl is absent", () => {
+    const output = outputWithTool("tool-a://install-plugin?id=");
+    addPluginApproval(
+      {
+        pluginId: "io.example/my-plugin",
+        date: "2026-08-01",
+        source: { url: "https://github.com/example/my-plugin.git" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.plugins[0].approvals[0].installConfigs[0];
+    assert.equal(
+      cfg.installUrl,
+      "tool-a://install-plugin?id=io.example/my-plugin",
+    );
+  });
+
+  it("does not overwrite an explicit installUrl", () => {
+    const output = outputWithTool("tool-a://install-plugin?id=");
+    addPluginApproval(
+      {
+        pluginId: "io.example/my-plugin",
+        date: "2026-08-01",
+        source: { url: "https://github.com/example/my-plugin.git" },
+        installConfigs: [{ tool: "tool-a", installUrl: "custom://explicit" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.plugins[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, "custom://explicit");
+  });
+
+  it("leaves installUrl absent when no prefix is defined", () => {
+    const output = outputWithTool(undefined);
+    addPluginApproval(
+      {
+        pluginId: "io.example/my-plugin",
+        date: "2026-08-01",
+        source: { url: "https://github.com/example/my-plugin.git" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.plugins[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, undefined);
+  });
+});
+
 describe("installUrl auto-generation (skills)", () => {
   function outputWithTool(skillInstallUrlPrefix?: string): ConsolidatedOutput {
     const output = emptyOutput();

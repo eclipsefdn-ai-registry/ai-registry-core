@@ -38,6 +38,7 @@ interface OrganizationData {
     name: string;
     skillInstallUrlPrefix?: string;
     mcpInstallUrlPrefix?: string;
+    pluginInstallUrlPrefix?: string;
   }[];
   trusts?: {
     org: string;
@@ -73,6 +74,7 @@ export interface Tool {
   organizationId: string;
   skillInstallUrlPrefix?: string;
   mcpInstallUrlPrefix?: string;
+  pluginInstallUrlPrefix?: string;
 }
 
 export interface InstallConfig {
@@ -241,6 +243,7 @@ export function addOrganization(
       organizationId: orgData.id,
       skillInstallUrlPrefix: tool.skillInstallUrlPrefix,
       mcpInstallUrlPrefix: tool.mcpInstallUrlPrefix,
+      pluginInstallUrlPrefix: tool.pluginInstallUrlPrefix,
     });
   }
 
@@ -529,11 +532,29 @@ export function addPluginApproval(
     .digest("hex")
     .slice(0, 12);
 
+  // Plugin IDs never change after this point (no glob/multi-path expansion,
+  // unlike skills), so the prefix can be resolved right here rather than in
+  // a separate post-enrichment pass — mirroring addApproval's inline
+  // resolvedMcpConfigs above rather than skills' resolveSkillInstallUrls.
+  const resolvedInstallConfigs = (approvalData.installConfigs ?? []).map(
+    (cfg) => {
+      if (cfg.installUrl) return cfg;
+      const tool = output.tools.find((t) => t.id === cfg.tool);
+      if (tool?.pluginInstallUrlPrefix) {
+        return {
+          ...cfg,
+          installUrl: tool.pluginInstallUrlPrefix + approvalData.pluginId,
+        };
+      }
+      return cfg;
+    },
+  );
+
   const approval: PluginApproval = {
     organizationId,
     date: approvalData.date,
     configHash,
-    installConfigs: approvalData.installConfigs ?? [],
+    installConfigs: resolvedInstallConfigs,
   };
   pluginEntry.approvals.push(approval);
 }
