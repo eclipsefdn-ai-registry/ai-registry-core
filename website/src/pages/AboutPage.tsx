@@ -19,7 +19,7 @@ export function AboutPage() {
           >
             Model Context Protocol (MCP)
           </a>{" "}
-          servers and{" "}
+          servers,{" "}
           <a
             href="https://agentskills.io"
             target="_blank"
@@ -27,6 +27,15 @@ export function AboutPage() {
             className="text-primary hover:underline"
           >
             Agent Skills
+          </a>
+          , and{" "}
+          <a
+            href="https://agent-plugins.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Agent Plugins
           </a>
           , with support for additional artifact types planned for the future.
         </p>
