@@ -1,9 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   checkToolIds,
   checkTrustedOrgIds,
   validateVendorData,
+  validateVendorFiles,
   validateApproval,
   validateOrganization,
   validatePluginApproval,
@@ -964,5 +968,97 @@ describe("validateOrganization — trusts.artifactTypes.mcp", () => {
       trusts: [{ org: "eclipsesource", artifactTypes: { bogus: {} } }],
     });
     assert.equal(result.valid, false);
+  });
+});
+
+// --- validateVendorFiles ---
+//
+// validateVendorData (above) is exercised directly everywhere else in this
+// file with in-memory approval arrays — it never touches disk, so the
+// mcp/, skills/, and plugins/ directory-read branches in validateVendorFiles
+// itself were previously untested. One fixture vendor dir covers all three.
+
+describe("validateVendorFiles", () => {
+  function makeFixtureVendor(withApprovals: boolean): string {
+    const dir = mkdtempSync(join(tmpdir(), "vendor-fixture-"));
+    writeFileSync(
+      join(dir, "organization.json"),
+      JSON.stringify({
+        id: "acme",
+        name: "Acme",
+        description: "Test vendor",
+        website: "https://acme.com",
+        tools: [{ id: "test-tool", name: "Test Tool" }],
+      }),
+    );
+
+    if (withApprovals) {
+      mkdirSync(join(dir, "mcp"));
+      writeFileSync(
+        join(dir, "mcp", "io.example--server.json"),
+        JSON.stringify({
+          serverId: "io.example/server",
+          date: "2026-05-01",
+          installConfigs: [{ tool: "test-tool" }],
+        }),
+      );
+
+      mkdirSync(join(dir, "skills"));
+      writeFileSync(
+        join(dir, "skills", "io.example--skill.json"),
+        JSON.stringify({
+          skillId: "io.example/skill",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/skill",
+          },
+        }),
+      );
+
+      mkdirSync(join(dir, "plugins"));
+      writeFileSync(
+        join(dir, "plugins", "io.example--plugin.json"),
+        JSON.stringify({
+          pluginId: "io.example/plugin",
+          date: "2026-08-01",
+          source: { url: "https://github.com/example/plugin.git" },
+        }),
+      );
+    }
+
+    return dir;
+  }
+
+  it("reads and validates mcp/, skills/, and plugins/ directories from disk", () => {
+    const dir = makeFixtureVendor(true);
+    try {
+      const result = validateVendorFiles(dir);
+      assert.equal(result.valid, true);
+      assert.equal(result.approvals.length, 1);
+      assert.equal(result.approvals[0].data.serverId, "io.example/server");
+      assert.equal(result.skillApprovals.length, 1);
+      assert.equal(result.skillApprovals[0].data.skillId, "io.example/skill");
+      assert.equal(result.pluginApprovals.length, 1);
+      assert.equal(
+        result.pluginApprovals[0].data.pluginId,
+        "io.example/plugin",
+      );
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("returns valid empty results when mcp/, skills/, and plugins/ are absent", () => {
+    const dir = makeFixtureVendor(false);
+    try {
+      const result = validateVendorFiles(dir);
+      assert.equal(result.valid, true);
+      assert.equal(result.approvals.length, 0);
+      assert.equal(result.skillApprovals.length, 0);
+      assert.equal(result.pluginApprovals.length, 0);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
   });
 });
