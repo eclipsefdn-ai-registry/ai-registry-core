@@ -98,6 +98,21 @@ export interface VendorValidationResult {
   pluginApprovals: PluginApprovalEntry[];
 }
 
+// A VendorValidationResult with no organization and no collected approvals —
+// every early-return failure case in validateVendorFiles is exactly this
+// shape plus its own `errors` array, so building it in one place means a
+// fifth approval type never means a sixth copy of this literal.
+export function emptyResult(errors: string[]): VendorValidationResult {
+  return {
+    valid: false,
+    errors,
+    warnings: [],
+    approvals: [],
+    skillApprovals: [],
+    pluginApprovals: [],
+  };
+}
+
 // --- Schema validation ---
 
 function formatErrors(validate: typeof validateOrg): string[] {
@@ -174,6 +189,12 @@ export function checkTrustedOrgIds(
 
 // --- Core validation (pure, testable) ---
 
+export interface ValidateVendorDataOptions {
+  expectedVendorId?: string;
+  skillApprovals?: SkillApprovalEntry[];
+  pluginApprovals?: PluginApprovalEntry[];
+}
+
 /**
  * Validate vendor data. Pure function — no I/O.
  * Takes parsed org data and approval entries, returns validation result.
@@ -181,10 +202,13 @@ export function checkTrustedOrgIds(
 export function validateVendorData(
   orgData: unknown,
   approvals: ApprovalEntry[],
-  expectedVendorId?: string,
-  skillApprovals: SkillApprovalEntry[] = [],
-  pluginApprovals: PluginApprovalEntry[] = [],
+  options: ValidateVendorDataOptions = {},
 ): VendorValidationResult {
+  const {
+    expectedVendorId,
+    skillApprovals = [],
+    pluginApprovals = [],
+  } = options;
   const result: VendorValidationResult = {
     valid: true,
     errors: [],
@@ -395,14 +419,7 @@ export function validateVendorFiles(
 ): VendorValidationResult {
   const orgPath = resolve(repoDir, "organization.json");
   if (!existsSync(orgPath)) {
-    return {
-      valid: false,
-      errors: ["organization.json not found"],
-      warnings: [],
-      approvals: [],
-      skillApprovals: [],
-      pluginApprovals: [],
-    };
+    return emptyResult(["organization.json not found"]);
   }
 
   let orgRaw: unknown;
@@ -410,16 +427,9 @@ export function validateVendorFiles(
     orgRaw = JSON.parse(readFileSync(orgPath, "utf-8"));
   } catch (err) {
     const detail = err instanceof Error ? err.message : "";
-    return {
-      valid: false,
-      errors: [
-        `organization.json is not valid JSON${detail ? `: ${detail}` : ""}`,
-      ],
-      warnings: [],
-      approvals: [],
-      skillApprovals: [],
-      pluginApprovals: [],
-    };
+    return emptyResult([
+      `organization.json is not valid JSON${detail ? `: ${detail}` : ""}`,
+    ]);
   }
 
   const approvals: ApprovalEntry[] = [];
@@ -431,16 +441,9 @@ export function validateVendorFiles(
         data = JSON.parse(readFileSync(join(mcpDir, file), "utf-8"));
       } catch (err) {
         const detail = err instanceof Error ? err.message : "";
-        return {
-          valid: false,
-          errors: [
-            `mcp/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-          ],
-          warnings: [],
-          approvals: [],
-          skillApprovals: [],
-          pluginApprovals: [],
-        };
+        return emptyResult([
+          `mcp/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+        ]);
       }
       approvals.push({ file, data: data as ApprovalData });
     }
@@ -457,16 +460,9 @@ export function validateVendorFiles(
         data = JSON.parse(readFileSync(join(skillsDir, file), "utf-8"));
       } catch (err) {
         const detail = err instanceof Error ? err.message : "";
-        return {
-          valid: false,
-          errors: [
-            `skills/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-          ],
-          warnings: [],
-          approvals: [],
-          skillApprovals: [],
-          pluginApprovals: [],
-        };
+        return emptyResult([
+          `skills/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+        ]);
       }
       skillApprovals.push({ file, data: data as SkillApprovalData });
     }
@@ -483,28 +479,19 @@ export function validateVendorFiles(
         data = JSON.parse(readFileSync(join(pluginsDir, file), "utf-8"));
       } catch (err) {
         const detail = err instanceof Error ? err.message : "";
-        return {
-          valid: false,
-          errors: [
-            `plugins/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-          ],
-          warnings: [],
-          approvals: [],
-          skillApprovals: [],
-          pluginApprovals: [],
-        };
+        return emptyResult([
+          `plugins/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+        ]);
       }
       pluginApprovals.push({ file, data: data as PluginApprovalData });
     }
   }
 
-  return validateVendorData(
-    orgRaw,
-    approvals,
+  return validateVendorData(orgRaw, approvals, {
     expectedVendorId,
     skillApprovals,
     pluginApprovals,
-  );
+  });
 }
 
 // --- Vendor ID lookup ---
