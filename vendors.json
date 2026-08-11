@@ -38,5 +38,9 @@
   {
     "id": "github",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-github.git"
+  },
+  {
+    "id": "docker",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-docker.git"
   }
 ]
