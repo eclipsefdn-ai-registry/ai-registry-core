@@ -28,7 +28,7 @@ export function AboutPage() {
           >
             Agent Skills
           </a>
-          , and{" "}
+          ,{" "}
           <a
             href="https://agent-plugins.org"
             target="_blank"
@@ -36,6 +36,15 @@ export function AboutPage() {
             className="text-primary hover:underline"
           >
             Agent Plugins
+          </a>
+          , and{" "}
+          <a
+            href="https://a2a-protocol.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            A2A agents
           </a>
           , with support for additional artifact types planned for the future.
         </p>

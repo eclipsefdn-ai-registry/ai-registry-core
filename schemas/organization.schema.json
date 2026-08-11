@@ -67,6 +67,11 @@
             "type": "string",
             "description": "URL prefix for auto-generating Agent Plugin install URLs. The artifact pluginId is appended literally.",
             "examples": ["theia://install-plugin?id="]
+          },
+          "agentInstallUrlPrefix": {
+            "type": "string",
+            "description": "URL prefix for auto-generating agent install URLs. The artifact agentId is appended literally.",
+            "examples": ["theia://install-agent?id="]
           }
         }
       }

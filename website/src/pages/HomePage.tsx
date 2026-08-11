@@ -8,15 +8,25 @@ import { SkillList } from "../components/SkillList";
 import { SkillDetail } from "../components/SkillDetail";
 import { PluginList } from "../components/PluginList";
 import { PluginDetail } from "../components/PluginDetail";
+import { AgentList } from "../components/AgentList";
+import { AgentDetail } from "../components/AgentDetail";
 import { OrgList } from "../components/OrgList";
 import { ToolList } from "../components/ToolList";
+import { filterByNameDescId } from "../filterArtifacts";
 
-type Tab = "servers" | "skills" | "plugins" | "tools" | "organizations";
+type Tab =
+  | "servers"
+  | "skills"
+  | "plugins"
+  | "agents"
+  | "tools"
+  | "organizations";
 
 const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
   servers: "Search MCP servers...",
   skills: "Search agent skills...",
   plugins: "Search agent plugins...",
+  agents: "Search agents...",
   tools: "Search tools...",
   organizations: "Search organizations...",
 };
@@ -29,18 +39,11 @@ export function HomePage() {
   const selectedServerId = searchParams.get("server") ?? undefined;
   const selectedSkillId = searchParams.get("skill") ?? undefined;
   const selectedPluginId = searchParams.get("plugin") ?? undefined;
+  const selectedAgentId = searchParams.get("agent") ?? undefined;
 
   const filteredServers = useMemo(() => {
     if (!data) return [];
-    const q = search.toLowerCase();
-    return data.mcp
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.description.toLowerCase().includes(q) ||
-          s.serverId.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return filterByNameDescId(data.mcp, search, (s) => s.serverId);
   }, [data, search]);
 
   const filteredOrgs = useMemo(() => {
@@ -63,28 +66,17 @@ export function HomePage() {
 
   const filteredSkills = useMemo(() => {
     if (!data) return [];
-    const q = search.toLowerCase();
-    return (data.skills ?? [])
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.description.toLowerCase().includes(q) ||
-          s.skillId.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return filterByNameDescId(data.skills ?? [], search, (s) => s.skillId);
   }, [data, search]);
 
   const filteredPlugins = useMemo(() => {
     if (!data) return [];
-    const q = search.toLowerCase();
-    return (data.plugins ?? [])
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.pluginId.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return filterByNameDescId(data.plugins ?? [], search, (p) => p.pluginId);
+  }, [data, search]);
+
+  const filteredAgents = useMemo(() => {
+    if (!data) return [];
+    return filterByNameDescId(data.agents ?? [], search, (a) => a.agentId);
   }, [data, search]);
 
   if (error) {
@@ -110,6 +102,10 @@ export function HomePage() {
 
   const selectedPlugin = selectedPluginId
     ? (data.plugins ?? []).find((p) => p.pluginId === selectedPluginId)
+    : undefined;
+
+  const selectedAgent = selectedAgentId
+    ? (data.agents ?? []).find((a) => a.agentId === selectedAgentId)
     : undefined;
 
   const getOrg = (id: string) => data.organizations.find((o) => o.id === id);
@@ -156,10 +152,24 @@ export function HomePage() {
     );
   }
 
+  if (selectedAgent) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <AgentDetail
+          agent={selectedAgent}
+          getOrg={getOrg}
+          getTool={getTool}
+          onBack={() => setSearchParams({})}
+        />
+      </div>
+    );
+  }
+
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "servers", label: "MCP Servers", count: filteredServers.length },
     { key: "skills", label: "Skills", count: filteredSkills.length },
     { key: "plugins", label: "Plugins", count: filteredPlugins.length },
+    { key: "agents", label: "Agents", count: filteredAgents.length },
     { key: "tools", label: "Tools", count: filteredTools.length },
     {
       key: "organizations",
@@ -183,9 +193,9 @@ export function HomePage() {
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-            Discover MCP servers, agent skills, and agent plugins, with
-            transparent provenance and approval signals from participating tool
-            providers.
+            Discover MCP servers, agent skills, agent plugins, and A2A agents,
+            with transparent provenance and approval signals from participating
+            tool providers.
           </p>
 
           <div className="w-full max-w-2xl mb-3">
@@ -262,6 +272,14 @@ export function HomePage() {
             />
           )}
 
+          {tab === "agents" && (
+            <AgentList
+              agents={filteredAgents}
+              getOrg={getOrg}
+              onSelect={(id) => setSearchParams({ agent: id })}
+            />
+          )}
+
           {tab === "tools" && (
             <ToolList tools={filteredTools} getOrg={getOrg} />
           )}
@@ -272,6 +290,7 @@ export function HomePage() {
               servers={data.mcp}
               skills={data.skills ?? []}
               plugins={data.plugins ?? []}
+              agents={data.agents ?? []}
               getToolsForOrg={getToolsForOrg}
             />
           )}

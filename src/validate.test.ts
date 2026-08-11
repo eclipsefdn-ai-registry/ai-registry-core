@@ -11,8 +11,13 @@ import {
   validateApproval,
   validateOrganization,
   validatePluginApproval,
+  readApprovalDir,
+  validateSimpleApprovals,
   type SkillApprovalEntry,
   type PluginApprovalEntry,
+  type AgentApprovalEntry,
+  type VendorValidationResult,
+  type ValidationResult,
 } from "./validate.js";
 
 // --- checkTrustedOrgIds ---
@@ -816,6 +821,131 @@ describe("validateVendorData — plugin approvals", () => {
   });
 });
 
+// --- Agent approval validation ---
+
+function agentApproval(agentId = "io.example/my-agent"): AgentApprovalEntry {
+  return {
+    file: agentId.replace(/\//g, "--") + ".json",
+    data: {
+      agentId,
+      date: "2026-08-01",
+      source: {
+        url: "https://example.com/agent_card.json",
+      },
+      installConfigs: [{ tool: "test-tool" }],
+    },
+  };
+}
+
+describe("validateVendorData — agent approvals", () => {
+  it("passes for valid org with agent approvals", () => {
+    const result = validateVendorData(validOrg, [], {
+      agentApprovals: [agentApproval()],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.agentApprovals.length, 1);
+  });
+
+  it("passes with MCP, skill, plugin, and agent approvals together", () => {
+    const result = validateVendorData(validOrg, [approval()], {
+      skillApprovals: [skillApproval()],
+      pluginApprovals: [pluginApproval()],
+      agentApprovals: [agentApproval()],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.approvals.length, 1);
+    assert.equal(result.skillApprovals.length, 1);
+    assert.equal(result.pluginApprovals.length, 1);
+    assert.equal(result.agentApprovals.length, 1);
+  });
+
+  it("fails when agent approval fails schema validation", () => {
+    const result = validateVendorData(validOrg, [], {
+      agentApprovals: [{ file: "bad.json", data: { agentId: "x" } as never }],
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("fails on duplicate agentId across agent approvals", () => {
+    const result = validateVendorData(validOrg, [], {
+      agentApprovals: [
+        agentApproval("io.example/my-agent"),
+        {
+          file: "io.example--my-agent-copy.json",
+          data: {
+            agentId: "io.example/my-agent",
+            date: "2026-08-02",
+            source: { url: "https://example.com/agent_card.json" },
+            installConfigs: [{ tool: "test-tool" }],
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("duplicate approval")));
+  });
+
+  it("fails when tool ID in agent approval is not in organization", () => {
+    const result = validateVendorData(validOrg, [], {
+      agentApprovals: [
+        {
+          file: "io.example--my-agent.json",
+          data: {
+            agentId: "io.example/my-agent",
+            date: "2026-08-01",
+            source: { url: "https://example.com/agent_card.json" },
+            installConfigs: [{ tool: "nonexistent-tool" }],
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("nonexistent-tool")));
+  });
+
+  it("warns on agent filename mismatch", () => {
+    const result = validateVendorData(validOrg, [], {
+      agentApprovals: [
+        {
+          file: "wrong-name.json",
+          data: {
+            agentId: "io.example/my-agent",
+            date: "2026-08-01",
+            source: { url: "https://example.com/agent_card.json" },
+            installConfigs: [{ tool: "test-tool" }],
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+    assert.ok(result.warnings.some((w) => w.includes("filename should be")));
+  });
+
+  it("passes for agent approval without installConfigs", () => {
+    const result = validateVendorData(validOrg, [], {
+      agentApprovals: [
+        {
+          file: "io.example--my-agent.json",
+          data: {
+            agentId: "io.example/my-agent",
+            date: "2026-08-01",
+            source: { url: "https://example.com/agent_card.json" },
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.agentApprovals.length, 1);
+  });
+
+  it("backward compatible — works without options", () => {
+    const result = validateVendorData(validOrg, [approval()]);
+    assert.equal(result.valid, true);
+    assert.equal(result.agentApprovals.length, 0);
+  });
+});
+
 // --- validateApproval — root config and derived marker ---
 
 describe("validateApproval — root config and derived marker", () => {
@@ -966,6 +1096,38 @@ describe("validateOrganization — tools[].pluginInstallUrlPrefix", () => {
   });
 });
 
+// --- validateOrganization — tools[].agentInstallUrlPrefix ---
+
+describe("validateOrganization — tools[].agentInstallUrlPrefix", () => {
+  it("accepts a tool with agentInstallUrlPrefix", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      tools: [
+        {
+          id: "theia-ide",
+          name: "Theia IDE",
+          agentInstallUrlPrefix: "theia://install-agent?id=",
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("still accepts a tool without agentInstallUrlPrefix", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      tools: [{ id: "theia-ide", name: "Theia IDE" }],
+    });
+    assert.equal(result.valid, true);
+  });
+});
+
 // --- validateOrganization — trusts.artifactTypes.mcp ---
 
 describe("validateOrganization — trusts.artifactTypes.mcp", () => {
@@ -1092,5 +1254,133 @@ describe("validateVendorFiles", () => {
     } finally {
       rmSync(dir, { recursive: true });
     }
+  });
+});
+
+// --- readApprovalDir ---
+
+describe("readApprovalDir", () => {
+  it("reads a temp directory of .json files correctly", () => {
+    const dir = mkdtempSync(join(tmpdir(), "approval-dir-"));
+    mkdirSync(join(dir, "agents"));
+    writeFileSync(
+      join(dir, "agents", "io.example--my-agent.json"),
+      JSON.stringify({ agentId: "io.example/my-agent" }),
+    );
+    try {
+      const result = readApprovalDir<{ agentId: string }>(dir, "agents");
+      assert.ok("entries" in result);
+      if ("entries" in result) {
+        assert.equal(result.entries.length, 1);
+        assert.equal(result.entries[0].file, "io.example--my-agent.json");
+        assert.equal(result.entries[0].data.agentId, "io.example/my-agent");
+      }
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("returns { entries: [] } when the directory doesn't exist", () => {
+    const dir = mkdtempSync(join(tmpdir(), "approval-dir-"));
+    try {
+      const result = readApprovalDir(dir, "nonexistent");
+      assert.deepEqual(result, { entries: [] });
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("returns { error } with a dir-name-prefixed message on invalid JSON", () => {
+    const dir = mkdtempSync(join(tmpdir(), "approval-dir-"));
+    mkdirSync(join(dir, "agents"));
+    writeFileSync(join(dir, "agents", "bad.json"), "{ not valid json");
+    try {
+      const result = readApprovalDir(dir, "agents");
+      assert.ok("error" in result);
+      if ("error" in result) {
+        assert.ok(result.error.startsWith("agents/bad.json"));
+      }
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+});
+
+// --- validateSimpleApprovals ---
+
+function freshVendorResult(): VendorValidationResult {
+  return {
+    valid: true,
+    errors: [],
+    warnings: [],
+    approvals: [],
+    skillApprovals: [],
+    pluginApprovals: [],
+    agentApprovals: [],
+  };
+}
+
+function fakeValidate(_data: unknown): ValidationResult {
+  return { valid: true, errors: [] };
+}
+
+function fakeSimpleApprovalConfig() {
+  return {
+    validate: fakeValidate,
+    getId: (d: { thingId: string }) => d.thingId,
+    idLabel: "thingId",
+  };
+}
+
+describe("validateSimpleApprovals", () => {
+  it("accepts valid entries and dedupes by id", () => {
+    const result = freshVendorResult();
+    const accepted = validateSimpleApprovals(
+      [
+        { file: "io.example--a.json", data: { thingId: "io.example/a" } },
+        { file: "io.example--a-copy.json", data: { thingId: "io.example/a" } },
+      ],
+      fakeSimpleApprovalConfig(),
+      new Set<string>(),
+      result,
+    );
+    assert.equal(accepted.length, 1);
+    assert.equal(result.valid, false);
+    assert.ok(
+      result.errors.some(
+        (e) => e.includes("duplicate approval") && e.includes("thingId"),
+      ),
+    );
+  });
+
+  it("warns when the filename doesn't match the expected pattern", () => {
+    const result = freshVendorResult();
+    validateSimpleApprovals(
+      [{ file: "wrong-name.json", data: { thingId: "io.example/a" } }],
+      fakeSimpleApprovalConfig(),
+      new Set<string>(),
+      result,
+    );
+    assert.ok(result.warnings.some((w) => w.includes("filename should be")));
+  });
+
+  it("wires in checkToolIds for tool-id validation", () => {
+    const result = freshVendorResult();
+    validateSimpleApprovals(
+      [
+        {
+          file: "io.example--a.json",
+          data: {
+            thingId: "io.example/a",
+            installConfigs: [{ tool: "bad-tool" }],
+          },
+        },
+      ],
+      fakeSimpleApprovalConfig(),
+      new Set(["good-tool"]),
+      result,
+    );
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("bad-tool")));
   });
 });

@@ -5,6 +5,7 @@ import {
   addApproval,
   addSkillApproval,
   addPluginApproval,
+  addAgentApproval,
   resolveSkillInstallUrls,
   resolveSkillTrust,
   filterValidSkillTrusts,
@@ -17,20 +18,32 @@ import {
   buildToolView,
   buildToolSkillView,
   buildToolPluginView,
+  buildToolAgentView,
+  findOrCreate,
+  configHashOf,
   type ConsolidatedOutput,
   type ApprovalData,
   type SkillApprovalData,
   type PluginApprovalData,
+  type AgentApprovalData,
   type Approval,
   type McpEntry,
   type SkillEntry,
   type PluginEntry,
+  type AgentEntry,
   type SkillTrustEntry,
   type McpTrustEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
-  return { organizations: [], tools: [], mcp: [], skills: [], plugins: [] };
+  return {
+    organizations: [],
+    tools: [],
+    mcp: [],
+    skills: [],
+    plugins: [],
+    agents: [],
+  };
 }
 
 describe("addOrganization", () => {
@@ -846,6 +859,151 @@ describe("addPluginApproval", () => {
   });
 });
 
+describe("addAgentApproval", () => {
+  const agentApproval: AgentApprovalData = {
+    agentId: "io.example/my-agent",
+    date: "2026-08-01",
+    source: {
+      url: "https://example.com/agent_card.json",
+    },
+    installConfigs: [{ tool: "tool-a" }],
+  };
+
+  it("creates a new agent entry", () => {
+    const output = emptyOutput();
+    addAgentApproval(agentApproval, "acme", output);
+
+    assert.equal(output.agents.length, 1);
+    assert.equal(output.agents[0].agentId, "io.example/my-agent");
+    assert.equal(output.agents[0].name, "io.example/my-agent");
+    assert.equal(output.agents[0].description, "");
+    assert.equal(output.agents[0].contentHash, "");
+    assert.equal(output.agents[0].approvals.length, 1);
+    assert.equal(output.agents[0].approvals[0].organizationId, "acme");
+  });
+
+  it("merges approvals from multiple vendors for the same agent", () => {
+    const output = emptyOutput();
+    addAgentApproval(agentApproval, "acme", output);
+    addAgentApproval(
+      { ...agentApproval, installConfigs: [{ tool: "tool-b" }] },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.agents.length, 1);
+    assert.equal(output.agents[0].approvals.length, 2);
+    assert.equal(output.agents[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("produces a stable configHash", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addAgentApproval(agentApproval, "acme", output1);
+    addAgentApproval(agentApproval, "acme", output2);
+
+    assert.equal(
+      output1.agents[0].approvals[0].configHash,
+      output2.agents[0].approvals[0].configHash,
+    );
+  });
+
+  it("produces different configHash when approval data changes", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addAgentApproval(agentApproval, "acme", output1);
+    addAgentApproval({ ...agentApproval, date: "2026-08-02" }, "acme", output2);
+
+    assert.notEqual(
+      output1.agents[0].approvals[0].configHash,
+      output2.agents[0].approvals[0].configHash,
+    );
+  });
+
+  it("defaults installConfigs to an empty array when omitted", () => {
+    const output = emptyOutput();
+    addAgentApproval(
+      {
+        agentId: "io.example/bare",
+        date: "2026-08-01",
+        source: agentApproval.source,
+      },
+      "acme",
+      output,
+    );
+    assert.deepEqual(output.agents[0].approvals[0].installConfigs, []);
+  });
+
+  it("keeps the first-collected source when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    addAgentApproval(agentApproval, "acme", output);
+    addAgentApproval(
+      {
+        ...agentApproval,
+        source: { url: "https://example.com/other-agent-card.json" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.agents.length, 1);
+    assert.deepEqual(output.agents[0].source, agentApproval.source);
+  });
+
+  it("still records both approvals when sources differ", () => {
+    const output = emptyOutput();
+    addAgentApproval(agentApproval, "acme", output);
+    addAgentApproval(
+      {
+        ...agentApproval,
+        source: { url: "https://example.com/other-agent-card.json" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.agents[0].approvals.length, 2);
+    assert.equal(output.agents[0].approvals[0].organizationId, "acme");
+    assert.equal(output.agents[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("does not warn when a second vendor's source matches exactly", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addAgentApproval(agentApproval, "acme", output);
+      addAgentApproval(agentApproval, "other-org", output);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 0);
+  });
+
+  it("warns when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addAgentApproval(agentApproval, "acme", output);
+      addAgentApproval(
+        {
+          ...agentApproval,
+          source: { url: "https://example.com/other-agent-card.json" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-agent/);
+  });
+});
+
 describe("addOrganization — trust extraction", () => {
   it("collects a skill trust entry", () => {
     const output = emptyOutput();
@@ -1214,6 +1372,74 @@ describe("installUrl auto-generation (plugins)", () => {
   });
 });
 
+describe("installUrl auto-generation (agents)", () => {
+  function outputWithTool(agentInstallUrlPrefix?: string): ConsolidatedOutput {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "Test",
+        website: "https://acme.com",
+        tools: [{ id: "tool-a", name: "Tool A", agentInstallUrlPrefix }],
+      },
+      output,
+    );
+    return output;
+  }
+
+  it("generates installUrl when prefix is set and installUrl is absent", () => {
+    const output = outputWithTool("tool-a://install-agent?id=");
+    addAgentApproval(
+      {
+        agentId: "io.example/my-agent",
+        date: "2026-08-01",
+        source: { url: "https://example.com/agent_card.json" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.agents[0].approvals[0].installConfigs[0];
+    assert.equal(
+      cfg.installUrl,
+      "tool-a://install-agent?id=io.example/my-agent",
+    );
+  });
+
+  it("does not overwrite an explicit installUrl", () => {
+    const output = outputWithTool("tool-a://install-agent?id=");
+    addAgentApproval(
+      {
+        agentId: "io.example/my-agent",
+        date: "2026-08-01",
+        source: { url: "https://example.com/agent_card.json" },
+        installConfigs: [{ tool: "tool-a", installUrl: "custom://explicit" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.agents[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, "custom://explicit");
+  });
+
+  it("leaves installUrl absent when no prefix is defined", () => {
+    const output = outputWithTool(undefined);
+    addAgentApproval(
+      {
+        agentId: "io.example/my-agent",
+        date: "2026-08-01",
+        source: { url: "https://example.com/agent_card.json" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.agents[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, undefined);
+  });
+});
+
 describe("installUrl auto-generation (skills)", () => {
   function outputWithTool(skillInstallUrlPrefix?: string): ConsolidatedOutput {
     const output = emptyOutput();
@@ -1457,6 +1683,79 @@ describe("buildToolPluginView", () => {
   it("does not mutate the original input", () => {
     const original = plugins();
     buildToolPluginView("tool-a", original);
+
+    assert.equal(original.length, 2);
+    assert.equal(original[0].approvals[1].installConfigs.length, 1);
+  });
+});
+
+describe("buildToolAgentView", () => {
+  function agents(): AgentEntry[] {
+    return [
+      {
+        agentId: "io.example/agent-1",
+        name: "Agent 1",
+        description: "For both tools",
+        source: { url: "https://example.com/agent-1-card.json" },
+        contentHash: "abc123",
+        approvals: [
+          {
+            organizationId: "acme",
+            date: "2026-08-01",
+            configHash: "aaa",
+            installConfigs: [
+              { tool: "tool-a", installUrl: "tool-a://install" },
+            ],
+          },
+          {
+            organizationId: "other",
+            date: "2026-08-02",
+            configHash: "bbb",
+            installConfigs: [{ tool: "tool-b" }],
+          },
+        ],
+      },
+      {
+        agentId: "io.example/agent-2",
+        name: "Agent 2",
+        description: "For tool-b only",
+        source: { url: "https://example.com/agent-2-card.json" },
+        contentHash: "def456",
+        approvals: [
+          {
+            organizationId: "other",
+            date: "2026-08-01",
+            configHash: "ccc",
+            installConfigs: [{ tool: "tool-b" }],
+          },
+        ],
+      },
+    ];
+  }
+
+  it("only includes agents approved for the target tool", () => {
+    const view = buildToolAgentView("tool-a", agents());
+    assert.equal(view.length, 1);
+    assert.equal(view[0].agentId, "io.example/agent-1");
+  });
+
+  it("filters installConfigs to the target tool", () => {
+    const view = buildToolAgentView("tool-a", agents());
+    const acmeApproval = view[0].approvals.find(
+      (a) => a.organizationId === "acme",
+    )!;
+    assert.equal(acmeApproval.installConfigs.length, 1);
+    assert.equal(acmeApproval.installConfigs[0].tool, "tool-a");
+  });
+
+  it("preserves all approvals on included agents", () => {
+    const view = buildToolAgentView("tool-a", agents());
+    assert.equal(view[0].approvals.length, 2);
+  });
+
+  it("does not mutate the original input", () => {
+    const original = agents();
+    buildToolAgentView("tool-a", original);
 
     assert.equal(original.length, 2);
     assert.equal(original[0].approvals[1].installConfigs.length, 1);
@@ -2026,5 +2325,55 @@ describe("resolveMcpTrust", () => {
     assert.ok(derived);
     assert.equal(derived!.installConfigs.length, 2);
     assert.equal("config" in derived!.installConfigs[0], false);
+  });
+});
+
+// --- findOrCreate ---
+
+describe("findOrCreate", () => {
+  it("creates and pushes a new entry when no match is found", () => {
+    const list: { id: string }[] = [];
+    const { entry, created } = findOrCreate(
+      list,
+      (e) => e.id === "a",
+      () => ({ id: "a" }),
+    );
+    assert.equal(created, true);
+    assert.equal(entry.id, "a");
+    assert.equal(list.length, 1);
+    assert.equal(list[0], entry);
+  });
+
+  it("returns the existing entry without pushing a duplicate when a match is found", () => {
+    const existing = { id: "a" };
+    const list = [existing];
+    const { entry, created } = findOrCreate(
+      list,
+      (e) => e.id === "a",
+      () => ({ id: "a" }),
+    );
+    assert.equal(created, false);
+    assert.equal(entry, existing);
+    assert.equal(list.length, 1);
+  });
+});
+
+// --- configHashOf ---
+
+describe("configHashOf", () => {
+  it("produces a 12-hex-char string", () => {
+    const hash = configHashOf({ foo: "bar" });
+    assert.match(hash, /^[0-9a-f]{12}$/);
+  });
+
+  it("is stable for identical input", () => {
+    assert.equal(
+      configHashOf({ foo: "bar", date: "2026-08-01" }),
+      configHashOf({ foo: "bar", date: "2026-08-01" }),
+    );
+  });
+
+  it("differs for different input", () => {
+    assert.notEqual(configHashOf({ foo: "bar" }), configHashOf({ foo: "baz" }));
   });
 });

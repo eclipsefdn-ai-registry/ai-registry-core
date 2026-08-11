@@ -12,6 +12,7 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
 import { isGlobPattern, resolveSkillPaths } from "./skill-source.js";
+import { fetchAgentCard } from "./agent-source.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +36,7 @@ const validateSkillAppr = ajv.compile(loadSchema("skill-approval.schema.json"));
 const validatePluginAppr = ajv.compile(
   loadSchema("plugin-approval.schema.json"),
 );
+const validateAgentAppr = ajv.compile(loadSchema("agent-approval.schema.json"));
 
 // --- Types ---
 
@@ -84,6 +86,23 @@ export interface PluginApprovalEntry {
   data: PluginApprovalData;
 }
 
+export interface AgentApprovalData {
+  agentId: string;
+  date: string;
+  source: { url: string };
+  installConfigs?: {
+    tool: string;
+    installUrl?: string;
+    config?: Record<string, unknown>;
+    instructions?: string;
+  }[];
+}
+
+export interface AgentApprovalEntry {
+  file: string;
+  data: AgentApprovalData;
+}
+
 export interface VendorValidationResult {
   valid: boolean;
   errors: string[];
@@ -96,6 +115,7 @@ export interface VendorValidationResult {
   approvals: ApprovalEntry[];
   skillApprovals: SkillApprovalEntry[];
   pluginApprovals: PluginApprovalEntry[];
+  agentApprovals: AgentApprovalEntry[];
 }
 
 // A VendorValidationResult with no organization and no collected approvals —
@@ -110,6 +130,7 @@ export function emptyResult(errors: string[]): VendorValidationResult {
     approvals: [],
     skillApprovals: [],
     pluginApprovals: [],
+    agentApprovals: [],
   };
 }
 
@@ -153,6 +174,14 @@ export function validatePluginApproval(data: unknown): ValidationResult {
   };
 }
 
+export function validateAgentApproval(data: unknown): ValidationResult {
+  const valid = validateAgentAppr(data);
+  return {
+    valid: !!valid,
+    errors: valid ? [] : formatErrors(validateAgentAppr),
+  };
+}
+
 export function checkToolIds(
   approval: { installConfigs?: { tool: string }[] },
   toolIds: Set<string>,
@@ -187,12 +216,71 @@ export function checkTrustedOrgIds(
   return errors;
 }
 
+// Shared validate-dedupe-warn-check loop behind the MCP, Plugin, and Agent
+// approval blocks below (Skill approvals keep their own bespoke loop — they
+// have extra glob/multi-path rules that don't fit this shape).
+interface SimpleApprovalConfig<D> {
+  validate: (data: unknown) => ValidationResult;
+  getId: (data: D) => string;
+  idLabel: string; // e.g. "serverId", "pluginId", "agentId" — for message text
+}
+
+export function validateSimpleApprovals<D>(
+  entries: { file: string; data: unknown }[],
+  config: SimpleApprovalConfig<D>,
+  toolIds: Set<string>,
+  result: VendorValidationResult,
+): { file: string; data: D }[] {
+  const accepted: { file: string; data: D }[] = [];
+  const seenIds = new Set<string>();
+  for (const { file, data } of entries) {
+    const validation = config.validate(data);
+    if (!validation.valid) {
+      result.valid = false;
+      result.errors.push(`${file}: ${validation.errors.join(", ")}`);
+      continue;
+    }
+
+    const parsed = data as D;
+    const id = config.getId(parsed);
+
+    if (seenIds.has(id)) {
+      result.valid = false;
+      result.errors.push(
+        `${file}: duplicate approval for ${config.idLabel} "${id}"`,
+      );
+      continue;
+    }
+    seenIds.add(id);
+
+    const expectedFilename = id.replace(/\//g, "--") + ".json";
+    if (file !== expectedFilename) {
+      result.warnings.push(
+        `${file} — filename should be "${expectedFilename}"`,
+      );
+    }
+
+    const toolErrors = checkToolIds(
+      parsed as { installConfigs?: { tool: string }[] },
+      toolIds,
+    );
+    for (const e of toolErrors) {
+      result.valid = false;
+      result.errors.push(`${file}: ${e}`);
+    }
+
+    accepted.push({ file, data: parsed });
+  }
+  return accepted;
+}
+
 // --- Core validation (pure, testable) ---
 
 export interface ValidateVendorDataOptions {
   expectedVendorId?: string;
   skillApprovals?: SkillApprovalEntry[];
   pluginApprovals?: PluginApprovalEntry[];
+  agentApprovals?: AgentApprovalEntry[];
 }
 
 /**
@@ -208,6 +296,7 @@ export function validateVendorData(
     expectedVendorId,
     skillApprovals = [],
     pluginApprovals = [],
+    agentApprovals = [],
   } = options;
   const result: VendorValidationResult = {
     valid: true,
@@ -216,6 +305,7 @@ export function validateVendorData(
     approvals: [],
     skillApprovals: [],
     pluginApprovals: [],
+    agentApprovals: [],
   };
 
   const orgResult = validateOrganization(orgData);
@@ -267,41 +357,16 @@ export function validateVendorData(
     seenTrustedOrgs.add(trust.org);
   }
 
-  const seenServerIds = new Set<string>();
-  for (const { file, data } of approvals) {
-    const approvalResult = validateApproval(data);
-    if (!approvalResult.valid) {
-      result.valid = false;
-      result.errors.push(`${file}: ${approvalResult.errors.join(", ")}`);
-      continue;
-    }
-
-    const approval = data as ApprovalData;
-
-    if (seenServerIds.has(approval.serverId)) {
-      result.valid = false;
-      result.errors.push(
-        `${file}: duplicate approval for serverId "${approval.serverId}"`,
-      );
-      continue;
-    }
-    seenServerIds.add(approval.serverId);
-
-    const expectedFilename = approval.serverId.replace(/\//g, "--") + ".json";
-    if (file !== expectedFilename) {
-      result.warnings.push(
-        `${file} — filename should be "${expectedFilename}"`,
-      );
-    }
-
-    const toolErrors = checkToolIds(approval, toolIds);
-    for (const e of toolErrors) {
-      result.valid = false;
-      result.errors.push(`${file}: ${e}`);
-    }
-
-    result.approvals.push({ file, data: approval });
-  }
+  result.approvals = validateSimpleApprovals(
+    approvals,
+    {
+      validate: validateApproval,
+      getId: (d: ApprovalData) => d.serverId,
+      idLabel: "serverId",
+    },
+    toolIds,
+    result,
+  );
 
   // Skill approvals
   const seenSkillIds = new Set<string>();
@@ -368,41 +433,28 @@ export function validateVendorData(
   }
 
   // Plugin approvals
-  const seenPluginIds = new Set<string>();
-  for (const { file, data } of pluginApprovals) {
-    const pluginResult = validatePluginApproval(data);
-    if (!pluginResult.valid) {
-      result.valid = false;
-      result.errors.push(`${file}: ${pluginResult.errors.join(", ")}`);
-      continue;
-    }
+  result.pluginApprovals = validateSimpleApprovals(
+    pluginApprovals,
+    {
+      validate: validatePluginApproval,
+      getId: (d: PluginApprovalData) => d.pluginId,
+      idLabel: "pluginId",
+    },
+    toolIds,
+    result,
+  );
 
-    const plugin = data as PluginApprovalData;
-
-    if (seenPluginIds.has(plugin.pluginId)) {
-      result.valid = false;
-      result.errors.push(
-        `${file}: duplicate approval for pluginId "${plugin.pluginId}"`,
-      );
-      continue;
-    }
-    seenPluginIds.add(plugin.pluginId);
-
-    const expectedFilename = plugin.pluginId.replace(/\//g, "--") + ".json";
-    if (file !== expectedFilename) {
-      result.warnings.push(
-        `${file} — filename should be "${expectedFilename}"`,
-      );
-    }
-
-    const toolErrors = checkToolIds(plugin, toolIds);
-    for (const e of toolErrors) {
-      result.valid = false;
-      result.errors.push(`${file}: ${e}`);
-    }
-
-    result.pluginApprovals.push({ file, data: plugin });
-  }
+  // Agent approvals
+  result.agentApprovals = validateSimpleApprovals(
+    agentApprovals,
+    {
+      validate: validateAgentApproval,
+      getId: (d: AgentApprovalData) => d.agentId,
+      idLabel: "agentId",
+    },
+    toolIds,
+    result,
+  );
 
   return result;
 }
@@ -413,6 +465,33 @@ export function validateVendorData(
  * Read and validate all files in a vendor repo directory.
  * Thin wrapper around validateVendorData that handles I/O.
  */
+// Reads and JSON-parses every *.json file in `${repoDir}/${dirName}`.
+// Returns { entries: [] } if the directory doesn't exist. On a JSON-parse
+// failure, returns { error } immediately (matching the existing
+// early-return-on-first-bad-file behavior each caller had inline).
+export function readApprovalDir<T>(
+  repoDir: string,
+  dirName: string,
+): { entries: { file: string; data: T }[] } | { error: string } {
+  const dir = resolve(repoDir, dirName);
+  if (!existsSync(dir)) return { entries: [] };
+
+  const entries: { file: string; data: T }[] = [];
+  for (const file of readdirSync(dir).filter((f) => f.endsWith(".json"))) {
+    let data: unknown;
+    try {
+      data = JSON.parse(readFileSync(join(dir, file), "utf-8"));
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "";
+      return {
+        error: `${dirName}/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+      };
+    }
+    entries.push({ file, data: data as T });
+  }
+  return { entries };
+}
+
 export function validateVendorFiles(
   repoDir: string,
   expectedVendorId?: string,
@@ -432,65 +511,23 @@ export function validateVendorFiles(
     ]);
   }
 
-  const approvals: ApprovalEntry[] = [];
-  const mcpDir = resolve(repoDir, "mcp");
-  if (existsSync(mcpDir)) {
-    for (const file of readdirSync(mcpDir).filter((f) => f.endsWith(".json"))) {
-      let data: unknown;
-      try {
-        data = JSON.parse(readFileSync(join(mcpDir, file), "utf-8"));
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : "";
-        return emptyResult([
-          `mcp/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-        ]);
-      }
-      approvals.push({ file, data: data as ApprovalData });
-    }
-  }
+  const mcpResult = readApprovalDir<ApprovalData>(repoDir, "mcp");
+  if ("error" in mcpResult) return emptyResult([mcpResult.error]);
 
-  const skillApprovals: SkillApprovalEntry[] = [];
-  const skillsDir = resolve(repoDir, "skills");
-  if (existsSync(skillsDir)) {
-    for (const file of readdirSync(skillsDir).filter((f) =>
-      f.endsWith(".json"),
-    )) {
-      let data: unknown;
-      try {
-        data = JSON.parse(readFileSync(join(skillsDir, file), "utf-8"));
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : "";
-        return emptyResult([
-          `skills/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-        ]);
-      }
-      skillApprovals.push({ file, data: data as SkillApprovalData });
-    }
-  }
+  const skillsResult = readApprovalDir<SkillApprovalData>(repoDir, "skills");
+  if ("error" in skillsResult) return emptyResult([skillsResult.error]);
 
-  const pluginApprovals: PluginApprovalEntry[] = [];
-  const pluginsDir = resolve(repoDir, "plugins");
-  if (existsSync(pluginsDir)) {
-    for (const file of readdirSync(pluginsDir).filter((f) =>
-      f.endsWith(".json"),
-    )) {
-      let data: unknown;
-      try {
-        data = JSON.parse(readFileSync(join(pluginsDir, file), "utf-8"));
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : "";
-        return emptyResult([
-          `plugins/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-        ]);
-      }
-      pluginApprovals.push({ file, data: data as PluginApprovalData });
-    }
-  }
+  const pluginsResult = readApprovalDir<PluginApprovalData>(repoDir, "plugins");
+  if ("error" in pluginsResult) return emptyResult([pluginsResult.error]);
 
-  return validateVendorData(orgRaw, approvals, {
+  const agentsResult = readApprovalDir<AgentApprovalData>(repoDir, "agents");
+  if ("error" in agentsResult) return emptyResult([agentsResult.error]);
+
+  return validateVendorData(orgRaw, mcpResult.entries, {
     expectedVendorId,
-    skillApprovals,
-    pluginApprovals,
+    skillApprovals: skillsResult.entries,
+    pluginApprovals: pluginsResult.entries,
+    agentApprovals: agentsResult.entries,
   });
 }
 
@@ -682,6 +719,23 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
       }
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  if (result.agentApprovals.length > 0) {
+    console.log("\nPhase 5: Agent card verification");
+    for (const { file, data } of result.agentApprovals) {
+      try {
+        const metadata = await fetchAgentCard(data.source.url);
+        console.log(`  PASS: ${file}`);
+        console.log(`    Name: ${metadata.name}`);
+        console.log(`    Description: ${metadata.description}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `  WARNING: ${file} — could not verify agent card: ${message}`,
+        );
+      }
     }
   }
 

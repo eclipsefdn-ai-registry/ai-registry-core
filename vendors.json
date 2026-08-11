@@ -22,5 +22,9 @@
   {
     "id": "eclipsesource",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-eclipsesource.git"
+  },
+  {
+    "id": "mosaico",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-mosaico.git"
   }
 ]

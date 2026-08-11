@@ -103,10 +103,34 @@ export interface Plugin {
   approvals: PluginApproval[];
 }
 
+export interface AgentInstallConfig {
+  tool: string;
+  installUrl?: string;
+  config?: Record<string, unknown>;
+  instructions?: string;
+}
+
+export interface AgentApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: AgentInstallConfig[];
+}
+
+export interface Agent {
+  agentId: string;
+  name: string;
+  description: string;
+  source: { url: string };
+  contentHash: string;
+  approvals: AgentApproval[];
+}
+
 export interface RegistryData {
   organizations: Organization[];
   tools: Tool[];
   mcp: McpServer[];
   skills: Skill[];
   plugins: Plugin[];
+  agents: Agent[];
 }
