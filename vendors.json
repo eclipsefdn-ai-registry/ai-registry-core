@@ -42,5 +42,9 @@
   {
     "id": "docker",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-docker.git"
+  },
+  {
+    "id": "nvidia",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-nvidia.git"
   }
 ]
