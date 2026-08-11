@@ -62,6 +62,11 @@
             "type": "string",
             "description": "URL prefix for auto-generating MCP server install URLs. The artifact serverId is appended literally.",
             "examples": ["theia://install-mcp?id="]
+          },
+          "pluginInstallUrlPrefix": {
+            "type": "string",
+            "description": "URL prefix for auto-generating Agent Plugin install URLs. The artifact pluginId is appended literally.",
+            "examples": ["theia://install-plugin?id="]
           }
         }
       }

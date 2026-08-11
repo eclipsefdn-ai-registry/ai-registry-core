@@ -2,11 +2,11 @@
 
 > **Preview** — This registry is currently in preview. Data, APIs, and the website may change as we iterate on the concept.
 
-A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclipse Foundation. Supports [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers and [Agent Skills](https://agentskills.io).
+A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclipse Foundation. Supports [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers, [Agent Skills](https://agentskills.io), and [Agent Plugins](https://agent-plugins.org).
 
 ## How It Works
 
-The registry follows a federated model: **vendors** maintain their own repositories with approval files for AI artifacts (MCP servers and Agent Skills) they endorse. A **central repository** consolidates all vendor data into a single JSON file that tools can consume.
+The registry follows a federated model: **vendors** maintain their own repositories with approval files for AI artifacts (MCP servers, Agent Skills, and Agent Plugins) they endorse. A **central repository** consolidates all vendor data into a single JSON file that tools can consume.
 
 ```
 Vendor Repos                    Central Repo                    Consumers
@@ -25,6 +25,7 @@ Vendor Repos                    Central Repo                    Consumers
 - `organization.json` — organization identity and (optionally) tools
 - `mcp/*.json` — one approval file per approved MCP server, with optional tool-specific install configurations
 - `skills/*.json` — one approval file per approved Agent Skill, pointing to the skill's source repository
+- `plugins/*.json` — one approval file per approved Agent Plugin, pointing to the plugin's source repository
 
 **The central repo** provides:
 
@@ -32,8 +33,9 @@ Vendor Repos                    Central Repo                    Consumers
 - A consolidation pipeline that pulls, validates, and merges vendor data
 - Metadata enrichment from the Anthropic MCP registry (server names, descriptions, verification status)
 - Metadata enrichment from skill source repos (name, description, content hash)
+- Metadata enrichment from plugin source repos (name, description, version, author, contained skills/MCP servers, content hash)
 - A static website deployed to GitHub Pages for browsing the registry
-- Claude Code skills for generating [MCP](skills/create-mcp-approval/SKILL.md) and [skill](skills/create-skill-approval/SKILL.md) approval files
+- Claude Code skills for generating [MCP](skills/create-mcp-approval/SKILL.md), [skill](skills/create-skill-approval/SKILL.md), and [plugin](skills/create-plugin-approval/SKILL.md) approval files
 
 ## Repositories
 
@@ -44,10 +46,10 @@ Vendor Repos                    Central Repo                    Consumers
 
 ## Data Flow
 
-1. A vendor creates approval files (manually or using the Claude Code skills for [MCP](skills/create-mcp-approval/SKILL.md) or [skills](skills/create-skill-approval/SKILL.md))
+1. A vendor creates approval files (manually or using the Claude Code skills for [MCP](skills/create-mcp-approval/SKILL.md), [skills](skills/create-skill-approval/SKILL.md), or [plugins](skills/create-plugin-approval/SKILL.md))
 2. Vendor commits and pushes — CI validates against the central schemas
 3. On successful push to main, the vendor CI triggers the central consolidation workflow
-4. Consolidation pulls all registered vendor repos, validates, enriches with MCP registry metadata and skill source metadata
+4. Consolidation pulls all registered vendor repos, validates, enriches with MCP registry metadata, skill source metadata, and plugin source metadata
 5. The website and consolidated JSON are built and deployed to GitHub Pages
 6. Tools (e.g., Theia IDE) consume the consolidated JSON at a stable URL
 
@@ -63,6 +65,8 @@ mcp/
   <server-id>.json         # one file per approved MCP server
 skills/
   <skill-id>.json          # one file per approved Agent Skill
+plugins/
+  <plugin-id>.json         # one file per approved Agent Plugin
 .github/workflows/
   validate.yml             # CI that runs the central validation
 ```
@@ -83,13 +87,14 @@ Declares your organization and, if applicable, the tools you provide. Organizati
       "id": "your-tool",
       "name": "Your Tool",
       "skillInstallUrlPrefix": "your-tool://install-skill?id=",
-      "mcpInstallUrlPrefix": "your-tool://install-mcp?id="
+      "mcpInstallUrlPrefix": "your-tool://install-mcp?id=",
+      "pluginInstallUrlPrefix": "your-tool://install-plugin?id="
     }
   ]
 }
 ```
 
-When a tool declares `skillInstallUrlPrefix` or `mcpInstallUrlPrefix`, consolidation auto-generates `installUrl` for any approval that targets that tool but omits it — `prefix + artifactId`. Explicit `installUrl` values in approval files always take precedence.
+When a tool declares `skillInstallUrlPrefix`, `mcpInstallUrlPrefix`, or `pluginInstallUrlPrefix`, consolidation auto-generates `installUrl` for any approval that targets that tool but omits it — `prefix + artifactId`. Explicit `installUrl` values in approval files always take precedence.
 
 An organization can also delegate to other organizations' judgment instead of filing its own approval per skill, via `trusts`:
 
@@ -198,6 +203,29 @@ Consolidation expands multi-path approvals into individual skill entries — the
 
 The `source` points to a git repository containing the skill folder(s). Skill metadata (name, description) and a content hash are extracted automatically during consolidation.
 
+### Plugin approval files
+
+One JSON file per approved [Agent Plugin](https://agent-plugins.org), stored in `plugins/`. The filename must be `<pluginId>.json` with `/` replaced by `--`. See the [plugin approval schema](schemas/plugin-approval.schema.json) for the full field reference.
+
+Example: `plugins/io.github.gemini-cli-extensions--bigquery-data-analytics.json`
+
+```json
+{
+  "pluginId": "io.github.gemini-cli-extensions/bigquery-data-analytics",
+  "date": "2026-08-07",
+  "source": {
+    "url": "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git"
+  },
+  "installConfigs": [{ "tool": "your-tool" }]
+}
+```
+
+`source.path` points to the plugin's directory within the repository (containing `plugin.json`); omit it if the plugin lives at the repository root, as in the example above.
+
+If `your-tool` declares `pluginInstallUrlPrefix` in `organization.json`, the `installUrl` above is generated automatically during consolidation. You can also set it explicitly if the tool has no prefix or you need a custom URL.
+
+During consolidation, the plugin's directory is fetched to read its `plugin.json` manifest (name, description, version, author, homepage, keywords) and to enumerate its contents: skills under `skills/*/SKILL.md` and MCP servers declared in `mcp.json`. These are surfaced as read-only metadata (`containedSkills`, `containedMcpServers`) on the plugin entry — approving a plugin does not create separate standalone skill or MCP server entries. A content hash covering the whole plugin directory is also computed.
+
 ### Validation
 
 Validation runs in CI by checking out the central repo and running its CLI against your vendor repo.
@@ -214,7 +242,7 @@ See the [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registr
 ### Becoming a vendor
 
 1. Request a vendor repository by [opening an issue](https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues) on this repo describing your organization and the artifacts you plan to approve
-2. We create a new repository for you from a template, with the structure above and CI (the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml)) already set up — you only need to fill in your `organization.json` and add approval files in `mcp/` and/or `skills/`
+2. We create a new repository for you from a template, with the structure above and CI (the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml)) already set up — you only need to fill in your `organization.json` and add approval files in `mcp/`, `skills/`, and/or `plugins/`
 3. Request registration by opening a PR on this repo that adds your entry to `vendors.json`
 
 ## API
@@ -225,13 +253,13 @@ The registry is served as static JSON files from the registry website. Base URL:
 https://ai.open-vsx.org/api/v1/
 ```
 
-| Endpoint                                                                  | Description                                                                                              |
-| :------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------- |
-| [`all.json`](https://ai.open-vsx.org/api/v1/all.json)                     | Full registry — organizations, tools, MCP servers, and skills with merged approvals                      |
-| [`organizations.json`](https://ai.open-vsx.org/api/v1/organizations.json) | All organizations and their tools                                                                        |
-| `tools/<tool-id>.json`                                                    | Per-tool view — servers and skills approved for that tool, with install configs for other tools stripped |
+| Endpoint                                                                  | Description                                                                                                        |
+| :------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------- |
+| [`all.json`](https://ai.open-vsx.org/api/v1/all.json)                     | Full registry — organizations, tools, MCP servers, skills, and plugins with merged approvals                       |
+| [`organizations.json`](https://ai.open-vsx.org/api/v1/organizations.json) | All organizations and their tools                                                                                  |
+| `tools/<tool-id>.json`                                                    | Per-tool view — servers, skills, and plugins approved for that tool, with install configs for other tools stripped |
 
-Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://ai.open-vsx.org/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://ai.open-vsx.org/schemas/skill-approval.schema.json)).
+Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://ai.open-vsx.org/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://ai.open-vsx.org/schemas/skill-approval.schema.json), [`plugin-approval.schema.json`](https://ai.open-vsx.org/schemas/plugin-approval.schema.json)).
 
 A tool integration typically fetches `organizations.json` + its own `tools/<tool-id>.json`.
 
@@ -242,7 +270,8 @@ The consolidation pipeline follows a build-or-nothing approach:
 1. **Collect** — Clone all vendor repos and validate their data. Any failure (repo unreachable, invalid data) fails the build.
 2. **Enrich MCP** — Look up each server in the Anthropic MCP registry. Registry errors (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`, then falls back to any vendor-supplied `metadata`/`selfPublished` (see [Vendor-supplied metadata](#vendor-supplied-metadata-for-servers-not-in-the-anthropic-registry)). Two different vendors self-attesting as publisher for the same server is treated the same as a registry error — it fails the build.
 3. **Enrich Skills** — Fetch each skill's source via sparse git checkout to extract metadata and compute a content hash. Unreachable sources are skipped with a warning — the skill is omitted from the output until its source is reachable again.
-4. **Write & Deploy** — Only reached if the previous steps succeed.
+4. **Enrich Plugins** — Fetch each plugin's directory via sparse git checkout to read its manifest, enumerate contained skills and MCP servers, and compute a content hash. Unreachable sources are skipped with a warning — the plugin is omitted from the output until its source is reachable again.
+5. **Write & Deploy** — Only reached if the previous steps succeed.
 
 If collection or MCP enrichment fails, the build stops and the previous deployment stays live.
 
@@ -252,6 +281,7 @@ If collection or MCP enrichment fails, the build stops and the previous deployme
 - [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) — reference vendor implementation
 - [MCP approval skill](skills/create-mcp-approval/SKILL.md) — AI agent skill for generating MCP approval files
 - [Skill approval skill](skills/create-skill-approval/SKILL.md) — AI agent skill for generating skill approval files
+- [Plugin approval skill](skills/create-plugin-approval/SKILL.md) — AI agent skill for generating plugin approval files
 - [JSON schemas](schemas/) — organization and approval file schemas
 
 ## License

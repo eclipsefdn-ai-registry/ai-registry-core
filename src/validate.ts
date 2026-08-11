@@ -32,6 +32,9 @@ const validateOrg = ajv.compile(loadSchema("organization.schema.json"));
 ajv.compile(loadSchema("mcp-server-config.schema.json"));
 const validateAppr = ajv.compile(loadSchema("mcp-approval.schema.json"));
 const validateSkillAppr = ajv.compile(loadSchema("skill-approval.schema.json"));
+const validatePluginAppr = ajv.compile(
+  loadSchema("plugin-approval.schema.json"),
+);
 
 // --- Types ---
 
@@ -64,6 +67,23 @@ export interface SkillApprovalEntry {
   data: SkillApprovalData;
 }
 
+export interface PluginApprovalData {
+  pluginId: string;
+  date: string;
+  source: { url: string; path?: string };
+  installConfigs?: {
+    tool: string;
+    installUrl?: string;
+    config?: Record<string, unknown>;
+    instructions?: string;
+  }[];
+}
+
+export interface PluginApprovalEntry {
+  file: string;
+  data: PluginApprovalData;
+}
+
 export interface VendorValidationResult {
   valid: boolean;
   errors: string[];
@@ -75,6 +95,22 @@ export interface VendorValidationResult {
   };
   approvals: ApprovalEntry[];
   skillApprovals: SkillApprovalEntry[];
+  pluginApprovals: PluginApprovalEntry[];
+}
+
+// A VendorValidationResult with no organization and no collected approvals —
+// every early-return failure case in validateVendorFiles is exactly this
+// shape plus its own `errors` array, so building it in one place means a
+// fifth approval type never means a sixth copy of this literal.
+export function emptyResult(errors: string[]): VendorValidationResult {
+  return {
+    valid: false,
+    errors,
+    warnings: [],
+    approvals: [],
+    skillApprovals: [],
+    pluginApprovals: [],
+  };
 }
 
 // --- Schema validation ---
@@ -106,6 +142,14 @@ export function validateSkillApproval(data: unknown): ValidationResult {
   return {
     valid: !!valid,
     errors: valid ? [] : formatErrors(validateSkillAppr),
+  };
+}
+
+export function validatePluginApproval(data: unknown): ValidationResult {
+  const valid = validatePluginAppr(data);
+  return {
+    valid: !!valid,
+    errors: valid ? [] : formatErrors(validatePluginAppr),
   };
 }
 
@@ -145,6 +189,12 @@ export function checkTrustedOrgIds(
 
 // --- Core validation (pure, testable) ---
 
+export interface ValidateVendorDataOptions {
+  expectedVendorId?: string;
+  skillApprovals?: SkillApprovalEntry[];
+  pluginApprovals?: PluginApprovalEntry[];
+}
+
 /**
  * Validate vendor data. Pure function — no I/O.
  * Takes parsed org data and approval entries, returns validation result.
@@ -152,15 +202,20 @@ export function checkTrustedOrgIds(
 export function validateVendorData(
   orgData: unknown,
   approvals: ApprovalEntry[],
-  expectedVendorId?: string,
-  skillApprovals: SkillApprovalEntry[] = [],
+  options: ValidateVendorDataOptions = {},
 ): VendorValidationResult {
+  const {
+    expectedVendorId,
+    skillApprovals = [],
+    pluginApprovals = [],
+  } = options;
   const result: VendorValidationResult = {
     valid: true,
     errors: [],
     warnings: [],
     approvals: [],
     skillApprovals: [],
+    pluginApprovals: [],
   };
 
   const orgResult = validateOrganization(orgData);
@@ -312,6 +367,43 @@ export function validateVendorData(
     result.skillApprovals.push({ file, data: skill });
   }
 
+  // Plugin approvals
+  const seenPluginIds = new Set<string>();
+  for (const { file, data } of pluginApprovals) {
+    const pluginResult = validatePluginApproval(data);
+    if (!pluginResult.valid) {
+      result.valid = false;
+      result.errors.push(`${file}: ${pluginResult.errors.join(", ")}`);
+      continue;
+    }
+
+    const plugin = data as PluginApprovalData;
+
+    if (seenPluginIds.has(plugin.pluginId)) {
+      result.valid = false;
+      result.errors.push(
+        `${file}: duplicate approval for pluginId "${plugin.pluginId}"`,
+      );
+      continue;
+    }
+    seenPluginIds.add(plugin.pluginId);
+
+    const expectedFilename = plugin.pluginId.replace(/\//g, "--") + ".json";
+    if (file !== expectedFilename) {
+      result.warnings.push(
+        `${file} — filename should be "${expectedFilename}"`,
+      );
+    }
+
+    const toolErrors = checkToolIds(plugin, toolIds);
+    for (const e of toolErrors) {
+      result.valid = false;
+      result.errors.push(`${file}: ${e}`);
+    }
+
+    result.pluginApprovals.push({ file, data: plugin });
+  }
+
   return result;
 }
 
@@ -327,13 +419,7 @@ export function validateVendorFiles(
 ): VendorValidationResult {
   const orgPath = resolve(repoDir, "organization.json");
   if (!existsSync(orgPath)) {
-    return {
-      valid: false,
-      errors: ["organization.json not found"],
-      warnings: [],
-      approvals: [],
-      skillApprovals: [],
-    };
+    return emptyResult(["organization.json not found"]);
   }
 
   let orgRaw: unknown;
@@ -341,15 +427,9 @@ export function validateVendorFiles(
     orgRaw = JSON.parse(readFileSync(orgPath, "utf-8"));
   } catch (err) {
     const detail = err instanceof Error ? err.message : "";
-    return {
-      valid: false,
-      errors: [
-        `organization.json is not valid JSON${detail ? `: ${detail}` : ""}`,
-      ],
-      warnings: [],
-      approvals: [],
-      skillApprovals: [],
-    };
+    return emptyResult([
+      `organization.json is not valid JSON${detail ? `: ${detail}` : ""}`,
+    ]);
   }
 
   const approvals: ApprovalEntry[] = [];
@@ -361,15 +441,9 @@ export function validateVendorFiles(
         data = JSON.parse(readFileSync(join(mcpDir, file), "utf-8"));
       } catch (err) {
         const detail = err instanceof Error ? err.message : "";
-        return {
-          valid: false,
-          errors: [
-            `mcp/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-          ],
-          warnings: [],
-          approvals: [],
-          skillApprovals: [],
-        };
+        return emptyResult([
+          `mcp/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+        ]);
       }
       approvals.push({ file, data: data as ApprovalData });
     }
@@ -386,26 +460,38 @@ export function validateVendorFiles(
         data = JSON.parse(readFileSync(join(skillsDir, file), "utf-8"));
       } catch (err) {
         const detail = err instanceof Error ? err.message : "";
-        return {
-          valid: false,
-          errors: [
-            `skills/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
-          ],
-          warnings: [],
-          approvals: [],
-          skillApprovals: [],
-        };
+        return emptyResult([
+          `skills/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+        ]);
       }
       skillApprovals.push({ file, data: data as SkillApprovalData });
     }
   }
 
-  return validateVendorData(
-    orgRaw,
-    approvals,
+  const pluginApprovals: PluginApprovalEntry[] = [];
+  const pluginsDir = resolve(repoDir, "plugins");
+  if (existsSync(pluginsDir)) {
+    for (const file of readdirSync(pluginsDir).filter((f) =>
+      f.endsWith(".json"),
+    )) {
+      let data: unknown;
+      try {
+        data = JSON.parse(readFileSync(join(pluginsDir, file), "utf-8"));
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "";
+        return emptyResult([
+          `plugins/${file} is not valid JSON${detail ? `: ${detail}` : ""}`,
+        ]);
+      }
+      pluginApprovals.push({ file, data: data as PluginApprovalData });
+    }
+  }
+
+  return validateVendorData(orgRaw, approvals, {
     expectedVendorId,
     skillApprovals,
-  );
+    pluginApprovals,
+  });
 }
 
 // --- Vendor ID lookup ---
@@ -560,6 +646,38 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
               `  WARNING: ${label} — could not verify skill source: ${message}`,
             );
           }
+        }
+      }
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  if (result.pluginApprovals.length > 0) {
+    console.log("\nPhase 4: Plugin manifest verification");
+    const { fetchPluginManifest } = await import("./plugin-source.js");
+    const tmpDir = join(repoDir, ".tmp-validate-plugins");
+    mkdirSync(tmpDir, { recursive: true });
+
+    try {
+      for (const { file, data } of result.pluginApprovals) {
+        try {
+          const metadata = fetchPluginManifest(
+            data.source.url,
+            data.source.path,
+            tmpDir,
+          );
+          console.log(`  PASS: ${file}`);
+          console.log(`    Name: ${metadata.name}`);
+          console.log(`    Description: ${metadata.description}`);
+          console.log(
+            `    Contains: ${metadata.containedSkills.length} skill(s), ${metadata.containedMcpServers.length} MCP server(s)`,
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(
+            `  WARNING: ${file} — could not verify plugin source: ${message}`,
+          );
         }
       }
     } finally {

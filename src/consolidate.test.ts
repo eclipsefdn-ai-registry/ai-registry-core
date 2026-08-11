@@ -4,6 +4,7 @@ import {
   addOrganization,
   addApproval,
   addSkillApproval,
+  addPluginApproval,
   resolveSkillInstallUrls,
   resolveSkillTrust,
   filterValidSkillTrusts,
@@ -15,18 +16,21 @@ import {
   resolveMcpCrossVendorConfigs,
   buildToolView,
   buildToolSkillView,
+  buildToolPluginView,
   type ConsolidatedOutput,
   type ApprovalData,
   type SkillApprovalData,
+  type PluginApprovalData,
   type Approval,
   type McpEntry,
   type SkillEntry,
+  type PluginEntry,
   type SkillTrustEntry,
   type McpTrustEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
-  return { organizations: [], tools: [], mcp: [], skills: [] };
+  return { organizations: [], tools: [], mcp: [], skills: [], plugins: [] };
 }
 
 describe("addOrganization", () => {
@@ -691,6 +695,157 @@ describe("addSkillApproval", () => {
   });
 });
 
+describe("addPluginApproval", () => {
+  const pluginApproval: PluginApprovalData = {
+    pluginId: "io.example/my-plugin",
+    date: "2026-08-01",
+    source: {
+      url: "https://github.com/example/my-plugin.git",
+    },
+    installConfigs: [{ tool: "tool-a" }],
+  };
+
+  it("creates a new plugin entry", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+
+    assert.equal(output.plugins.length, 1);
+    assert.equal(output.plugins[0].pluginId, "io.example/my-plugin");
+    assert.equal(output.plugins[0].name, "io.example/my-plugin");
+    assert.equal(output.plugins[0].description, "");
+    assert.equal(output.plugins[0].contentHash, "");
+    assert.deepEqual(output.plugins[0].containedSkills, []);
+    assert.deepEqual(output.plugins[0].containedMcpServers, []);
+    assert.equal(output.plugins[0].approvals.length, 1);
+    assert.equal(output.plugins[0].approvals[0].organizationId, "acme");
+  });
+
+  it("merges approvals from multiple vendors for the same plugin", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+    addPluginApproval(
+      { ...pluginApproval, installConfigs: [{ tool: "tool-b" }] },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.plugins.length, 1);
+    assert.equal(output.plugins[0].approvals.length, 2);
+    assert.equal(output.plugins[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("produces a stable configHash", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output1);
+    addPluginApproval(pluginApproval, "acme", output2);
+
+    assert.equal(
+      output1.plugins[0].approvals[0].configHash,
+      output2.plugins[0].approvals[0].configHash,
+    );
+  });
+
+  it("produces different configHash when approval data changes", () => {
+    const output1 = emptyOutput();
+    const output2 = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output1);
+    addPluginApproval(
+      { ...pluginApproval, date: "2026-08-02" },
+      "acme",
+      output2,
+    );
+
+    assert.notEqual(
+      output1.plugins[0].approvals[0].configHash,
+      output2.plugins[0].approvals[0].configHash,
+    );
+  });
+
+  it("defaults installConfigs to an empty array when omitted", () => {
+    const output = emptyOutput();
+    addPluginApproval(
+      {
+        pluginId: "io.example/bare",
+        date: "2026-08-01",
+        source: pluginApproval.source,
+      },
+      "acme",
+      output,
+    );
+    assert.deepEqual(output.plugins[0].approvals[0].installConfigs, []);
+  });
+
+  it("keeps the first-collected source when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+    addPluginApproval(
+      {
+        ...pluginApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.plugins.length, 1);
+    assert.deepEqual(output.plugins[0].source, pluginApproval.source);
+  });
+
+  it("still records both approvals when sources differ", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+    addPluginApproval(
+      {
+        ...pluginApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.plugins[0].approvals.length, 2);
+    assert.equal(output.plugins[0].approvals[0].organizationId, "acme");
+    assert.equal(output.plugins[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("does not warn when a second vendor's source matches exactly", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addPluginApproval(pluginApproval, "acme", output);
+      addPluginApproval(pluginApproval, "other-org", output);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 0);
+  });
+
+  it("warns when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addPluginApproval(pluginApproval, "acme", output);
+      addPluginApproval(
+        {
+          ...pluginApproval,
+          source: { url: "https://github.com/other/fork.git" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
+  });
+});
+
 describe("addOrganization — trust extraction", () => {
   it("collects a skill trust entry", () => {
     const output = emptyOutput();
@@ -991,6 +1146,74 @@ describe("installUrl auto-generation (MCP)", () => {
   });
 });
 
+describe("installUrl auto-generation (plugins)", () => {
+  function outputWithTool(pluginInstallUrlPrefix?: string): ConsolidatedOutput {
+    const output = emptyOutput();
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "Test",
+        website: "https://acme.com",
+        tools: [{ id: "tool-a", name: "Tool A", pluginInstallUrlPrefix }],
+      },
+      output,
+    );
+    return output;
+  }
+
+  it("generates installUrl when prefix is set and installUrl is absent", () => {
+    const output = outputWithTool("tool-a://install-plugin?id=");
+    addPluginApproval(
+      {
+        pluginId: "io.example/my-plugin",
+        date: "2026-08-01",
+        source: { url: "https://github.com/example/my-plugin.git" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.plugins[0].approvals[0].installConfigs[0];
+    assert.equal(
+      cfg.installUrl,
+      "tool-a://install-plugin?id=io.example/my-plugin",
+    );
+  });
+
+  it("does not overwrite an explicit installUrl", () => {
+    const output = outputWithTool("tool-a://install-plugin?id=");
+    addPluginApproval(
+      {
+        pluginId: "io.example/my-plugin",
+        date: "2026-08-01",
+        source: { url: "https://github.com/example/my-plugin.git" },
+        installConfigs: [{ tool: "tool-a", installUrl: "custom://explicit" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.plugins[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, "custom://explicit");
+  });
+
+  it("leaves installUrl absent when no prefix is defined", () => {
+    const output = outputWithTool(undefined);
+    addPluginApproval(
+      {
+        pluginId: "io.example/my-plugin",
+        date: "2026-08-01",
+        source: { url: "https://github.com/example/my-plugin.git" },
+        installConfigs: [{ tool: "tool-a" }],
+      },
+      "acme",
+      output,
+    );
+    const cfg = output.plugins[0].approvals[0].installConfigs[0];
+    assert.equal(cfg.installUrl, undefined);
+  });
+});
+
 describe("installUrl auto-generation (skills)", () => {
   function outputWithTool(skillInstallUrlPrefix?: string): ConsolidatedOutput {
     const output = emptyOutput();
@@ -1157,6 +1380,83 @@ describe("buildToolSkillView", () => {
   it("does not mutate the original input", () => {
     const original = skills();
     buildToolSkillView("tool-a", original);
+
+    assert.equal(original.length, 2);
+    assert.equal(original[0].approvals[1].installConfigs.length, 1);
+  });
+});
+
+describe("buildToolPluginView", () => {
+  function plugins(): PluginEntry[] {
+    return [
+      {
+        pluginId: "io.example/plugin-1",
+        name: "Plugin 1",
+        description: "For both tools",
+        source: { url: "https://github.com/example/plugin-1.git" },
+        contentHash: "abc123",
+        containedSkills: [],
+        containedMcpServers: [],
+        approvals: [
+          {
+            organizationId: "acme",
+            date: "2026-08-01",
+            configHash: "aaa",
+            installConfigs: [
+              { tool: "tool-a", installUrl: "tool-a://install" },
+            ],
+          },
+          {
+            organizationId: "other",
+            date: "2026-08-02",
+            configHash: "bbb",
+            installConfigs: [{ tool: "tool-b" }],
+          },
+        ],
+      },
+      {
+        pluginId: "io.example/plugin-2",
+        name: "Plugin 2",
+        description: "For tool-b only",
+        source: { url: "https://github.com/example/plugin-2.git" },
+        contentHash: "def456",
+        containedSkills: [],
+        containedMcpServers: [],
+        approvals: [
+          {
+            organizationId: "other",
+            date: "2026-08-01",
+            configHash: "ccc",
+            installConfigs: [{ tool: "tool-b" }],
+          },
+        ],
+      },
+    ];
+  }
+
+  it("only includes plugins approved for the target tool", () => {
+    const view = buildToolPluginView("tool-a", plugins());
+    assert.equal(view.length, 1);
+    assert.equal(view[0].pluginId, "io.example/plugin-1");
+  });
+
+  it("filters installConfigs to the target tool", () => {
+    const view = buildToolPluginView("tool-a", plugins());
+    const acmeApproval = view[0].approvals.find(
+      (a) => a.organizationId === "acme",
+    )!;
+    assert.equal(acmeApproval.installConfigs.length, 1);
+    assert.equal(acmeApproval.installConfigs[0].tool, "tool-a");
+  });
+
+  it("preserves all approvals on included plugins", () => {
+    const view = buildToolPluginView("tool-a", plugins());
+    assert.equal(view[0].approvals.length, 2);
+  });
+
+  it("does not mutate the original input", () => {
+    const original = plugins();
+    buildToolPluginView("tool-a", original);
 
     assert.equal(original.length, 2);
     assert.equal(original[0].approvals[1].installConfigs.length, 1);

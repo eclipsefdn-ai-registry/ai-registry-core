@@ -51,8 +51,8 @@ export function ApiDocsPage() {
                 </a>
               </td>
               <td className="py-2">
-                Full registry — all organizations, tools, MCP servers, and
-                skills with merged approvals from all vendors
+                Full registry — all organizations, tools, MCP servers, skills,
+                and plugins with merged approvals from all vendors
               </td>
             </tr>
             <tr className="border-b border-border">
@@ -77,8 +77,9 @@ export function ApiDocsPage() {
                 </code>
               </td>
               <td className="py-2">
-                Per-tool view — only servers and skills approved for that tool,
-                with install configs for other tools stripped. Example:{" "}
+                Per-tool view — only servers, skills, and plugins approved for
+                that tool, with install configs for other tools stripped.
+                Example:{" "}
                 <a
                   href={`${BASE_URL}api/v1/tools/theia-ide.json`}
                   className="text-primary hover:underline"
@@ -97,8 +98,8 @@ export function ApiDocsPage() {
         <h2 className="text-xl font-semibold mt-8 mb-3">Schemas</h2>
         <p className="mb-3 leading-relaxed">
           These schemas define the format for vendor-submitted data. Vendors use
-          them to create organization metadata, MCP server approvals, and skill
-          approvals in their repositories.
+          them to create organization metadata, MCP server approvals, skill
+          approvals, and plugin approvals in their repositories.
         </p>
         <table className="w-full text-sm mt-3">
           <thead>
@@ -151,6 +152,21 @@ export function ApiDocsPage() {
               </td>
               <td className="py-2">Agent Skill approval file</td>
             </tr>
+            <tr className="border-b border-border">
+              <td className="py-2 pr-3">
+                <a
+                  href={`${BASE_URL}schemas/plugin-approval.schema.json`}
+                  className="text-primary hover:underline"
+                >
+                  <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
+                    plugin-approval.schema.json
+                  </code>
+                </a>
+              </td>
+              <td className="py-2">
+                Agent Plugin (agent-plugins.org) approval file
+              </td>
+            </tr>
           </tbody>
         </table>
       </section>
@@ -166,7 +182,7 @@ export function ApiDocsPage() {
           <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
             tools/&lt;tool-id&gt;.json
           </code>{" "}
-          to display approved MCP servers and skills for that tool.
+          to display approved MCP servers, skills, and plugins for that tool.
         </p>
         <p className="mb-3 leading-relaxed">
           The registry data is updated whenever a vendor updates their

@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import {
   readFileSync,
   readdirSync,
@@ -183,8 +183,9 @@ export function discoverSkillPaths(
 
   let lsOutput: string;
   try {
-    lsOutput = execSync(
-      `git -C ${cloneDir} ls-tree --name-only HEAD ${treePath}/`,
+    lsOutput = execFileSync(
+      "git",
+      ["-C", cloneDir, "ls-tree", "--name-only", "HEAD", `${treePath}/`],
       { stdio: "pipe", encoding: "utf-8" },
     ).trim();
   } catch {
@@ -196,11 +197,16 @@ export function discoverSkillPaths(
   const children = lsOutput.split("\n").filter(Boolean);
   const skillPaths: string[] = [];
 
+  // childPath is a real file/directory name read out of the cloned repo, not
+  // vendor-approval-file content the schema can constrain — pass it as its
+  // own argv entry (execFileSync, no shell) so a maliciously-named folder in
+  // the source repo can't get command-substituted before git even runs.
   for (const childPath of children) {
     if (childPath.split("/").pop()!.startsWith(".")) continue;
     try {
-      const result = execSync(
-        `git -C ${cloneDir} ls-tree HEAD "${childPath}/SKILL.md"`,
+      const result = execFileSync(
+        "git",
+        ["-C", cloneDir, "ls-tree", "HEAD", `${childPath}/SKILL.md`],
         { stdio: "pipe", encoding: "utf-8" },
       ).trim();
       if (result) {

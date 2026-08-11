@@ -63,9 +63,50 @@ export interface Skill {
   approvals: SkillApproval[];
 }
 
+export interface PluginInstallConfig {
+  tool: string;
+  installUrl?: string;
+  config?: Record<string, unknown>;
+  instructions?: string;
+}
+
+export interface PluginApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: PluginInstallConfig[];
+}
+
+export interface ContainedSkill {
+  name: string;
+  description: string;
+  path: string;
+}
+
+export interface ContainedMcpServer {
+  name: string;
+  transport: string;
+}
+
+export interface Plugin {
+  pluginId: string;
+  name: string;
+  description: string;
+  version?: string;
+  author?: string;
+  homepage?: string;
+  keywords?: string[];
+  source: { url: string; path?: string };
+  contentHash: string;
+  containedSkills: ContainedSkill[];
+  containedMcpServers: ContainedMcpServer[];
+  approvals: PluginApproval[];
+}
+
 export interface RegistryData {
   organizations: Organization[];
   tools: Tool[];
   mcp: McpServer[];
   skills: Skill[];
+  plugins: Plugin[];
 }

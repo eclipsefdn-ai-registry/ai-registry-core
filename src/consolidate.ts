@@ -12,6 +12,11 @@ import { execSync } from "node:child_process";
 import { validateVendorFiles } from "./validate.js";
 import { lookupServer, type ServerLookupResult } from "./anthropic-registry.js";
 import { enrichSkillMetadata } from "./skill-source.js";
+import {
+  enrichPluginMetadata,
+  type ContainedSkill,
+  type ContainedMcpServer,
+} from "./plugin-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -37,6 +42,7 @@ interface OrganizationData {
     name: string;
     skillInstallUrlPrefix?: string;
     mcpInstallUrlPrefix?: string;
+    pluginInstallUrlPrefix?: string;
   }[];
   trusts?: {
     org: string;
@@ -72,6 +78,7 @@ export interface Tool {
   organizationId: string;
   skillInstallUrlPrefix?: string;
   mcpInstallUrlPrefix?: string;
+  pluginInstallUrlPrefix?: string;
 }
 
 export interface InstallConfig {
@@ -166,11 +173,49 @@ export interface SkillEntry {
   approvals: SkillApproval[];
 }
 
+export interface PluginInstallConfig {
+  tool: string;
+  installUrl?: string;
+  config?: Record<string, unknown>;
+  instructions?: string;
+}
+
+export interface PluginApprovalData {
+  pluginId: string;
+  date: string;
+  source: { url: string; path?: string };
+  installConfigs?: PluginInstallConfig[];
+}
+
+export interface PluginApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: PluginInstallConfig[];
+  // installConfigs is always present in output (defaults to [])
+}
+
+export interface PluginEntry {
+  pluginId: string;
+  name: string;
+  description: string;
+  version?: string;
+  author?: string;
+  homepage?: string;
+  keywords?: string[];
+  source: { url: string; path?: string };
+  contentHash: string;
+  containedSkills: ContainedSkill[];
+  containedMcpServers: ContainedMcpServer[];
+  approvals: PluginApproval[];
+}
+
 export interface ConsolidatedOutput {
   organizations: Organization[];
   tools: Tool[];
   mcp: McpEntry[];
   skills: SkillEntry[];
+  plugins: PluginEntry[];
 }
 
 // --- Pure logic (testable) ---
@@ -191,6 +236,7 @@ export function addOrganization(
       organizationId: orgData.id,
       skillInstallUrlPrefix: tool.skillInstallUrlPrefix,
       mcpInstallUrlPrefix: tool.mcpInstallUrlPrefix,
+      pluginInstallUrlPrefix: tool.pluginInstallUrlPrefix,
     });
   }
 
@@ -402,20 +448,44 @@ export function resolveVendorMetadata(entry: McpEntry): void {
   }
 }
 
-export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
-  return servers
-    .filter((server) =>
-      server.approvals.some((a) =>
+interface HasInstallConfigs {
+  installConfigs: { tool: string }[];
+}
+
+interface HasApprovals<A extends HasInstallConfigs> {
+  approvals: A[];
+}
+
+// Filters entries to those with an approval targeting toolId, then strips
+// other tools' installConfigs from what's left. The `as E` below is needed
+// because TS can't verify a generic spread-and-override reproduces exactly
+// E's shape — safe here since the only field touched, `approvals`, is
+// pinned to A[] by the HasApprovals<A> constraint, so the override always
+// produces an object structurally compatible with E.
+function buildToolEntryView<
+  A extends HasInstallConfigs,
+  E extends HasApprovals<A>,
+>(toolId: string, entries: E[]): E[] {
+  return entries
+    .filter((entry) =>
+      entry.approvals.some((a) =>
         a.installConfigs.some((ic) => ic.tool === toolId),
       ),
     )
-    .map((server) => ({
-      ...server,
-      approvals: server.approvals.map((a) => ({
-        ...a,
-        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
-      })),
-    }));
+    .map(
+      (entry) =>
+        ({
+          ...entry,
+          approvals: entry.approvals.map((a) => ({
+            ...a,
+            installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
+          })),
+        }) as E,
+    );
+}
+
+export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
+  return buildToolEntryView(toolId, servers);
 }
 
 export function addSkillApproval(
@@ -450,6 +520,78 @@ export function addSkillApproval(
     installConfigs: approvalData.installConfigs ?? [],
   };
   skillEntry.approvals.push(approval);
+}
+
+export function addPluginApproval(
+  approvalData: PluginApprovalData,
+  organizationId: string,
+  output: ConsolidatedOutput,
+): void {
+  let pluginEntry = output.plugins.find(
+    (p) => p.pluginId === approvalData.pluginId,
+  );
+  if (!pluginEntry) {
+    pluginEntry = {
+      pluginId: approvalData.pluginId,
+      name: approvalData.pluginId,
+      description: "",
+      source: approvalData.source,
+      contentHash: "",
+      containedSkills: [],
+      containedMcpServers: [],
+      approvals: [],
+    };
+    output.plugins.push(pluginEntry);
+  } else if (
+    pluginEntry.source.url !== approvalData.source.url ||
+    pluginEntry.source.path !== approvalData.source.path
+  ) {
+    // First-collected vendor's source wins. Mirrors resolveVendorMetadata's
+    // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a
+    // genuine mismatch between vendors' claims is surfaced, not hidden,
+    // but doesn't fail the shared build.
+    console.warn(
+      `  WARNING: plugin "${approvalData.pluginId}" approved with a different source by "${organizationId}" — using "${pluginEntry.approvals[0]?.organizationId}"'s (first collected)`,
+    );
+  }
+
+  const configHash = createHash("sha256")
+    .update(JSON.stringify(approvalData))
+    .digest("hex")
+    .slice(0, 12);
+
+  // Plugin IDs never change after this point (no glob/multi-path expansion,
+  // unlike skills), so the prefix can be resolved right here rather than in
+  // a separate post-enrichment pass — mirroring addApproval's inline
+  // resolvedMcpConfigs above rather than skills' resolveSkillInstallUrls.
+  const resolvedInstallConfigs = (approvalData.installConfigs ?? []).map(
+    (cfg) => {
+      if (cfg.installUrl) return cfg;
+      const tool = output.tools.find((t) => t.id === cfg.tool);
+      if (tool?.pluginInstallUrlPrefix) {
+        return {
+          ...cfg,
+          installUrl: tool.pluginInstallUrlPrefix + approvalData.pluginId,
+        };
+      }
+      return cfg;
+    },
+  );
+
+  const approval: PluginApproval = {
+    organizationId,
+    date: approvalData.date,
+    configHash,
+    installConfigs: resolvedInstallConfigs,
+  };
+  pluginEntry.approvals.push(approval);
+}
+
+export function buildToolPluginView(
+  toolId: string,
+  plugins: PluginEntry[],
+): PluginEntry[] {
+  return buildToolEntryView(toolId, plugins);
 }
 
 // Splits skill trust entries into those referencing a registered vendor and
@@ -605,19 +747,7 @@ export function buildToolSkillView(
   toolId: string,
   skills: SkillEntry[],
 ): SkillEntry[] {
-  return skills
-    .filter((skill) =>
-      skill.approvals.some((a) =>
-        a.installConfigs.some((ic) => ic.tool === toolId),
-      ),
-    )
-    .map((skill) => ({
-      ...skill,
-      approvals: skill.approvals.map((a) => ({
-        ...a,
-        installConfigs: a.installConfigs.filter((ic) => ic.tool === toolId),
-      })),
-    }));
+  return buildToolEntryView(toolId, skills);
 }
 
 // --- Step 1: Collect vendor data (I/O + validation, no network) ---
@@ -702,6 +832,11 @@ function collectVendorData(
     addSkillApproval(data as SkillApprovalData, vendorId, output);
     console.log(`  Collected skill: ${data.skillId}`);
   }
+
+  for (const { data } of result.pluginApprovals) {
+    addPluginApproval(data as PluginApprovalData, vendorId, output);
+    console.log(`  Collected plugin: ${data.pluginId}`);
+  }
 }
 
 // --- Step 2: Enrich with Anthropic registry metadata (network, can fail systemically) ---
@@ -760,6 +895,7 @@ function writeOutput(output: ConsolidatedOutput): void {
     writeJson(toolPath, {
       mcp: buildToolView(tool.id, output.mcp),
       skills: buildToolSkillView(tool.id, output.skills),
+      plugins: buildToolPluginView(tool.id, output.plugins),
     });
     console.log(`Written: ${toolPath}`);
   }
@@ -768,6 +904,7 @@ function writeOutput(output: ConsolidatedOutput): void {
   console.log(`  Tools: ${output.tools.length}`);
   console.log(`  MCP servers: ${output.mcp.length}`);
   console.log(`  Skills: ${output.skills.length}`);
+  console.log(`  Plugins: ${output.plugins.length}`);
 }
 
 // --- Main ---
@@ -781,6 +918,7 @@ export async function main(): Promise<void> {
     tools: [],
     mcp: [],
     skills: [],
+    plugins: [],
   };
   const skillTrusts: SkillTrustEntry[] = [];
   const mcpTrusts: McpTrustEntry[] = [];
@@ -866,8 +1004,12 @@ export async function main(): Promise<void> {
     seenSkillIds.add(skill.skillId);
   }
 
+  // Step 2c: Enrich plugins with source metadata (skips unreachable sources)
+  output.plugins = enrichPluginMetadata(output.plugins);
+
   // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));
   output.skills.sort((a, b) => a.skillId.localeCompare(b.skillId));
+  output.plugins.sort((a, b) => a.pluginId.localeCompare(b.pluginId));
   writeOutput(output);
 }

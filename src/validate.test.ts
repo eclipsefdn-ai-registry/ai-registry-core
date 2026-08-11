@@ -1,12 +1,18 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   checkToolIds,
   checkTrustedOrgIds,
   validateVendorData,
+  validateVendorFiles,
   validateApproval,
   validateOrganization,
+  validatePluginApproval,
   type SkillApprovalEntry,
+  type PluginApprovalEntry,
 } from "./validate.js";
 
 // --- checkTrustedOrgIds ---
@@ -119,13 +125,17 @@ describe("validateVendorData", () => {
   });
 
   it("fails when org id does not match expected vendor id", () => {
-    const result = validateVendorData(validOrg, [], "wrong-id");
+    const result = validateVendorData(validOrg, [], {
+      expectedVendorId: "wrong-id",
+    });
     assert.equal(result.valid, false);
     assert.ok(result.errors[0].includes("does not match vendor id"));
   });
 
   it("passes when expected vendor id matches", () => {
-    const result = validateVendorData(validOrg, [], "test-vendor");
+    const result = validateVendorData(validOrg, [], {
+      expectedVendorId: "test-vendor",
+    });
     assert.equal(result.valid, true);
   });
 
@@ -305,241 +315,504 @@ function skillApproval(skillId = "io.example/my-skill"): SkillApprovalEntry {
 
 describe("validateVendorData — skill approvals", () => {
   it("passes for valid org with skill approvals", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      skillApproval(),
-    ]);
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [skillApproval()],
+    });
     assert.equal(result.valid, true);
     assert.equal(result.errors.length, 0);
     assert.equal(result.skillApprovals.length, 1);
   });
 
   it("passes with both MCP and skill approvals", () => {
-    const result = validateVendorData(validOrg, [approval()], undefined, [
-      skillApproval(),
-    ]);
+    const result = validateVendorData(validOrg, [approval()], {
+      skillApprovals: [skillApproval()],
+    });
     assert.equal(result.valid, true);
     assert.equal(result.approvals.length, 1);
     assert.equal(result.skillApprovals.length, 1);
   });
 
   it("fails when skill approval fails schema validation", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      { file: "bad.json", data: { skillId: "x" } as never },
-    ]);
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [{ file: "bad.json", data: { skillId: "x" } as never }],
+    });
     assert.equal(result.valid, false);
   });
 
   it("fails on duplicate skillId across skill approvals", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      skillApproval("io.example/my-skill"),
-      {
-        file: "io.example--my-skill-copy.json",
-        data: {
-          skillId: "io.example/my-skill",
-          date: "2026-06-02",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: "skills/my-skill",
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        skillApproval("io.example/my-skill"),
+        {
+          file: "io.example--my-skill-copy.json",
+          data: {
+            skillId: "io.example/my-skill",
+            date: "2026-06-02",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: "skills/my-skill",
+            },
+            installConfigs: [{ tool: "test-tool" }],
           },
-          installConfigs: [{ tool: "test-tool" }],
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("duplicate approval")));
   });
 
   it("fails when tool ID in skill approval is not in organization", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example--my-skill.json",
-        data: {
-          skillId: "io.example/my-skill",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: "skills/my-skill",
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example--my-skill.json",
+          data: {
+            skillId: "io.example/my-skill",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: "skills/my-skill",
+            },
+            installConfigs: [{ tool: "nonexistent-tool" }],
           },
-          installConfigs: [{ tool: "nonexistent-tool" }],
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("nonexistent-tool")));
   });
 
   it("warns on skill filename mismatch", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "wrong-name.json",
-        data: {
-          skillId: "io.example/my-skill",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: "skills/my-skill",
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "wrong-name.json",
+          data: {
+            skillId: "io.example/my-skill",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: "skills/my-skill",
+            },
+            installConfigs: [{ tool: "test-tool" }],
           },
-          installConfigs: [{ tool: "test-tool" }],
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, true);
     assert.ok(result.warnings.some((w) => w.includes("filename should be")));
   });
 
   it("passes for skill approval without installConfigs", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example--my-skill.json",
-        data: {
-          skillId: "io.example/my-skill",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: "skills/my-skill",
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example--my-skill.json",
+          data: {
+            skillId: "io.example/my-skill",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: "skills/my-skill",
+            },
           },
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, true);
     assert.equal(result.skillApprovals.length, 1);
   });
 
-  it("backward compatible — works without skill approvals param", () => {
+  it("backward compatible — works without options", () => {
     const result = validateVendorData(validOrg, [approval()]);
     assert.equal(result.valid, true);
     assert.equal(result.skillApprovals.length, 0);
   });
 
   it("passes for skill approval with array path", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example.json",
-        data: {
-          skillId: "io.example",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: ["skills/a", "skills/b"],
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example.json",
+          data: {
+            skillId: "io.example",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: ["skills/a", "skills/b"],
+            },
           },
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, true);
     assert.equal(result.skillApprovals.length, 1);
   });
 
   it("passes for skill approval with glob path", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example.json",
-        data: {
-          skillId: "io.example",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: "skills/*",
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example.json",
+          data: {
+            skillId: "io.example",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: "skills/*",
+            },
           },
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, true);
     assert.equal(result.skillApprovals.length, 1);
   });
 
   it("fails for skill approval with empty path array", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example.json",
-        data: {
-          skillId: "io.example",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: [],
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example.json",
+          data: {
+            skillId: "io.example",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: [],
+            },
           },
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, false);
   });
 
   it("fails when multi-path skillId contains /", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example--bad.json",
-        data: {
-          skillId: "io.example/bad",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: ["skills/a", "skills/b"],
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example--bad.json",
+          data: {
+            skillId: "io.example/bad",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: ["skills/a", "skills/b"],
+            },
           },
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("must not contain")));
   });
 
   it("fails when glob-path skillId contains /", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example--bad.json",
-        data: {
-          skillId: "io.example/bad",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: "skills/*",
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example--bad.json",
+          data: {
+            skillId: "io.example/bad",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: "skills/*",
+            },
           },
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("must not contain")));
   });
 
   it("fails when a multi-path source sets an explicit installUrl", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example.json",
-        data: {
-          skillId: "io.example",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: "skills/*",
-          },
-          installConfigs: [
-            {
-              tool: "test-tool",
-              installUrl: "test-tool://install?id=io.example",
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example.json",
+          data: {
+            skillId: "io.example",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: "skills/*",
             },
-          ],
+            installConfigs: [
+              {
+                tool: "test-tool",
+                installUrl: "test-tool://install?id=io.example",
+              },
+            ],
+          },
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("explicit installUrl")));
   });
 
   it("allows a multi-path source with prefix-based installConfigs", () => {
-    const result = validateVendorData(validOrg, [], undefined, [
-      {
-        file: "io.example.json",
-        data: {
-          skillId: "io.example",
-          date: "2026-06-01",
-          source: {
-            url: "https://github.com/example/skills.git",
-            path: ["skills/a", "skills/b"],
+    const result = validateVendorData(validOrg, [], {
+      skillApprovals: [
+        {
+          file: "io.example.json",
+          data: {
+            skillId: "io.example",
+            date: "2026-06-01",
+            source: {
+              url: "https://github.com/example/skills.git",
+              path: ["skills/a", "skills/b"],
+            },
+            installConfigs: [{ tool: "test-tool" }],
           },
-          installConfigs: [{ tool: "test-tool" }],
         },
-      },
-    ]);
+      ],
+    });
     assert.equal(result.valid, true);
+  });
+});
+
+// --- Plugin approval validation ---
+
+function pluginApproval(
+  pluginId = "io.example/my-plugin",
+): PluginApprovalEntry {
+  return {
+    file: pluginId.replace(/\//g, "--") + ".json",
+    data: {
+      pluginId,
+      date: "2026-08-01",
+      source: {
+        url: "https://github.com/example/plugins.git",
+        path: "plugins/my-plugin",
+      },
+      installConfigs: [{ tool: "test-tool" }],
+    },
+  };
+}
+
+describe("validatePluginApproval — source.path pattern", () => {
+  function pluginApprovalData(path: string) {
+    return {
+      pluginId: "io.example/my-plugin",
+      date: "2026-08-01",
+      source: {
+        url: "https://github.com/example/plugins.git",
+        path,
+      },
+    };
+  }
+
+  it("accepts a normal relative path", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData("plugins/my-plugin"),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a single path segment", () => {
+    const result = validatePluginApproval(pluginApprovalData("my-plugin"));
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a path with a shell command separator", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData("plugin; rm -rf /"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a path with a space", () => {
+    const result = validatePluginApproval(pluginApprovalData("my plugin"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a path with a backtick", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData("plugin`touch /tmp/x`"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a path with a dollar sign", () => {
+    const result = validatePluginApproval(pluginApprovalData("$(whoami)"));
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts a dot-prefixed path segment", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData(".claude/plugins/foo"),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a dot-prefixed segment in the middle of the path", () => {
+    const result = validatePluginApproval(pluginApprovalData("a/.claude/b"));
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a path traversal segment", () => {
+    const result = validatePluginApproval(pluginApprovalData("a/../b"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a lone dot segment", () => {
+    const result = validatePluginApproval(pluginApprovalData("a/./b"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a double slash (empty segment)", () => {
+    const result = validatePluginApproval(pluginApprovalData("a//b"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a bare double-dot path", () => {
+    const result = validatePluginApproval(pluginApprovalData(".."));
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts a literal name that merely starts with two dots", () => {
+    const result = validatePluginApproval(pluginApprovalData("..hidden"));
+    assert.equal(result.valid, true);
+  });
+});
+
+describe("validateVendorData — plugin approvals", () => {
+  it("passes for valid org with plugin approvals", () => {
+    const result = validateVendorData(validOrg, [], {
+      pluginApprovals: [pluginApproval()],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("passes with MCP, skill, and plugin approvals together", () => {
+    const result = validateVendorData(validOrg, [approval()], {
+      skillApprovals: [skillApproval()],
+      pluginApprovals: [pluginApproval()],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.approvals.length, 1);
+    assert.equal(result.skillApprovals.length, 1);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("fails when plugin approval fails schema validation", () => {
+    const result = validateVendorData(validOrg, [], {
+      pluginApprovals: [{ file: "bad.json", data: { pluginId: "x" } as never }],
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("fails on duplicate pluginId across plugin approvals", () => {
+    const result = validateVendorData(validOrg, [], {
+      pluginApprovals: [
+        pluginApproval("io.example/my-plugin"),
+        {
+          file: "io.example--my-plugin-copy.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-02",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+            installConfigs: [{ tool: "test-tool" }],
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("duplicate approval")));
+  });
+
+  it("fails when tool ID in plugin approval is not in organization", () => {
+    const result = validateVendorData(validOrg, [], {
+      pluginApprovals: [
+        {
+          file: "io.example--my-plugin.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+            installConfigs: [{ tool: "nonexistent-tool" }],
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("nonexistent-tool")));
+  });
+
+  it("warns on plugin filename mismatch", () => {
+    const result = validateVendorData(validOrg, [], {
+      pluginApprovals: [
+        {
+          file: "wrong-name.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+            installConfigs: [{ tool: "test-tool" }],
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+    assert.ok(result.warnings.some((w) => w.includes("filename should be")));
+  });
+
+  it("passes for plugin approval without installConfigs", () => {
+    const result = validateVendorData(validOrg, [], {
+      pluginApprovals: [
+        {
+          file: "io.example--my-plugin.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: {
+              url: "https://github.com/example/plugins.git",
+              path: "plugins/my-plugin",
+            },
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("passes for plugin approval without a path (plugin at repo root)", () => {
+    const result = validateVendorData(validOrg, [], {
+      pluginApprovals: [
+        {
+          file: "io.example--my-plugin.json",
+          data: {
+            pluginId: "io.example/my-plugin",
+            date: "2026-08-01",
+            source: { url: "https://github.com/example/my-plugin.git" },
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.pluginApprovals.length, 1);
+  });
+
+  it("backward compatible — works without options", () => {
+    const result = validateVendorData(validOrg, [approval()]);
+    assert.equal(result.valid, true);
+    assert.equal(result.pluginApprovals.length, 0);
   });
 });
 
@@ -661,6 +934,38 @@ describe("validateApproval — root config and derived marker", () => {
   });
 });
 
+// --- validateOrganization — tools[].pluginInstallUrlPrefix ---
+
+describe("validateOrganization — tools[].pluginInstallUrlPrefix", () => {
+  it("accepts a tool with pluginInstallUrlPrefix", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      tools: [
+        {
+          id: "theia-ide",
+          name: "Theia IDE",
+          pluginInstallUrlPrefix: "theia://install-plugin?id=",
+        },
+      ],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("still accepts a tool without pluginInstallUrlPrefix", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      tools: [{ id: "theia-ide", name: "Theia IDE" }],
+    });
+    assert.equal(result.valid, true);
+  });
+});
+
 // --- validateOrganization — trusts.artifactTypes.mcp ---
 
 describe("validateOrganization — trusts.artifactTypes.mcp", () => {
@@ -695,5 +1000,97 @@ describe("validateOrganization — trusts.artifactTypes.mcp", () => {
       trusts: [{ org: "eclipsesource", artifactTypes: { bogus: {} } }],
     });
     assert.equal(result.valid, false);
+  });
+});
+
+// --- validateVendorFiles ---
+//
+// validateVendorData (above) is exercised directly everywhere else in this
+// file with in-memory approval arrays and never touches disk, so this is
+// the only place the mcp/, skills/, and plugins/ directory-read branches in
+// validateVendorFiles are covered. One fixture vendor dir covers all three.
+
+describe("validateVendorFiles", () => {
+  function makeFixtureVendor(withApprovals: boolean): string {
+    const dir = mkdtempSync(join(tmpdir(), "vendor-fixture-"));
+    writeFileSync(
+      join(dir, "organization.json"),
+      JSON.stringify({
+        id: "acme",
+        name: "Acme",
+        description: "Test vendor",
+        website: "https://acme.com",
+        tools: [{ id: "test-tool", name: "Test Tool" }],
+      }),
+    );
+
+    if (withApprovals) {
+      mkdirSync(join(dir, "mcp"));
+      writeFileSync(
+        join(dir, "mcp", "io.example--server.json"),
+        JSON.stringify({
+          serverId: "io.example/server",
+          date: "2026-05-01",
+          installConfigs: [{ tool: "test-tool" }],
+        }),
+      );
+
+      mkdirSync(join(dir, "skills"));
+      writeFileSync(
+        join(dir, "skills", "io.example--skill.json"),
+        JSON.stringify({
+          skillId: "io.example/skill",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/skills.git",
+            path: "skills/skill",
+          },
+        }),
+      );
+
+      mkdirSync(join(dir, "plugins"));
+      writeFileSync(
+        join(dir, "plugins", "io.example--plugin.json"),
+        JSON.stringify({
+          pluginId: "io.example/plugin",
+          date: "2026-08-01",
+          source: { url: "https://github.com/example/plugin.git" },
+        }),
+      );
+    }
+
+    return dir;
+  }
+
+  it("reads and validates mcp/, skills/, and plugins/ directories from disk", () => {
+    const dir = makeFixtureVendor(true);
+    try {
+      const result = validateVendorFiles(dir);
+      assert.equal(result.valid, true);
+      assert.equal(result.approvals.length, 1);
+      assert.equal(result.approvals[0].data.serverId, "io.example/server");
+      assert.equal(result.skillApprovals.length, 1);
+      assert.equal(result.skillApprovals[0].data.skillId, "io.example/skill");
+      assert.equal(result.pluginApprovals.length, 1);
+      assert.equal(
+        result.pluginApprovals[0].data.pluginId,
+        "io.example/plugin",
+      );
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("returns valid empty results when mcp/, skills/, and plugins/ are absent", () => {
+    const dir = makeFixtureVendor(false);
+    try {
+      const result = validateVendorFiles(dir);
+      assert.equal(result.valid, true);
+      assert.equal(result.approvals.length, 0);
+      assert.equal(result.skillApprovals.length, 0);
+      assert.equal(result.pluginApprovals.length, 0);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
   });
 });
