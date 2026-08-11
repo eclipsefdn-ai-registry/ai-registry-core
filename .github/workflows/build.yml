@@ -42,9 +42,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.VENDOR_REPOS_READ_TOKEN }}
 
-      - name: Install website dependencies
-        run: npm run website:install
-
       - name: Setup Pages
         if: github.event_name != 'pull_request'
         id: pages
