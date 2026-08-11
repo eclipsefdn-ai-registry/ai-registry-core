@@ -151,56 +151,65 @@ function clonePluginRepo(
     `plugin-${pluginCloneKey(sourceUrl, pluginPath)}`,
   );
 
-  const token = process.env.GH_TOKEN;
-  const repoUrl = token
-    ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
-    : sourceUrl;
+  // cloneDir is keyed on url+path, so two entries reaching this point with
+  // the same key (e.g. two different pluginIds that cite the identical
+  // source) would otherwise both try to clone into the same directory —
+  // the second one hits a non-empty dir and throws. Skip re-cloning if it's
+  // already there; the key guarantees it already has exactly the right
+  // content checked out. Mirrors skill-source.ts's cloneSkillFolder guard.
+  if (!existsSync(cloneDir)) {
+    const token = process.env.GH_TOKEN;
+    const repoUrl = token
+      ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
+      : sourceUrl;
 
-  try {
-    execFileSync(
-      "git",
-      [
-        "clone",
-        "--depth",
-        "1",
-        "--filter=blob:none",
-        "--sparse",
-        repoUrl,
-        cloneDir,
-      ],
-      { stdio: "pipe" },
-    );
-  } catch {
-    throw new Error(`Failed to clone ${sourceUrl}`);
-  }
-
-  // Unlike a skill source (a single SKILL.md file at the target path), a
-  // plugin needs its whole directory subtree (skills/**, mcp.json)
-  // materialized — narrow the sparse-checkout cone to that subtree. For a
-  // repo-root plugin, "sparse-checkout set ." is NOT equivalent to checking
-  // out everything — in cone mode it only materializes root-level files, not
-  // subdirectories — so disable sparse-checkout entirely instead to get the
-  // full repo.
-  //
-  // pluginPath comes from a vendor-supplied approval file — pass it as its
-  // own argv entry (execFileSync, no shell) rather than interpolating into a
-  // shell string, so a path like "a; rm -rf /" can't execute anything.
-  try {
-    if (pluginPath) {
+    try {
       execFileSync(
         "git",
-        ["-C", cloneDir, "sparse-checkout", "set", pluginPath],
+        [
+          "clone",
+          "--depth",
+          "1",
+          "--filter=blob:none",
+          "--sparse",
+          repoUrl,
+          cloneDir,
+        ],
         { stdio: "pipe" },
       );
-    } else {
-      execFileSync("git", ["-C", cloneDir, "sparse-checkout", "disable"], {
-        stdio: "pipe",
-      });
+    } catch {
+      throw new Error(`Failed to clone ${sourceUrl}`);
     }
-  } catch {
-    throw new Error(
-      `Failed to check out plugin contents ${pluginPath ? `at path "${pluginPath}" ` : ""}in ${sourceUrl}`,
-    );
+
+    // Unlike a skill source (a single SKILL.md file at the target path), a
+    // plugin needs its whole directory subtree (skills/**, mcp.json)
+    // materialized — narrow the sparse-checkout cone to that subtree. For a
+    // repo-root plugin, "sparse-checkout set ." is NOT equivalent to
+    // checking out everything — in cone mode it only materializes
+    // root-level files, not subdirectories — so disable sparse-checkout
+    // entirely instead to get the full repo.
+    //
+    // pluginPath comes from a vendor-supplied approval file — pass it as
+    // its own argv entry (execFileSync, no shell) rather than interpolating
+    // into a shell string, so a path like "a; rm -rf /" can't execute
+    // anything.
+    try {
+      if (pluginPath) {
+        execFileSync(
+          "git",
+          ["-C", cloneDir, "sparse-checkout", "set", pluginPath],
+          { stdio: "pipe" },
+        );
+      } else {
+        execFileSync("git", ["-C", cloneDir, "sparse-checkout", "disable"], {
+          stdio: "pipe",
+        });
+      }
+    } catch {
+      throw new Error(
+        `Failed to check out plugin contents ${pluginPath ? `at path "${pluginPath}" ` : ""}in ${sourceUrl}`,
+      );
+    }
   }
 
   return {
