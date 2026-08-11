@@ -34,5 +34,9 @@
   {
     "id": "gitlab",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-gitlab.git"
+  },
+  {
+    "id": "github",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-github.git"
   }
 ]
