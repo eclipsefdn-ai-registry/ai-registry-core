@@ -641,6 +641,43 @@ describe("validatePluginApproval — source.path pattern", () => {
     const result = validatePluginApproval(pluginApprovalData("$(whoami)"));
     assert.equal(result.valid, false);
   });
+
+  it("accepts a dot-prefixed path segment", () => {
+    const result = validatePluginApproval(
+      pluginApprovalData(".claude/plugins/foo"),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a dot-prefixed segment in the middle of the path", () => {
+    const result = validatePluginApproval(pluginApprovalData("a/.claude/b"));
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a path traversal segment", () => {
+    const result = validatePluginApproval(pluginApprovalData("a/../b"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a lone dot segment", () => {
+    const result = validatePluginApproval(pluginApprovalData("a/./b"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a double slash (empty segment)", () => {
+    const result = validatePluginApproval(pluginApprovalData("a//b"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a bare double-dot path", () => {
+    const result = validatePluginApproval(pluginApprovalData(".."));
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts a literal name that merely starts with two dots", () => {
+    const result = validatePluginApproval(pluginApprovalData("..hidden"));
+    assert.equal(result.valid, true);
+  });
 });
 
 describe("validateVendorData — plugin approvals", () => {

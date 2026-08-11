@@ -31,8 +31,8 @@
         "path": {
           "type": "string",
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-9])?$",
-          "description": "Path within the repository to the plugin folder (containing plugin.json). Omit if the plugin is at the repository root. Restricted to safe path characters — no whitespace or shell metacharacters — since this value is passed to a git sparse-checkout command during consolidation."
+          "pattern": "^(?!\\.\\.?(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.\\.?(?:/|$))[A-Za-z0-9._-]+)*$",
+          "description": "Path within the repository to the plugin folder (containing plugin.json). Omit if the plugin is at the repository root. Restricted to safe path characters (no whitespace or shell metacharacters, since this value is passed to a git sparse-checkout command during consolidation) and no '.' or '..' path segments (no traversal, no empty segments from a double slash). A segment may still start with a dot otherwise (e.g. '.claude/plugins/foo')."
         }
       }
     },
