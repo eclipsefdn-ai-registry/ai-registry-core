@@ -26,5 +26,9 @@
   {
     "id": "jetbrains",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-jetbrains.git"
+  },
+  {
+    "id": "atlassian",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-atlassian.git"
   }
 ]
