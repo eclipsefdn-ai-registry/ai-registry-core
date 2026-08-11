@@ -5,6 +5,7 @@ import {
   parseMcpServers,
   normalizePluginPath,
   pluginCloneKey,
+  stripPathPrefix,
 } from "./plugin-source.js";
 
 // --- normalizePluginPath ---
@@ -35,6 +36,33 @@ describe("normalizePluginPath", () => {
 
   it("returns undefined unchanged", () => {
     assert.equal(normalizePluginPath(undefined), undefined);
+  });
+});
+
+// --- stripPathPrefix ---
+
+describe("stripPathPrefix", () => {
+  it("strips a simple single-segment prefix", () => {
+    assert.equal(
+      stripPathPrefix("my-plugin/skills/alpha", "my-plugin"),
+      "skills/alpha",
+    );
+  });
+
+  it("strips a nested prefix", () => {
+    assert.equal(
+      stripPathPrefix("plugins/my-plugin/skills/alpha", "plugins/my-plugin"),
+      "skills/alpha",
+    );
+  });
+
+  it("is robust to a stray double slash in the prefix", () => {
+    // A string-length-based slice would be off by one here — the prefix
+    // string is longer than the segment count it actually represents.
+    assert.equal(
+      stripPathPrefix("sub/pluginC/skills/gamma", "sub//pluginC"),
+      "skills/gamma",
+    );
   });
 });
 

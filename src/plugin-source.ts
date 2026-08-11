@@ -112,6 +112,17 @@ export function normalizePluginPath(
   return path?.replace(/\/+$/, "");
 }
 
+// Strips a prefix by segment count rather than string length. git's pathspec
+// matching (ls-tree) effectively canonicalizes the path it's given — a raw,
+// uncanonicalized prefix (e.g. containing a stray double slash) is longer or
+// shorter than the canonical form actually present in the paths it returns,
+// so a length-based slice cuts off the wrong number of characters. Counting
+// segments (ignoring empty ones from a stray "//") is robust to that.
+export function stripPathPrefix(fullPath: string, prefix: string): string {
+  const prefixSegments = prefix.split("/").filter(Boolean).length;
+  return fullPath.split("/").slice(prefixSegments).join("/");
+}
+
 // --- Plugin source fetching ---
 
 // Keyed on url + path, not url alone: two plugin approvals pointing at
@@ -231,7 +242,7 @@ export function fetchPluginManifest(
     return {
       name: name || path.split("/").pop()!,
       description,
-      path: sourcePath ? path.slice(sourcePath.length + 1) : path,
+      path: sourcePath ? stripPathPrefix(path, sourcePath) : path,
     };
   });
 
