@@ -120,7 +120,7 @@ export function AboutPage() {
           </li>
           <li>
             <Link to="/docs/clients" className="text-primary hover:underline">
-              Implement a registry client
+              Implement an AI Registry client
             </Link>
           </li>
         </ul>

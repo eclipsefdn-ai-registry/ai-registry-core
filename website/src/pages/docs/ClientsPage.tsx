@@ -48,7 +48,9 @@ function Checklist({
 export function ClientsPage() {
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Implement a registry client</h1>
+      <h1 className="text-2xl font-bold mb-6">
+        Implement an AI Registry client
+      </h1>
 
       <div className="mb-8">
         <ApiPreviewNotice />

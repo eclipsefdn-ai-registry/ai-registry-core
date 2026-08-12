@@ -121,7 +121,7 @@ export function ApiPage() {
           A tool integration fetches <InlineCode>organizations.json</InlineCode>{" "}
           plus its own <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode>. See{" "}
           <Link to="/docs/clients" className="text-primary hover:underline">
-            Clients
+            client implementation guidance
           </Link>{" "}
           for what to do with them.
         </p>

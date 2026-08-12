@@ -36,8 +36,8 @@ const router = createBrowserRouter(
             { path: "clients", element: <ClientsPage /> },
           ],
         },
-        // The API docs were published at /api-docs before the docs section
-        // existed, and the registry is public — keep the old path working.
+        // /api-docs is a published URL for a public registry, so it redirects
+        // to its replacement rather than 404ing.
         { path: "api-docs", element: <Navigate to="/docs/api" replace /> },
         { path: "terms", element: <TermsPage /> },
         { path: "*", element: <NotFoundPage /> },
