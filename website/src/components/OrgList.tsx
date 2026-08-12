@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ChevronRight } from "lucide-react";
 import type {
   Organization,
   McpServer,
@@ -117,6 +118,13 @@ export function OrgList({
                 {approvalCount} approval{approvalCount !== 1 ? "s" : ""}
               </span>
             </div>
+            <Link
+              to={`/orgs/${org.id}`}
+              className="inline-flex items-center text-sm font-medium text-primary mt-4 no-underline"
+            >
+              View approved artifacts
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Link>
           </div>
         );
       })}

@@ -91,3 +91,56 @@ export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
 
   return { data, error, loading, notFound };
 }
+
+interface OrgRegistryDataResult extends RegistryDataResult {
+  notFound: boolean;
+}
+
+// Same shape as ToolData: the per-org file carries full, unstripped install
+// configs (see buildOrgEntryView), so no separate type is needed.
+type OrgData = ToolData;
+
+export function useOrgRegistryData(orgId: string): OrgRegistryDataResult {
+  const [data, setData] = useState<RegistryData | undefined>();
+  const [error, setError] = useState<string | undefined>();
+  const [notFound, setNotFound] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL + "api/v1/";
+
+    Promise.all([
+      fetch(base + "orgs/" + encodeURIComponent(orgId) + ".json"),
+      fetch(base + "organizations.json"),
+    ])
+      .then(async ([orgRes, orgsRes]) => {
+        if (orgRes.status === 404) {
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        if (!orgRes.ok) throw new Error(`HTTP ${orgRes.status}`);
+        if (!orgsRes.ok)
+          throw new Error(`HTTP ${orgsRes.status} loading organizations`);
+
+        const orgData = (await orgRes.json()) as OrgData;
+        const orgsData = (await orgsRes.json()) as OrgsData;
+
+        setData({
+          organizations: orgsData.organizations,
+          tools: orgsData.tools,
+          mcp: orgData.mcp,
+          skills: orgData.skills ?? [],
+          plugins: orgData.plugins ?? [],
+          agents: orgData.agents ?? [],
+        });
+        setLoading(false);
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : String(e));
+        setLoading(false);
+      });
+  }, [orgId]);
+
+  return { data, error, loading, notFound };
+}

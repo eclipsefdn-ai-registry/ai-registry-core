@@ -81,8 +81,8 @@ export function ApiPage() {
                 </a>
               </td>
               <td className="py-2">
-                Every organization, tool, MCP server, skill, and plugin, with
-                approvals merged across all vendors.
+                Every organization, tool, MCP server, skill, plugin, and A2A
+                agent, with approvals merged across all vendors.
               </td>
             </tr>
             <tr className="border-b border-border align-top">
@@ -115,6 +115,57 @@ export function ApiPage() {
                 </a>
               </td>
             </tr>
+            <tr className="border-b border-border align-top">
+              <td className="py-2 pr-3">
+                <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode>
+              </td>
+              <td className="py-2">
+                Artifacts approved by one organization, across every tool, with
+                install configs kept in full. Example:{" "}
+                <a
+                  href={`${BASE_URL}api/v1/orgs/eclipsesource.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>eclipsesource.json</InlineCode>
+                </a>
+              </td>
+            </tr>
+            <tr className="border-b border-border align-top">
+              <td className="py-2 pr-3">
+                <a
+                  href={`${BASE_URL}api/v1/mcp.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>mcp.json</InlineCode>
+                </a>
+                ,{" "}
+                <a
+                  href={`${BASE_URL}api/v1/skills.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>skills.json</InlineCode>
+                </a>
+                ,{" "}
+                <a
+                  href={`${BASE_URL}api/v1/plugins.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>plugins.json</InlineCode>
+                </a>
+                ,{" "}
+                <a
+                  href={`${BASE_URL}api/v1/agents.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>agents.json</InlineCode>
+                </a>
+              </td>
+              <td className="py-2">
+                Every approved artifact of one type, across every tool, with
+                install configs kept in full. Each is a single-key object, e.g.{" "}
+                <InlineCode>{`{ "mcp": [ ... ] }`}</InlineCode>.
+              </td>
+            </tr>
           </tbody>
         </table>
         <p className="mt-4 mb-3 leading-relaxed">
@@ -129,16 +180,23 @@ export function ApiPage() {
 
       <DocsSection id="response-shapes">
         <p className="mb-3 leading-relaxed">
-          Every endpoint returns an object with the same five top-level keys.
-          The per-tool view carries the same shapes as{" "}
-          <InlineCode>all.json</InlineCode>, filtered.
+          <InlineCode>all.json</InlineCode>,{" "}
+          <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode>, and{" "}
+          <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> return an object
+          with the same six top-level keys, filtered. The per-type files (
+          <InlineCode>mcp.json</InlineCode>,{" "}
+          <InlineCode>skills.json</InlineCode>,{" "}
+          <InlineCode>plugins.json</InlineCode>,{" "}
+          <InlineCode>agents.json</InlineCode>) return a single one of those
+          keys.
         </p>
         <CodeBlock>{`{
   "organizations": [ ... ],
   "tools": [ ... ],
   "mcp": [ ... ],
   "skills": [ ... ],
-  "plugins": [ ... ]
+  "plugins": [ ... ],
+  "agents": [ ... ]
 }`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
           These shapes are produced by consolidation and differ from the
@@ -325,6 +383,40 @@ export function ApiPage() {
           ]}
         />
 
+        <FieldTable
+          caption="agents[]"
+          fields={[
+            { name: "agentId", type: "string", description: "Agent id." },
+            {
+              name: "name",
+              type: "string",
+              description: "Name from the A2A Agent Card.",
+            },
+            {
+              name: "description",
+              type: "string",
+              description: "Description from the A2A Agent Card.",
+            },
+            {
+              name: "source",
+              type: "object",
+              description:
+                "Direct URL to the agent's Agent Card JSON file. No path — the card is a single file, not a directory.",
+            },
+            {
+              name: "contentHash",
+              type: "string",
+              description:
+                "Hash of the Agent Card JSON as fetched, not of a directory — unlike skills' and plugins' contentHash.",
+            },
+            {
+              name: "approvals",
+              type: "array",
+              description: "One entry per approving organization.",
+            },
+          ]}
+        />
+
         <FieldTable caption="approvals[]" fields={APPROVAL_FIELDS} />
 
         <FieldTable
@@ -387,6 +479,7 @@ export function ApiPage() {
                 "plugin-approval.schema.json",
                 "Agent Plugin (agent-plugins.org) approval file",
               ],
+              ["agent-approval.schema.json", "A2A agent approval file"],
             ].map(([file, description]) => (
               <tr key={file} className="border-b border-border align-top">
                 <td className="py-2 pr-3">

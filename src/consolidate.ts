@@ -547,6 +547,24 @@ export function buildToolView(toolId: string, servers: McpEntry[]): McpEntry[] {
   return buildToolEntryView(toolId, servers);
 }
 
+interface HasOrganizationId {
+  organizationId: string;
+}
+
+// Unlike buildToolEntryView, install configs are never stripped: the org
+// whitelist view is meant to show everything an org approved, including
+// other orgs' approvals of the same artifact (e.g. "also approved by"), so
+// filtering to the matching org's approvals alone would throw that context
+// away for no benefit — nothing in installConfigs is org-specific.
+export function buildOrgEntryView<
+  A extends HasInstallConfigs & HasOrganizationId,
+  E extends HasApprovals<A>,
+>(orgId: string, entries: E[]): E[] {
+  return entries.filter((entry) =>
+    entry.approvals.some((a) => a.organizationId === orgId),
+  );
+}
+
 export function addSkillApproval(
   approvalData: SkillApprovalData,
   organizationId: string,
@@ -999,6 +1017,22 @@ function writeOutput(output: ConsolidatedOutput): void {
   });
   console.log(`Written: ${orgsPath}`);
 
+  const mcpPath = resolve(outputDir, "mcp.json");
+  writeJson(mcpPath, { mcp: output.mcp });
+  console.log(`Written: ${mcpPath}`);
+
+  const skillsPath = resolve(outputDir, "skills.json");
+  writeJson(skillsPath, { skills: output.skills });
+  console.log(`Written: ${skillsPath}`);
+
+  const pluginsPath = resolve(outputDir, "plugins.json");
+  writeJson(pluginsPath, { plugins: output.plugins });
+  console.log(`Written: ${pluginsPath}`);
+
+  const agentsPath = resolve(outputDir, "agents.json");
+  writeJson(agentsPath, { agents: output.agents });
+  console.log(`Written: ${agentsPath}`);
+
   const toolsDir = resolve(outputDir, "tools");
   mkdirSync(toolsDir, { recursive: true });
 
@@ -1011,6 +1045,20 @@ function writeOutput(output: ConsolidatedOutput): void {
       agents: buildToolAgentView(tool.id, output.agents),
     });
     console.log(`Written: ${toolPath}`);
+  }
+
+  const orgsDir = resolve(outputDir, "orgs");
+  mkdirSync(orgsDir, { recursive: true });
+
+  for (const org of output.organizations) {
+    const orgPath = resolve(orgsDir, `${org.id}.json`);
+    writeJson(orgPath, {
+      mcp: buildOrgEntryView(org.id, output.mcp),
+      skills: buildOrgEntryView(org.id, output.skills),
+      plugins: buildOrgEntryView(org.id, output.plugins),
+      agents: buildOrgEntryView(org.id, output.agents),
+    });
+    console.log(`Written: ${orgPath}`);
   }
 
   console.log(`\n  Organizations: ${output.organizations.length}`);
