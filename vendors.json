@@ -26,5 +26,29 @@
   {
     "id": "mosaico",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-mosaico.git"
+  },
+  {
+    "id": "jetbrains",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-jetbrains.git"
+  },
+  {
+    "id": "atlassian",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-atlassian.git"
+  },
+  {
+    "id": "gitlab",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-gitlab.git"
+  },
+  {
+    "id": "github",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-github.git"
+  },
+  {
+    "id": "docker",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-docker.git"
+  },
+  {
+    "id": "nvidia",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-nvidia.git"
   }
 ]
