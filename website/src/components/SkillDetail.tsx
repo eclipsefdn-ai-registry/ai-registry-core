@@ -2,6 +2,8 @@ import { ArrowLeft } from "lucide-react";
 import type { Skill, Organization, Tool, SkillApproval } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
+import { cliSource } from "../cliSource";
+import { InstallFromCli } from "./InstallFromCli";
 
 export function SkillDetail({
   skill,
@@ -17,6 +19,12 @@ export function SkillDetail({
   const sourceUrl = skill.source.path
     ? `${skill.source.url.replace(/\.git$/, "")}/tree/main/${skill.source.path}`
     : skill.source.url.replace(/\.git$/, "");
+  // A repository holding several skills needs --skill to pick this one; when
+  // the skill is the repository root there is nothing to disambiguate. The
+  // flag matches on the SKILL.md frontmatter name, which is what `name` is.
+  const installCommand = `npx skills add ${cliSource(skill.source.url)}${
+    skill.source.path ? ` --skill ${skill.name}` : ""
+  }`;
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -61,6 +69,8 @@ export function SkillDetail({
           />
         ))}
       </div>
+
+      <InstallFromCli command={installCommand} />
     </div>
   );
 }

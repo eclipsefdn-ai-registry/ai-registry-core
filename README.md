@@ -38,6 +38,7 @@ Vendor Repos                    Central Repo                    Consumers
 - Metadata enrichment from agent card URLs (name, description, content hash)
 - A static website deployed to GitHub Pages for browsing the registry
 - Claude Code skills for generating [MCP](skills/create-mcp-approval/SKILL.md), [skill](skills/create-skill-approval/SKILL.md), [plugin](skills/create-plugin-approval/SKILL.md), and [agent](skills/create-agent-approval/SKILL.md) approval files
+- Guidance for implementing clients — as a [website page](https://ai.open-vsx.org/docs/clients) and as a [Claude Code skill](skills/implement-registry-client/SKILL.md)
 
 ## Repositories
 
@@ -284,7 +285,7 @@ https://ai.open-vsx.org/api/v1/
 
 Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://ai.open-vsx.org/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://ai.open-vsx.org/schemas/skill-approval.schema.json), [`plugin-approval.schema.json`](https://ai.open-vsx.org/schemas/plugin-approval.schema.json), [`agent-approval.schema.json`](https://ai.open-vsx.org/schemas/agent-approval.schema.json)).
 
-A tool integration typically fetches `organizations.json` + its own `tools/<tool-id>.json`.
+A tool integration typically fetches `organizations.json` + its own `tools/<tool-id>.json`. See the [client implementation guidance](skills/implement-registry-client/SKILL.md) for what to do with them: resolving approvals, showing who approved an artifact, verifying content, installing, and keeping it current.
 
 ## Reliability
 
@@ -307,6 +308,7 @@ If collection or MCP enrichment fails, the build stops and the previous deployme
 - [Skill approval skill](skills/create-skill-approval/SKILL.md) — AI agent skill for generating skill approval files
 - [Plugin approval skill](skills/create-plugin-approval/SKILL.md) — AI agent skill for generating plugin approval files
 - [Agent approval skill](skills/create-agent-approval/SKILL.md) — AI agent skill for generating agent approval files
+- [Client implementation guidance](skills/implement-registry-client/SKILL.md) — AI agent skill for implementing an AI Registry client in a tool
 - [JSON schemas](schemas/) — organization and approval file schemas
 
 ## License
