@@ -13,6 +13,7 @@ import { AgentDetail } from "../components/AgentDetail";
 import { NotFoundPage } from "./NotFoundPage";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { filterByNameDescId } from "../filterArtifacts";
+import { INFERRED_DISCLAIMER } from "../orgBadge";
 
 type Tab = "servers" | "skills" | "plugins" | "agents";
 
@@ -165,6 +166,14 @@ export function OrgPage() {
             />
           )}
           <h1 className="text-2xl font-bold">{org?.name ?? orgId}</h1>
+          {org?.inferred && (
+            <span
+              className="inline-flex text-xs px-2 py-0.5 rounded-full border border-dashed border-border bg-background cursor-help"
+              title={INFERRED_DISCLAIMER}
+            >
+              Inferred
+            </span>
+          )}
         </div>
         {org?.description && (
           <p className="text-muted-foreground mt-1">{org.description}</p>
@@ -180,7 +189,8 @@ export function OrgPage() {
           </a>
         )}
         <p className="text-muted-foreground mt-1">
-          Showing artifacts approved by {org?.name ?? orgId}
+          Showing artifacts {org?.inferred ? "listed for" : "approved by"}{" "}
+          {org?.name ?? orgId}
         </p>
       </div>
 
@@ -189,7 +199,7 @@ export function OrgPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
             type="text"
-            placeholder={`Search ${SEARCH_LABELS[tab]} approved by ${org?.name ?? orgId}...`}
+            placeholder={`Search ${SEARCH_LABELS[tab]} ${org?.inferred ? "listed for" : "approved by"} ${org?.name ?? orgId}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-12 h-12 text-base bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/50 placeholder:text-muted-foreground"
