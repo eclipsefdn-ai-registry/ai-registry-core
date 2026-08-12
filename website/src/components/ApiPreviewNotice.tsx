@@ -3,8 +3,8 @@ import { InfoCallout } from "./InfoCallout";
 
 /**
  * Shared "API preview" copy shown on both the About and API-docs pages.
- * `linkToApiDocs` adds a pointer to /api-docs — omit it on the API-docs page
- * itself to avoid a self-referential link.
+ * `linkToApiDocs` adds a pointer to /docs/api — omit it on the docs pages
+ * themselves to avoid a self-referential link.
  */
 export function ApiPreviewNotice({
   linkToApiDocs = false,
@@ -19,7 +19,7 @@ export function ApiPreviewNotice({
         <>
           {" "}
           See the{" "}
-          <Link to="/api-docs" className="text-primary hover:underline">
+          <Link to="/docs/api" className="text-primary hover:underline">
             API documentation
           </Link>{" "}
           for current details.

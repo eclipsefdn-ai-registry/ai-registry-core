@@ -35,10 +35,10 @@ export function Header() {
             About
           </Link>
           <Link
-            to="/api-docs"
+            to="/docs"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            API
+            Documentation
           </Link>
           <a
             href="https://github.com/eclipsefdn-ai-registry/ai-registry-core"

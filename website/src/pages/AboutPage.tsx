@@ -114,8 +114,13 @@ export function AboutPage() {
             </a>
           </li>
           <li>
-            <Link to="/api-docs" className="text-primary hover:underline">
+            <Link to="/docs/api" className="text-primary hover:underline">
               API documentation
+            </Link>
+          </li>
+          <li>
+            <Link to="/docs/clients" className="text-primary hover:underline">
+              Implement a registry client
             </Link>
           </li>
         </ul>
