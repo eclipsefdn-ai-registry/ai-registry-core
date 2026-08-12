@@ -17,6 +17,7 @@ import {
   type ContainedSkill,
   type ContainedMcpServer,
 } from "./plugin-source.js";
+import { enrichAgentMetadata } from "./agent-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -43,6 +44,7 @@ interface OrganizationData {
     skillInstallUrlPrefix?: string;
     mcpInstallUrlPrefix?: string;
     pluginInstallUrlPrefix?: string;
+    agentInstallUrlPrefix?: string;
   }[];
   trusts?: {
     org: string;
@@ -79,6 +81,7 @@ export interface Tool {
   skillInstallUrlPrefix?: string;
   mcpInstallUrlPrefix?: string;
   pluginInstallUrlPrefix?: string;
+  agentInstallUrlPrefix?: string;
 }
 
 export interface InstallConfig {
@@ -210,12 +213,43 @@ export interface PluginEntry {
   approvals: PluginApproval[];
 }
 
+export interface AgentInstallConfig {
+  tool: string;
+  installUrl?: string;
+  config?: Record<string, unknown>;
+  instructions?: string;
+}
+
+export interface AgentApprovalData {
+  agentId: string;
+  date: string;
+  source: { url: string };
+  installConfigs?: AgentInstallConfig[];
+}
+
+export interface AgentApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  installConfigs: AgentInstallConfig[];
+}
+
+export interface AgentEntry {
+  agentId: string;
+  name: string;
+  description: string;
+  source: { url: string };
+  contentHash: string;
+  approvals: AgentApproval[];
+}
+
 export interface ConsolidatedOutput {
   organizations: Organization[];
   tools: Tool[];
   mcp: McpEntry[];
   skills: SkillEntry[];
   plugins: PluginEntry[];
+  agents: AgentEntry[];
 }
 
 // --- Pure logic (testable) ---
@@ -237,6 +271,7 @@ export function addOrganization(
       skillInstallUrlPrefix: tool.skillInstallUrlPrefix,
       mcpInstallUrlPrefix: tool.mcpInstallUrlPrefix,
       pluginInstallUrlPrefix: tool.pluginInstallUrlPrefix,
+      agentInstallUrlPrefix: tool.agentInstallUrlPrefix,
     });
   }
 
@@ -250,27 +285,51 @@ export function addOrganization(
   }
 }
 
+// Finds the first element of `list` matching `predicate`, or creates one via
+// `seed()`, appends it, and returns it — the shared find-or-create shape
+// behind addApproval/addSkillApproval/addPluginApproval/addAgentApproval.
+// `created` tells the caller whether this is a brand-new entry (some callers
+// use that to gate a source-conflict warning that only makes sense once a
+// prior approval already exists).
+export function findOrCreate<E>(
+  list: E[],
+  predicate: (e: E) => boolean,
+  seed: () => E,
+): { entry: E; created: boolean } {
+  const existing = list.find(predicate);
+  if (existing) return { entry: existing, created: false };
+  const entry = seed();
+  list.push(entry);
+  return { entry, created: true };
+}
+
+// Shared sha256-of-JSON config hash used by every approval type to detect
+// when a vendor's approval content changes between runs.
+export function configHashOf(approvalData: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(approvalData))
+    .digest("hex")
+    .slice(0, 12);
+}
+
 export function addApproval(
   approvalData: ApprovalData,
   organizationId: string,
   output: ConsolidatedOutput,
 ): void {
-  let mcpEntry = output.mcp.find((m) => m.serverId === approvalData.serverId);
-  if (!mcpEntry) {
-    mcpEntry = {
+  const { entry: mcpEntry } = findOrCreate(
+    output.mcp,
+    (m) => m.serverId === approvalData.serverId,
+    () => ({
       serverId: approvalData.serverId,
       name: approvalData.serverId,
       description: "",
       mcpRegistryVerified: false,
       approvals: [],
-    };
-    output.mcp.push(mcpEntry);
-  }
+    }),
+  );
 
-  const configHash = createHash("sha256")
-    .update(JSON.stringify(approvalData))
-    .digest("hex")
-    .slice(0, 12);
+  const configHash = configHashOf(approvalData);
 
   const resolvedMcpConfigs = (approvalData.installConfigs ?? []).map((cfg) => {
     let resolved: InstallConfig = cfg;
@@ -493,25 +552,20 @@ export function addSkillApproval(
   organizationId: string,
   output: ConsolidatedOutput,
 ): void {
-  let skillEntry = output.skills.find(
+  const { entry: skillEntry } = findOrCreate(
+    output.skills,
     (s) => s.skillId === approvalData.skillId,
-  );
-  if (!skillEntry) {
-    skillEntry = {
+    () => ({
       skillId: approvalData.skillId,
       name: approvalData.skillId,
       description: "",
       source: approvalData.source,
       contentHash: "",
       approvals: [],
-    };
-    output.skills.push(skillEntry);
-  }
+    }),
+  );
 
-  const configHash = createHash("sha256")
-    .update(JSON.stringify(approvalData))
-    .digest("hex")
-    .slice(0, 12);
+  const configHash = configHashOf(approvalData);
 
   const approval: SkillApproval = {
     organizationId,
@@ -527,11 +581,10 @@ export function addPluginApproval(
   organizationId: string,
   output: ConsolidatedOutput,
 ): void {
-  let pluginEntry = output.plugins.find(
+  const { entry: pluginEntry, created } = findOrCreate(
+    output.plugins,
     (p) => p.pluginId === approvalData.pluginId,
-  );
-  if (!pluginEntry) {
-    pluginEntry = {
+    () => ({
       pluginId: approvalData.pluginId,
       name: approvalData.pluginId,
       description: "",
@@ -540,11 +593,12 @@ export function addPluginApproval(
       containedSkills: [],
       containedMcpServers: [],
       approvals: [],
-    };
-    output.plugins.push(pluginEntry);
-  } else if (
-    pluginEntry.source.url !== approvalData.source.url ||
-    pluginEntry.source.path !== approvalData.source.path
+    }),
+  );
+  if (
+    !created &&
+    (pluginEntry.source.url !== approvalData.source.url ||
+      pluginEntry.source.path !== approvalData.source.path)
   ) {
     // First-collected vendor's source wins. Mirrors resolveVendorMetadata's
     // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a
@@ -555,10 +609,7 @@ export function addPluginApproval(
     );
   }
 
-  const configHash = createHash("sha256")
-    .update(JSON.stringify(approvalData))
-    .digest("hex")
-    .slice(0, 12);
+  const configHash = configHashOf(approvalData);
 
   // Plugin IDs never change after this point (no glob/multi-path expansion,
   // unlike skills), so the prefix can be resolved right here rather than in
@@ -592,6 +643,62 @@ export function buildToolPluginView(
   plugins: PluginEntry[],
 ): PluginEntry[] {
   return buildToolEntryView(toolId, plugins);
+}
+
+export function addAgentApproval(
+  approvalData: AgentApprovalData,
+  organizationId: string,
+  output: ConsolidatedOutput,
+): void {
+  const { entry: agentEntry, created } = findOrCreate(
+    output.agents,
+    (a) => a.agentId === approvalData.agentId,
+    () => ({
+      agentId: approvalData.agentId,
+      name: approvalData.agentId,
+      description: "",
+      source: approvalData.source,
+      contentHash: "",
+      approvals: [],
+    }),
+  );
+
+  if (!created && agentEntry.source.url !== approvalData.source.url) {
+    console.warn(
+      `  WARNING: agent "${approvalData.agentId}" approved with a different source by "${organizationId}" — using "${agentEntry.approvals[0]?.organizationId}"'s (first collected)`,
+    );
+  }
+
+  const configHash = configHashOf(approvalData);
+
+  const resolvedInstallConfigs = (approvalData.installConfigs ?? []).map(
+    (cfg) => {
+      if (cfg.installUrl) return cfg;
+      const tool = output.tools.find((t) => t.id === cfg.tool);
+      if (tool?.agentInstallUrlPrefix) {
+        return {
+          ...cfg,
+          installUrl: tool.agentInstallUrlPrefix + approvalData.agentId,
+        };
+      }
+      return cfg;
+    },
+  );
+
+  const approval: AgentApproval = {
+    organizationId,
+    date: approvalData.date,
+    configHash,
+    installConfigs: resolvedInstallConfigs,
+  };
+  agentEntry.approvals.push(approval);
+}
+
+export function buildToolAgentView(
+  toolId: string,
+  agents: AgentEntry[],
+): AgentEntry[] {
+  return buildToolEntryView(toolId, agents);
 }
 
 // Splits skill trust entries into those referencing a registered vendor and
@@ -837,6 +944,11 @@ function collectVendorData(
     addPluginApproval(data as PluginApprovalData, vendorId, output);
     console.log(`  Collected plugin: ${data.pluginId}`);
   }
+
+  for (const { data } of result.agentApprovals) {
+    addAgentApproval(data as AgentApprovalData, vendorId, output);
+    console.log(`  Collected agent: ${data.agentId}`);
+  }
 }
 
 // --- Step 2: Enrich with Anthropic registry metadata (network, can fail systemically) ---
@@ -896,6 +1008,7 @@ function writeOutput(output: ConsolidatedOutput): void {
       mcp: buildToolView(tool.id, output.mcp),
       skills: buildToolSkillView(tool.id, output.skills),
       plugins: buildToolPluginView(tool.id, output.plugins),
+      agents: buildToolAgentView(tool.id, output.agents),
     });
     console.log(`Written: ${toolPath}`);
   }
@@ -905,6 +1018,7 @@ function writeOutput(output: ConsolidatedOutput): void {
   console.log(`  MCP servers: ${output.mcp.length}`);
   console.log(`  Skills: ${output.skills.length}`);
   console.log(`  Plugins: ${output.plugins.length}`);
+  console.log(`  Agents: ${output.agents.length}`);
 }
 
 // --- Main ---
@@ -919,6 +1033,7 @@ export async function main(): Promise<void> {
     mcp: [],
     skills: [],
     plugins: [],
+    agents: [],
   };
   const skillTrusts: SkillTrustEntry[] = [];
   const mcpTrusts: McpTrustEntry[] = [];
@@ -1007,9 +1122,13 @@ export async function main(): Promise<void> {
   // Step 2c: Enrich plugins with source metadata (skips unreachable sources)
   output.plugins = enrichPluginMetadata(output.plugins);
 
+  // Step 2d: Enrich agents with source metadata (skips unreachable sources)
+  output.agents = await enrichAgentMetadata(output.agents);
+
   // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));
   output.skills.sort((a, b) => a.skillId.localeCompare(b.skillId));
   output.plugins.sort((a, b) => a.pluginId.localeCompare(b.pluginId));
+  output.agents.sort((a, b) => a.agentId.localeCompare(b.agentId));
   writeOutput(output);
 }

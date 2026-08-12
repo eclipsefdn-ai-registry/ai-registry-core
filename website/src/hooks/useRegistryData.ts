@@ -44,6 +44,7 @@ interface ToolData {
   mcp: RegistryData["mcp"];
   skills: RegistryData["skills"];
   plugins: RegistryData["plugins"];
+  agents: RegistryData["agents"];
 }
 
 export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
@@ -78,6 +79,7 @@ export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
           mcp: toolData.mcp,
           skills: toolData.skills ?? [],
           plugins: toolData.plugins ?? [],
+          agents: toolData.agents ?? [],
         });
         setLoading(false);
       })

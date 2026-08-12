@@ -6,11 +6,26 @@ import { InstallConfigView } from "../components/ServerDetail";
 import { McpVerificationBadge } from "../components/McpVerificationBadge";
 import { OrgBadges } from "../components/OrgBadges";
 import { NotFoundPage } from "./NotFoundPage";
-import type { McpServer, Skill, Plugin, Organization, Tool } from "../types";
+import type {
+  McpServer,
+  Skill,
+  Plugin,
+  Agent,
+  Organization,
+  Tool,
+} from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { orgBadge } from "../orgBadge";
+import { filterByNameDescId } from "../filterArtifacts";
 
-type Tab = "servers" | "skills" | "plugins";
+type Tab = "servers" | "skills" | "plugins" | "agents";
+
+const SEARCH_LABELS: Record<Tab, string> = {
+  servers: "MCP servers",
+  skills: "skills",
+  plugins: "plugins",
+  agents: "agents",
+};
 
 export function ToolPage() {
   const { toolId } = useParams<{ toolId: string }>();
@@ -22,41 +37,22 @@ export function ToolPage() {
 
   const filteredServers = useMemo(() => {
     if (!data) return [];
-    const q = search.toLowerCase();
-    return data.mcp
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.description.toLowerCase().includes(q) ||
-          s.serverId.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return filterByNameDescId(data.mcp, search, (s) => s.serverId);
   }, [data, search]);
 
   const filteredSkills = useMemo(() => {
     if (!data) return [];
-    const q = search.toLowerCase();
-    return (data.skills ?? [])
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.description.toLowerCase().includes(q) ||
-          s.skillId.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return filterByNameDescId(data.skills ?? [], search, (s) => s.skillId);
   }, [data, search]);
 
   const filteredPlugins = useMemo(() => {
     if (!data) return [];
-    const q = search.toLowerCase();
-    return (data.plugins ?? [])
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.pluginId.toLowerCase().includes(q),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return filterByNameDescId(data.plugins ?? [], search, (p) => p.pluginId);
+  }, [data, search]);
+
+  const filteredAgents = useMemo(() => {
+    if (!data) return [];
+    return filterByNameDescId(data.agents ?? [], search, (a) => a.agentId);
   }, [data, search]);
 
   if (notFound) return <NotFoundPage />;
@@ -102,6 +98,7 @@ export function ToolPage() {
     { key: "servers", label: "MCP Servers", count: filteredServers.length },
     { key: "skills", label: "Skills", count: filteredSkills.length },
     { key: "plugins", label: "Plugins", count: filteredPlugins.length },
+    { key: "agents", label: "Agents", count: filteredAgents.length },
   ];
 
   return (
@@ -134,7 +131,7 @@ export function ToolPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <input
             type="text"
-            placeholder={`Search ${tab === "servers" ? "MCP servers" : tab} for ${tool?.name ?? toolId}...`}
+            placeholder={`Search ${SEARCH_LABELS[tab]} for ${tool?.name ?? toolId}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-12 h-12 text-base bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/50 placeholder:text-muted-foreground"
@@ -220,6 +217,25 @@ export function ToolPage() {
             No plugins found.
           </div>
         ))}
+
+      {tab === "agents" &&
+        (filteredAgents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {filteredAgents.map((agent) => (
+              <ToolAgentCard
+                key={agent.agentId}
+                agent={agent}
+                toolId={toolId!}
+                getOrg={getOrg}
+                getTool={getTool}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+            No agents found.
+          </div>
+        ))}
     </div>
   );
 }
@@ -268,16 +284,14 @@ function ToolServerCard({
         </div>
         {toolApproval && (
           <div className="mb-3">
-            {toolApproval.installConfigs
-              .filter((ic) => ic.tool === toolId)
-              .map((config, j) => (
-                <InstallConfigView
-                  key={j}
-                  config={config}
-                  getTool={getTool}
-                  compact
-                />
-              ))}
+            {toolApproval.installConfigs.map((config, j) => (
+              <InstallConfigView
+                key={j}
+                config={config}
+                getTool={getTool}
+                compact
+              />
+            ))}
           </div>
         )}
       </div>
@@ -362,11 +376,9 @@ function ToolServerDetail({
                 </span>
               )}
             </div>
-            {toolApproval.installConfigs
-              .filter((ic) => ic.tool === toolId)
-              .map((config, j) => (
-                <InstallConfigView key={j} config={config} getTool={getTool} />
-              ))}
+            {toolApproval.installConfigs.map((config, j) => (
+              <InstallConfigView key={j} config={config} getTool={getTool} />
+            ))}
           </div>
         </div>
       )}
@@ -416,9 +428,7 @@ function ToolSkillCard({
   const toolApproval = skill.approvals.find((a) =>
     a.installConfigs.some((ic) => ic.tool === toolId),
   );
-  const installConfig = toolApproval?.installConfigs.find(
-    (ic) => ic.tool === toolId,
-  );
+  const installConfig = toolApproval?.installConfigs[0];
   const toolObj = getTool(toolId);
 
   return (
@@ -500,20 +510,72 @@ function ToolPluginCard({
         </p>
         {toolApproval && (
           <div className="mb-3">
-            {toolApproval.installConfigs
-              .filter((ic) => ic.tool === toolId)
-              .map((config, j) => (
-                <InstallConfigView
-                  key={j}
-                  config={config}
-                  getTool={getTool}
-                  compact
-                />
-              ))}
+            {toolApproval.installConfigs.map((config, j) => (
+              <InstallConfigView
+                key={j}
+                config={config}
+                getTool={getTool}
+                compact
+              />
+            ))}
           </div>
         )}
         <div className="flex gap-3 text-xs text-muted-foreground font-mono">
           <span>Hash: {plugin.contentHash}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToolAgentCard({
+  agent,
+  toolId,
+  getOrg,
+  getTool,
+}: {
+  agent: Agent;
+  toolId: string;
+  getOrg: (id: string) => Organization | undefined;
+  getTool: (id: string) => Tool | undefined;
+}) {
+  const toolApproval = agent.approvals.find((a) =>
+    a.installConfigs.some((ic) => ic.tool === toolId),
+  );
+
+  return (
+    <div className="group bg-card border border-border rounded-xl p-5 hover:border-primary/50 transition-all shadow-sm flex flex-col">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <h3 className="text-base font-semibold text-foreground">
+            {agent.name}
+          </h3>
+          <OrgBadges
+            approvals={agent.approvals}
+            getOrg={getOrg}
+            approvedTitle={(org) => `Approved by ${org.name}`}
+          />
+        </div>
+        <div className="font-mono text-xs text-muted-foreground mb-3">
+          {agent.agentId}
+        </div>
+        <p className="text-sm text-foreground mb-3 line-clamp-3 break-words">
+          {agent.description}
+        </p>
+        {toolApproval && (
+          <div className="mb-3">
+            {toolApproval.installConfigs.map((config, j) => (
+              <InstallConfigView
+                key={j}
+                config={config}
+                getTool={getTool}
+                compact
+              />
+            ))}
+          </div>
+        )}
+        <div className="flex gap-3 text-xs text-muted-foreground font-mono">
+          <span>Hash: {agent.contentHash}</span>
         </div>
       </div>
     </div>

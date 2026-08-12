@@ -24,6 +24,10 @@
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-eclipsesource.git"
   },
   {
+    "id": "mosaico",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-mosaico.git"
+  },
+  {
     "id": "jetbrains",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-jetbrains.git"
   },

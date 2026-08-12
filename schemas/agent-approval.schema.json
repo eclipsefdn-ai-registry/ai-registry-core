@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai.open-vsx.org/schemas/agent-approval.schema.json",
+  "title": "Agent Approval",
+  "description": "Vendor approval for an A2A agent in the AI Registry",
+  "type": "object",
+  "required": ["agentId", "date", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "agentId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Agent identifier using reverse-domain notation (e.g., eu.mosaico-project/ip-solution-agent)"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date of approval (YYYY-MM-DD)"
+    },
+    "source": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "description": "Location of the agent's A2A Agent Card JSON file",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Direct, fetchable URL to the agent_card.json file"
+        }
+      }
+    },
+    "installConfigs": {
+      "type": "array",
+      "description": "Tool-specific installation configurations. Omit if no tool-specific configuration is needed.",
+      "items": {
+        "type": "object",
+        "required": ["tool"],
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Tool ID this config targets (must match a tool in the AI Registry)"
+          },
+          "installUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Deep-link URL for one-click install (tool-specific protocol)"
+          },
+          "config": {
+            "type": "object",
+            "description": "Tool-specific configuration object (e.g. Docker image/tag/port/env for container-delivered agents)"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Human-readable setup instructions"
+          }
+        }
+      }
+    }
+  }
+}
