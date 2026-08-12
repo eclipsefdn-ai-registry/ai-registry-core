@@ -404,11 +404,11 @@ export function ClientsPage() {
           Recompute it as a SHA-256 of the raw response body and take the first
           12 hex characters — the same digest format as skills and plugins, but
           over one file instead of a walked tree. The{" "}
-          <Link to="/docs/api" className="text-primary hover:underline">
-            API page
-          </Link>{" "}
-          has the exact algorithm for skills and plugins; agents skip the walk
-          and hash straight from the fetch.
+          <a href="#content-hash" className="text-primary hover:underline">
+            Content hash
+          </a>{" "}
+          section below has the exact algorithm for skills and plugins; agents
+          skip the walk and hash straight from the fetch.
         </InfoCallout>
         <p className="mt-3 mb-3 leading-relaxed">
           There is no plugin-root or skill-folder equivalent to download.
