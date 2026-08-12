@@ -8,6 +8,8 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
+import { cliSource } from "../cliSource";
+import { InstallFromCli } from "./InstallFromCli";
 
 export function PluginDetail({
   plugin,
@@ -23,6 +25,9 @@ export function PluginDetail({
   const sourceUrl = plugin.source.path
     ? `${plugin.source.url.replace(/\.git$/, "")}/tree/main/${plugin.source.path}`
     : plugin.source.url.replace(/\.git$/, "");
+  // The plugins CLI takes a source and nothing else, so a plugin stored in a
+  // subdirectory resolves by discovery rather than by path.
+  const installCommand = `npx plugins add ${cliSource(plugin.source.url)}`;
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -108,6 +113,8 @@ export function PluginDetail({
           />
         ))}
       </div>
+
+      <InstallFromCli command={installCommand} />
     </div>
   );
 }
