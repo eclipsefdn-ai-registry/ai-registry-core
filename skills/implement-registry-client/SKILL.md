@@ -41,6 +41,8 @@ Base URL: `https://ai.open-vsx.org/api/v1/`
 
 Reach for `orgs/<org-id>.json` or the per-type files when your client's boundary is an organization or an artifact type rather than a tool — for example, an organization publishing its own curated allowlist, or a client that only ever handles one artifact type.
 
+Both keep every entry's `approvals` and `installConfigs` exactly as filed, unlike `tools/<tool-id>.json`. Filter `approvals` by `organizationId` and `installConfigs[].tool` yourself before installing, or treat these as browsing views like `all.json`.
+
 Use `all.json` when your tool has no registered tool id yet. It carries every artifact any organization endorsed, including install configs aimed at other tools, so treat it as a browsing view rather than an install source.
 
 ### Base URL and tool id are product configuration
