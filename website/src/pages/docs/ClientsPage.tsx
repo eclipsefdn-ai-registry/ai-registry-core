@@ -99,6 +99,10 @@ export function ClientsPage() {
             path with no commit pin, so the hash is the only pin available.
           </li>
           <li className="leading-relaxed">
+            Agents carry a content hash too, but of a single fetched Agent Card
+            JSON file, not a directory — there is no path to pin.
+          </li>
+          <li className="leading-relaxed">
             Withdrawing an approval removes the entry from the feed, but so does
             a source that was briefly unreachable when consolidation ran.
             Nothing in the data separates the two, so there is no revocation
