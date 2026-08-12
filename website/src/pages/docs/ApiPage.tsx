@@ -180,15 +180,19 @@ export function ApiPage() {
 
       <DocsSection id="response-shapes">
         <p className="mb-3 leading-relaxed">
-          <InlineCode>all.json</InlineCode>,{" "}
-          <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode>, and{" "}
-          <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> return an object
-          with the same six top-level keys, filtered. The per-type files (
+          <InlineCode>all.json</InlineCode> returns an object with all six
+          top-level keys. <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode>{" "}
+          and <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> return only the
+          four artifact-type keys (<InlineCode>mcp</InlineCode>,{" "}
+          <InlineCode>skills</InlineCode>, <InlineCode>plugins</InlineCode>,{" "}
+          <InlineCode>agents</InlineCode>), filtered — fetch{" "}
+          <InlineCode>organizations.json</InlineCode> alongside them to resolve
+          organization and tool names. The per-type files (
           <InlineCode>mcp.json</InlineCode>,{" "}
           <InlineCode>skills.json</InlineCode>,{" "}
           <InlineCode>plugins.json</InlineCode>,{" "}
           <InlineCode>agents.json</InlineCode>) return a single one of those
-          keys.
+          four keys.
         </p>
         <CodeBlock>{`{
   "organizations": [ ... ],
