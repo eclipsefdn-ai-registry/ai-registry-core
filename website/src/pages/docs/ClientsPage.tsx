@@ -134,6 +134,17 @@ export function ClientsPage() {
           artifact type across the whole registry. Reach for these when your
           client's boundary is an organization or a type rather than a tool.
         </p>
+        <p className="mb-3 leading-relaxed">
+          Both keep every entry's <InlineCode>approvals</InlineCode> and{" "}
+          <InlineCode>installConfigs</InlineCode> exactly as filed — an
+          org-scoped or type-scoped file is not pre-filtered the way{" "}
+          <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> is. Filter{" "}
+          <InlineCode>approvals</InlineCode> by{" "}
+          <InlineCode>organizationId</InlineCode> and{" "}
+          <InlineCode>installConfigs[].tool</InlineCode> yourself before
+          installing, or treat these as browsing views like{" "}
+          <InlineCode>all.json</InlineCode>.
+        </p>
         <InfoCallout>
           <strong>The base URL and tool id are product configuration.</strong>{" "}
           Both decide who the user trusts. A user who can point the tool at
