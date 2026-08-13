@@ -8,9 +8,10 @@ import {
   addAgentApproval,
   resolveSkillInstallUrls,
   resolveSkillTrust,
-  filterValidSkillTrusts,
   resolveMcpTrust,
-  filterValidMcpTrusts,
+  resolvePluginTrust,
+  resolveAgentTrust,
+  filterValidTrusts,
   enrichWithRegistryData,
   resolveVendorMetadata,
   pickWinningGenericConfig,
@@ -34,6 +35,8 @@ import {
   type AgentEntry,
   type SkillTrustEntry,
   type McpTrustEntry,
+  type PluginTrustEntry,
+  type AgentTrustEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
@@ -1060,11 +1063,11 @@ describe("addOrganization — trust extraction", () => {
   });
 });
 
-describe("filterValidSkillTrusts", () => {
+describe("filterValidTrusts", () => {
   const vendorIds = new Set(["theia", "anthropic", "openai", "aws"]);
 
   it("keeps trust entries referencing registered vendors", () => {
-    const { valid, unknown } = filterValidSkillTrusts(
+    const { valid, unknown } = filterValidTrusts(
       [
         { org: "theia", trustedOrg: "anthropic" },
         { org: "theia", trustedOrg: "aws" },
@@ -1076,7 +1079,7 @@ describe("filterValidSkillTrusts", () => {
   });
 
   it("separates out trust entries referencing an unregistered org", () => {
-    const { valid, unknown } = filterValidSkillTrusts(
+    const { valid, unknown } = filterValidTrusts(
       [
         { org: "theia", trustedOrg: "anthropic" },
         { org: "theia", trustedOrg: "nonexistent" },
@@ -1950,6 +1953,82 @@ describe("addOrganization — mcp trust extraction", () => {
   });
 });
 
+describe("addOrganization — plugin/agent trust extraction", () => {
+  it("collects a plugin trust entry", () => {
+    const output = emptyOutput();
+    const pluginTrusts: PluginTrustEntry[] = [];
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "IDE",
+        website: "https://theia-ide.org",
+        trusts: [{ org: "anthropic", artifactTypes: { plugins: {} } }],
+      },
+      output,
+      [],
+      [],
+      pluginTrusts,
+    );
+    assert.deepEqual(pluginTrusts, [{ org: "theia", trustedOrg: "anthropic" }]);
+  });
+
+  it("collects an agent trust entry", () => {
+    const output = emptyOutput();
+    const agentTrusts: AgentTrustEntry[] = [];
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "IDE",
+        website: "https://theia-ide.org",
+        trusts: [{ org: "anthropic", artifactTypes: { agents: {} } }],
+      },
+      output,
+      [],
+      [],
+      [],
+      agentTrusts,
+    );
+    assert.deepEqual(agentTrusts, [{ org: "theia", trustedOrg: "anthropic" }]);
+  });
+
+  it("collects skill, mcp, plugin, and agent trust entries from the same organization", () => {
+    const output = emptyOutput();
+    const skillTrusts: SkillTrustEntry[] = [];
+    const mcpTrusts: McpTrustEntry[] = [];
+    const pluginTrusts: PluginTrustEntry[] = [];
+    const agentTrusts: AgentTrustEntry[] = [];
+    addOrganization(
+      {
+        id: "theia",
+        name: "Theia IDE",
+        description: "IDE",
+        website: "https://theia-ide.org",
+        trusts: [
+          { org: "anthropic", artifactTypes: { skills: {} } },
+          { org: "eclipsesource", artifactTypes: { mcp: {} } },
+          { org: "gemini-cli-extensions", artifactTypes: { plugins: {} } },
+          { org: "mosaico", artifactTypes: { agents: {} } },
+        ],
+      },
+      output,
+      skillTrusts,
+      mcpTrusts,
+      pluginTrusts,
+      agentTrusts,
+    );
+    assert.deepEqual(skillTrusts, [{ org: "theia", trustedOrg: "anthropic" }]);
+    assert.deepEqual(mcpTrusts, [
+      { org: "theia", trustedOrg: "eclipsesource" },
+    ]);
+    assert.deepEqual(pluginTrusts, [
+      { org: "theia", trustedOrg: "gemini-cli-extensions" },
+    ]);
+    assert.deepEqual(agentTrusts, [{ org: "theia", trustedOrg: "mosaico" }]);
+  });
+});
+
 describe("addApproval — genericConfig", () => {
   it("populates Approval.genericConfig verbatim from the approval's own root config", () => {
     const output = emptyOutput();
@@ -2306,31 +2385,6 @@ describe("resolveMcpCrossVendorConfigs", () => {
   });
 });
 
-describe("filterValidMcpTrusts", () => {
-  it("keeps trust entries referencing registered vendors", () => {
-    const { valid, unknown } = filterValidMcpTrusts(
-      [{ org: "theia", trustedOrg: "eclipsesource" }],
-      new Set(["theia", "eclipsesource"]),
-    );
-    assert.equal(valid.length, 1);
-    assert.equal(unknown.length, 0);
-  });
-
-  it("separates out trust entries referencing an unregistered org", () => {
-    const { valid, unknown } = filterValidMcpTrusts(
-      [
-        { org: "theia", trustedOrg: "eclipsesource" },
-        { org: "theia", trustedOrg: "nonexistent" },
-      ],
-      new Set(["theia", "eclipsesource"]),
-    );
-    assert.equal(valid.length, 1);
-    assert.equal(valid[0].trustedOrg, "eclipsesource");
-    assert.equal(unknown.length, 1);
-    assert.equal(unknown[0].trustedOrg, "nonexistent");
-  });
-});
-
 describe("resolveMcpTrust", () => {
   function baseOutput(): ConsolidatedOutput {
     const output = emptyOutput();
@@ -2464,6 +2518,228 @@ describe("resolveMcpTrust", () => {
     assert.ok(derived);
     assert.equal(derived!.installConfigs.length, 2);
     assert.equal("config" in derived!.installConfigs[0], false);
+  });
+});
+
+describe("resolvePluginTrust", () => {
+  function pluginWithApproval(
+    pluginId: string,
+    organizationId: string,
+  ): PluginEntry {
+    return {
+      pluginId,
+      name: pluginId,
+      description: "",
+      source: { url: "https://github.com/example/plugin.git" },
+      contentHash: "",
+      containedSkills: [],
+      containedMcpServers: [],
+      approvals: [
+        {
+          organizationId,
+          date: "2026-08-04",
+          configHash: "abc123",
+          installConfigs: [],
+        },
+      ],
+    };
+  }
+
+  it("adds a derived approval tagged with viaTrust", () => {
+    const output = emptyOutput();
+    output.plugins = [
+      pluginWithApproval("io.example/my-plugin", "gemini-cli-extensions"),
+    ];
+
+    resolvePluginTrust(output, [
+      { org: "theia", trustedOrg: "gemini-cli-extensions" },
+    ]);
+
+    assert.equal(output.plugins[0].approvals.length, 2);
+    const derived = output.plugins[0].approvals[1];
+    assert.equal(derived.organizationId, "theia");
+    assert.equal(derived.viaTrust, "gemini-cli-extensions");
+    assert.equal(derived.date, "2026-08-04");
+  });
+
+  it("gives the derived approval an installConfig with installUrl for each of the trusting org's own tools", () => {
+    const output = emptyOutput();
+    output.tools = [
+      {
+        id: "theia-ide",
+        name: "Theia IDE",
+        organizationId: "theia",
+        pluginInstallUrlPrefix: "theia://install-plugin?id=",
+      },
+      { id: "other-tool", name: "Other Tool", organizationId: "other-org" },
+    ];
+    output.plugins = [
+      pluginWithApproval("io.example/my-plugin", "gemini-cli-extensions"),
+    ];
+
+    resolvePluginTrust(output, [
+      { org: "theia", trustedOrg: "gemini-cli-extensions" },
+    ]);
+
+    const derived = output.plugins[0].approvals[1];
+    assert.equal(derived.installConfigs.length, 1);
+    assert.equal(derived.installConfigs[0].tool, "theia-ide");
+    assert.equal(
+      derived.installConfigs[0].installUrl,
+      "theia://install-plugin?id=io.example/my-plugin",
+    );
+  });
+
+  it("does not add a derived approval when the trusted org has none", () => {
+    const output = emptyOutput();
+    output.plugins = [pluginWithApproval("io.example/a", "openai")];
+
+    resolvePluginTrust(output, [
+      { org: "theia", trustedOrg: "gemini-cli-extensions" },
+    ]);
+
+    assert.equal(output.plugins[0].approvals.length, 1);
+  });
+
+  it("does not add a derived approval when the trusting org already approved directly", () => {
+    const output = emptyOutput();
+    const plugin = pluginWithApproval("io.example/a", "gemini-cli-extensions");
+    plugin.approvals.push({
+      organizationId: "theia",
+      date: "2026-08-05",
+      configHash: "def456",
+      installConfigs: [],
+    });
+    output.plugins = [plugin];
+
+    resolvePluginTrust(output, [
+      { org: "theia", trustedOrg: "gemini-cli-extensions" },
+    ]);
+
+    const theiaApprovals = output.plugins[0].approvals.filter(
+      (a) => a.organizationId === "theia",
+    );
+    assert.equal(theiaApprovals.length, 1);
+    assert.equal(theiaApprovals[0].viaTrust, undefined);
+  });
+
+  it("does not chain trust through a trust-derived approval", () => {
+    const output = emptyOutput();
+    output.plugins = [
+      pluginWithApproval("io.example/a", "gemini-cli-extensions"),
+    ];
+    resolvePluginTrust(output, [
+      { org: "openai", trustedOrg: "gemini-cli-extensions" },
+    ]);
+
+    resolvePluginTrust(output, [{ org: "theia", trustedOrg: "openai" }]);
+
+    assert.equal(
+      output.plugins[0].approvals.some((a) => a.organizationId === "theia"),
+      false,
+    );
+  });
+});
+
+describe("resolveAgentTrust", () => {
+  function agentWithApproval(
+    agentId: string,
+    organizationId: string,
+  ): AgentEntry {
+    return {
+      agentId,
+      name: agentId,
+      description: "",
+      source: { url: "https://example.com/agent_card.json" },
+      contentHash: "",
+      approvals: [
+        {
+          organizationId,
+          date: "2026-08-04",
+          configHash: "abc123",
+          installConfigs: [],
+        },
+      ],
+    };
+  }
+
+  it("adds a derived approval tagged with viaTrust", () => {
+    const output = emptyOutput();
+    output.agents = [agentWithApproval("io.example/my-agent", "mosaico")];
+
+    resolveAgentTrust(output, [{ org: "theia", trustedOrg: "mosaico" }]);
+
+    assert.equal(output.agents[0].approvals.length, 2);
+    const derived = output.agents[0].approvals[1];
+    assert.equal(derived.organizationId, "theia");
+    assert.equal(derived.viaTrust, "mosaico");
+    assert.equal(derived.date, "2026-08-04");
+  });
+
+  it("gives the derived approval an installConfig with installUrl for each of the trusting org's own tools", () => {
+    const output = emptyOutput();
+    output.tools = [
+      {
+        id: "theia-ide",
+        name: "Theia IDE",
+        organizationId: "theia",
+        agentInstallUrlPrefix: "theia://install-agent?id=",
+      },
+      { id: "other-tool", name: "Other Tool", organizationId: "other-org" },
+    ];
+    output.agents = [agentWithApproval("io.example/my-agent", "mosaico")];
+
+    resolveAgentTrust(output, [{ org: "theia", trustedOrg: "mosaico" }]);
+
+    const derived = output.agents[0].approvals[1];
+    assert.equal(derived.installConfigs.length, 1);
+    assert.equal(derived.installConfigs[0].tool, "theia-ide");
+    assert.equal(
+      derived.installConfigs[0].installUrl,
+      "theia://install-agent?id=io.example/my-agent",
+    );
+  });
+
+  it("does not add a derived approval when the trusted org has none", () => {
+    const output = emptyOutput();
+    output.agents = [agentWithApproval("io.example/a", "openai")];
+
+    resolveAgentTrust(output, [{ org: "theia", trustedOrg: "mosaico" }]);
+
+    assert.equal(output.agents[0].approvals.length, 1);
+  });
+
+  it("does not add a derived approval when the trusting org already approved directly", () => {
+    const output = emptyOutput();
+    const agent = agentWithApproval("io.example/a", "mosaico");
+    agent.approvals.push({
+      organizationId: "theia",
+      date: "2026-08-05",
+      configHash: "def456",
+      installConfigs: [],
+    });
+    output.agents = [agent];
+
+    resolveAgentTrust(output, [{ org: "theia", trustedOrg: "mosaico" }]);
+
+    const theiaApprovals = output.agents[0].approvals.filter(
+      (a) => a.organizationId === "theia",
+    );
+    assert.equal(theiaApprovals.length, 1);
+    assert.equal(theiaApprovals[0].viaTrust, undefined);
+  });
+
+  it("does not chain trust through a trust-derived approval", () => {
+    const output = emptyOutput();
+    output.agents = [agentWithApproval("io.example/a", "mosaico")];
+    resolveAgentTrust(output, [{ org: "openai", trustedOrg: "mosaico" }]);
+
+    resolveAgentTrust(output, [{ org: "theia", trustedOrg: "openai" }]);
+
+    assert.equal(
+      output.agents[0].approvals.some((a) => a.organizationId === "theia"),
+      false,
+    );
   });
 });
 

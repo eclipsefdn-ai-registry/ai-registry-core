@@ -1153,6 +1153,30 @@ describe("validateOrganization — trusts.artifactTypes.mcp", () => {
     assert.equal(result.valid, true);
   });
 
+  it("accepts a trusts entry with artifactTypes.plugins", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      trusts: [
+        { org: "gemini-cli-extensions", artifactTypes: { plugins: {} } },
+      ],
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a trusts entry with artifactTypes.agents", () => {
+    const result = validateOrganization({
+      id: "theia",
+      name: "Theia IDE",
+      description: "IDE",
+      website: "https://theia-ide.org",
+      trusts: [{ org: "mosaico", artifactTypes: { agents: {} } }],
+    });
+    assert.equal(result.valid, true);
+  });
+
   it("rejects an unrecognized artifactTypes key", () => {
     const result = validateOrganization({
       id: "theia",

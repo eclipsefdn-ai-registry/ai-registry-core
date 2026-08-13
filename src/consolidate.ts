@@ -51,6 +51,8 @@ interface OrganizationData {
     artifactTypes: {
       skills?: Record<string, never>;
       mcp?: Record<string, never>;
+      plugins?: Record<string, never>;
+      agents?: Record<string, never>;
     };
   }[];
 }
@@ -61,6 +63,16 @@ export interface SkillTrustEntry {
 }
 
 export interface McpTrustEntry {
+  org: string;
+  trustedOrg: string;
+}
+
+export interface PluginTrustEntry {
+  org: string;
+  trustedOrg: string;
+}
+
+export interface AgentTrustEntry {
   org: string;
   trustedOrg: string;
 }
@@ -196,6 +208,9 @@ export interface PluginApproval {
   configHash: string;
   installConfigs: PluginInstallConfig[];
   // installConfigs is always present in output (defaults to [])
+  viaTrust?: string;
+  // present only on trust-derived approvals; holds the id of the
+  // organization that actually filed the approval
 }
 
 export interface PluginEntry {
@@ -232,6 +247,9 @@ export interface AgentApproval {
   date: string;
   configHash: string;
   installConfigs: AgentInstallConfig[];
+  viaTrust?: string;
+  // present only on trust-derived approvals; holds the id of the
+  // organization that actually filed the approval
 }
 
 export interface AgentEntry {
@@ -259,6 +277,8 @@ export function addOrganization(
   output: ConsolidatedOutput,
   skillTrusts: SkillTrustEntry[] = [],
   mcpTrusts: McpTrustEntry[] = [],
+  pluginTrusts: PluginTrustEntry[] = [],
+  agentTrusts: AgentTrustEntry[] = [],
 ): void {
   const { tools: orgTools = [], trusts = [], ...orgMeta } = orgData;
   output.organizations.push(orgMeta);
@@ -281,6 +301,12 @@ export function addOrganization(
     }
     if (trust.artifactTypes.mcp) {
       mcpTrusts.push({ org: orgData.id, trustedOrg: trust.org });
+    }
+    if (trust.artifactTypes.plugins) {
+      pluginTrusts.push({ org: orgData.id, trustedOrg: trust.org });
+    }
+    if (trust.artifactTypes.agents) {
+      agentTrusts.push({ org: orgData.id, trustedOrg: trust.org });
     }
   }
 }
@@ -719,33 +745,19 @@ export function buildToolAgentView(
   return buildToolEntryView(toolId, agents);
 }
 
-// Splits skill trust entries into those referencing a registered vendor and
-// those that don't. A vendor's own CI fails on an unknown trusted org before
-// merge (see checkTrustedOrgIds in validate.ts); this is a defense-in-depth
-// check for the shared consolidation build, which should stay up even if one
-// vendor's reference is stale or CI was bypassed — so unknown entries are
-// dropped rather than failing the whole build.
-export function filterValidSkillTrusts(
-  skillTrusts: SkillTrustEntry[],
+// Splits trust entries (skill, mcp, plugin, or agent) into those referencing
+// a registered vendor and those that don't. A vendor's own CI fails on an
+// unknown trusted org before merge (see checkTrustedOrgIds in validate.ts);
+// this is a defense-in-depth check for the shared consolidation build, which
+// should stay up even if one vendor's reference is stale or CI was bypassed
+// — so unknown entries are dropped rather than failing the whole build.
+export function filterValidTrusts<T extends { trustedOrg: string }>(
+  trusts: T[],
   vendorIds: Set<string>,
-): { valid: SkillTrustEntry[]; unknown: SkillTrustEntry[] } {
-  const valid: SkillTrustEntry[] = [];
-  const unknown: SkillTrustEntry[] = [];
-  for (const trust of skillTrusts) {
-    (vendorIds.has(trust.trustedOrg) ? valid : unknown).push(trust);
-  }
-  return { valid, unknown };
-}
-
-// Mirrors filterValidSkillTrusts exactly — see its comment for why unknown
-// entries are dropped with a warning rather than failing the shared build.
-export function filterValidMcpTrusts(
-  mcpTrusts: McpTrustEntry[],
-  vendorIds: Set<string>,
-): { valid: McpTrustEntry[]; unknown: McpTrustEntry[] } {
-  const valid: McpTrustEntry[] = [];
-  const unknown: McpTrustEntry[] = [];
-  for (const trust of mcpTrusts) {
+): { valid: T[]; unknown: T[] } {
+  const valid: T[] = [];
+  const unknown: T[] = [];
+  for (const trust of trusts) {
     (vendorIds.has(trust.trustedOrg) ? valid : unknown).push(trust);
   }
   return { valid, unknown };
@@ -868,6 +880,74 @@ export function resolveSkillInstallUrls(output: ConsolidatedOutput): void {
   }
 }
 
+// Mirrors resolveSkillTrust structurally (single-hop only, skip if the
+// trusting org already approved directly). The difference: since plugin IDs
+// never expand (unlike skills' glob/multi-path handling) and there's no
+// separate resolvePluginInstallUrls pass, the derived approval's installUrl
+// is computed inline here rather than in a later pass.
+export function resolvePluginTrust(
+  output: ConsolidatedOutput,
+  pluginTrusts: PluginTrustEntry[],
+): void {
+  for (const { org, trustedOrg } of pluginTrusts) {
+    const ownTools = output.tools.filter((t) => t.organizationId === org);
+    for (const plugin of output.plugins) {
+      const sourceApproval = plugin.approvals.find(
+        (a) => a.organizationId === trustedOrg && !a.viaTrust,
+      );
+      if (!sourceApproval) continue;
+      if (plugin.approvals.some((a) => a.organizationId === org)) continue;
+
+      plugin.approvals.push({
+        organizationId: org,
+        date: sourceApproval.date,
+        configHash: sourceApproval.configHash,
+        installConfigs: ownTools.map((tool) => {
+          const cfg: PluginInstallConfig = { tool: tool.id };
+          if (tool.pluginInstallUrlPrefix) {
+            cfg.installUrl = tool.pluginInstallUrlPrefix + plugin.pluginId;
+          }
+          return cfg;
+        }),
+        viaTrust: trustedOrg,
+      });
+    }
+  }
+}
+
+// Mirrors resolvePluginTrust exactly — see its comment for why installUrl is
+// computed inline rather than in a later pass (agent IDs never expand
+// either, and there's no separate resolveAgentInstallUrls pass).
+export function resolveAgentTrust(
+  output: ConsolidatedOutput,
+  agentTrusts: AgentTrustEntry[],
+): void {
+  for (const { org, trustedOrg } of agentTrusts) {
+    const ownTools = output.tools.filter((t) => t.organizationId === org);
+    for (const agent of output.agents) {
+      const sourceApproval = agent.approvals.find(
+        (a) => a.organizationId === trustedOrg && !a.viaTrust,
+      );
+      if (!sourceApproval) continue;
+      if (agent.approvals.some((a) => a.organizationId === org)) continue;
+
+      agent.approvals.push({
+        organizationId: org,
+        date: sourceApproval.date,
+        configHash: sourceApproval.configHash,
+        installConfigs: ownTools.map((tool) => {
+          const cfg: AgentInstallConfig = { tool: tool.id };
+          if (tool.agentInstallUrlPrefix) {
+            cfg.installUrl = tool.agentInstallUrlPrefix + agent.agentId;
+          }
+          return cfg;
+        }),
+        viaTrust: trustedOrg,
+      });
+    }
+  }
+}
+
 export function buildToolSkillView(
   toolId: string,
   skills: SkillEntry[],
@@ -928,6 +1008,8 @@ function collectVendorData(
   output: ConsolidatedOutput,
   skillTrusts: SkillTrustEntry[],
   mcpTrusts: McpTrustEntry[],
+  pluginTrusts: PluginTrustEntry[],
+  agentTrusts: AgentTrustEntry[],
 ): void {
   const result = validateVendorFiles(vendorPath, vendorId);
 
@@ -946,6 +1028,8 @@ function collectVendorData(
     output,
     skillTrusts,
     mcpTrusts,
+    pluginTrusts,
+    agentTrusts,
   );
 
   for (const { data } of result.approvals) {
@@ -1085,6 +1169,8 @@ export async function main(): Promise<void> {
   };
   const skillTrusts: SkillTrustEntry[] = [];
   const mcpTrusts: McpTrustEntry[] = [];
+  const pluginTrusts: PluginTrustEntry[] = [];
+  const agentTrusts: AgentTrustEntry[] = [];
 
   // Step 1: Collect all vendor data (fails build on any error)
   const tmpDir = resolve(ROOT, ".tmp-vendors");
@@ -1097,7 +1183,15 @@ export async function main(): Promise<void> {
     for (const vendor of vendors) {
       console.log(`Processing vendor: ${vendor.id}`);
       const vendorPath = cloneOrUseLocal(vendor, tmpDir);
-      collectVendorData(vendor.id, vendorPath, output, skillTrusts, mcpTrusts);
+      collectVendorData(
+        vendor.id,
+        vendorPath,
+        output,
+        skillTrusts,
+        mcpTrusts,
+        pluginTrusts,
+        agentTrusts,
+      );
       console.log();
     }
   } finally {
@@ -1120,7 +1214,7 @@ export async function main(): Promise<void> {
   // fails on this before merge (see checkTrustedOrgIds in validate.ts)
   const vendorIds = new Set(vendors.map((v) => v.id));
   const { valid: validSkillTrusts, unknown: unknownSkillTrusts } =
-    filterValidSkillTrusts(skillTrusts, vendorIds);
+    filterValidTrusts(skillTrusts, vendorIds);
   for (const { org, trustedOrg } of unknownSkillTrusts) {
     console.warn(
       `  WARNING: organization.json for "${org}" trusts unknown organization "${trustedOrg}" — skipping`,
@@ -1128,10 +1222,26 @@ export async function main(): Promise<void> {
   }
 
   const { valid: validMcpTrusts, unknown: unknownMcpTrusts } =
-    filterValidMcpTrusts(mcpTrusts, vendorIds);
+    filterValidTrusts(mcpTrusts, vendorIds);
   for (const { org, trustedOrg } of unknownMcpTrusts) {
     console.warn(
       `  WARNING: organization.json for "${org}" trusts unknown organization "${trustedOrg}" for MCP — skipping`,
+    );
+  }
+
+  const { valid: validPluginTrusts, unknown: unknownPluginTrusts } =
+    filterValidTrusts(pluginTrusts, vendorIds);
+  for (const { org, trustedOrg } of unknownPluginTrusts) {
+    console.warn(
+      `  WARNING: organization.json for "${org}" trusts unknown organization "${trustedOrg}" for plugins — skipping`,
+    );
+  }
+
+  const { valid: validAgentTrusts, unknown: unknownAgentTrusts } =
+    filterValidTrusts(agentTrusts, vendorIds);
+  for (const { org, trustedOrg } of unknownAgentTrusts) {
+    console.warn(
+      `  WARNING: organization.json for "${org}" trusts unknown organization "${trustedOrg}" for agents — skipping`,
     );
   }
 
@@ -1170,8 +1280,14 @@ export async function main(): Promise<void> {
   // Step 2c: Enrich plugins with source metadata (skips unreachable sources)
   output.plugins = enrichPluginMetadata(output.plugins);
 
+  // Resolve trust delegations into derived plugin approvals
+  resolvePluginTrust(output, validPluginTrusts);
+
   // Step 2d: Enrich agents with source metadata (skips unreachable sources)
   output.agents = await enrichAgentMetadata(output.agents);
+
+  // Resolve trust delegations into derived agent approvals
+  resolveAgentTrust(output, validAgentTrusts);
 
   // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));
