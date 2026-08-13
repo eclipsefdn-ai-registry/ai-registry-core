@@ -103,6 +103,16 @@
                 "type": "object",
                 "additionalProperties": false,
                 "description": "Trust the organization's MCP server approvals. Empty today — reserved for future per-type conditions."
+              },
+              "plugins": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Trust the organization's Agent Plugin approvals. Empty today — reserved for future per-type conditions."
+              },
+              "agents": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Trust the organization's A2A agent approvals. Empty today — reserved for future per-type conditions."
               }
             }
           }

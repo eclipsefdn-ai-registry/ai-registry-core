@@ -75,6 +75,7 @@ export interface PluginApproval {
   date: string;
   configHash: string;
   installConfigs: PluginInstallConfig[];
+  viaTrust?: string;
 }
 
 export interface ContainedSkill {
@@ -115,6 +116,7 @@ export interface AgentApproval {
   date: string;
   configHash: string;
   installConfigs: AgentInstallConfig[];
+  viaTrust?: string;
 }
 
 export interface Agent {
