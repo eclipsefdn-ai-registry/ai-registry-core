@@ -57,22 +57,11 @@ interface OrganizationData {
   }[];
 }
 
-export interface SkillTrustEntry {
-  org: string;
-  trustedOrg: string;
-}
-
-export interface McpTrustEntry {
-  org: string;
-  trustedOrg: string;
-}
-
-export interface PluginTrustEntry {
-  org: string;
-  trustedOrg: string;
-}
-
-export interface AgentTrustEntry {
+// Shared shape for all four trust-entry lists (skill, mcp, plugin, agent).
+// Kept as one type rather than one per artifact type since none of them add
+// artifact-specific fields — the distinction lives in which list an entry
+// ends up in, not in the entry's shape.
+export interface TrustEntry {
   org: string;
   trustedOrg: string;
 }
@@ -275,10 +264,10 @@ export interface ConsolidatedOutput {
 export function addOrganization(
   orgData: OrganizationData,
   output: ConsolidatedOutput,
-  skillTrusts: SkillTrustEntry[] = [],
-  mcpTrusts: McpTrustEntry[] = [],
-  pluginTrusts: PluginTrustEntry[] = [],
-  agentTrusts: AgentTrustEntry[] = [],
+  skillTrusts: TrustEntry[] = [],
+  mcpTrusts: TrustEntry[] = [],
+  pluginTrusts: TrustEntry[] = [],
+  agentTrusts: TrustEntry[] = [],
 ): void {
   const { tools: orgTools = [], trusts = [], ...orgMeta } = orgData;
   output.organizations.push(orgMeta);
@@ -771,7 +760,7 @@ export function filterValidTrusts<T extends { trustedOrg: string }>(
 // MCP install card needs a URL/command, not just a deep link.
 export function resolveMcpTrust(
   output: ConsolidatedOutput,
-  mcpTrusts: McpTrustEntry[],
+  mcpTrusts: TrustEntry[],
 ): void {
   for (const { org, trustedOrg } of mcpTrusts) {
     const ownTools = output.tools.filter((t) => t.organizationId === org);
@@ -836,7 +825,7 @@ export function resolveMcpTrust(
 // trust-derived copy would add.
 export function resolveSkillTrust(
   output: ConsolidatedOutput,
-  skillTrusts: SkillTrustEntry[],
+  skillTrusts: TrustEntry[],
 ): void {
   for (const { org, trustedOrg } of skillTrusts) {
     const ownTools = output.tools.filter((t) => t.organizationId === org);
@@ -887,7 +876,7 @@ export function resolveSkillInstallUrls(output: ConsolidatedOutput): void {
 // is computed inline here rather than in a later pass.
 export function resolvePluginTrust(
   output: ConsolidatedOutput,
-  pluginTrusts: PluginTrustEntry[],
+  pluginTrusts: TrustEntry[],
 ): void {
   for (const { org, trustedOrg } of pluginTrusts) {
     const ownTools = output.tools.filter((t) => t.organizationId === org);
@@ -920,7 +909,7 @@ export function resolvePluginTrust(
 // either, and there's no separate resolveAgentInstallUrls pass).
 export function resolveAgentTrust(
   output: ConsolidatedOutput,
-  agentTrusts: AgentTrustEntry[],
+  agentTrusts: TrustEntry[],
 ): void {
   for (const { org, trustedOrg } of agentTrusts) {
     const ownTools = output.tools.filter((t) => t.organizationId === org);
@@ -1006,10 +995,10 @@ function collectVendorData(
   vendorId: string,
   vendorPath: string,
   output: ConsolidatedOutput,
-  skillTrusts: SkillTrustEntry[],
-  mcpTrusts: McpTrustEntry[],
-  pluginTrusts: PluginTrustEntry[],
-  agentTrusts: AgentTrustEntry[],
+  skillTrusts: TrustEntry[],
+  mcpTrusts: TrustEntry[],
+  pluginTrusts: TrustEntry[],
+  agentTrusts: TrustEntry[],
 ): void {
   const result = validateVendorFiles(vendorPath, vendorId);
 
@@ -1167,10 +1156,10 @@ export async function main(): Promise<void> {
     plugins: [],
     agents: [],
   };
-  const skillTrusts: SkillTrustEntry[] = [];
-  const mcpTrusts: McpTrustEntry[] = [];
-  const pluginTrusts: PluginTrustEntry[] = [];
-  const agentTrusts: AgentTrustEntry[] = [];
+  const skillTrusts: TrustEntry[] = [];
+  const mcpTrusts: TrustEntry[] = [];
+  const pluginTrusts: TrustEntry[] = [];
+  const agentTrusts: TrustEntry[] = [];
 
   // Step 1: Collect all vendor data (fails build on any error)
   const tmpDir = resolve(ROOT, ".tmp-vendors");

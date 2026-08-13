@@ -33,10 +33,7 @@ import {
   type SkillEntry,
   type PluginEntry,
   type AgentEntry,
-  type SkillTrustEntry,
-  type McpTrustEntry,
-  type PluginTrustEntry,
-  type AgentTrustEntry,
+  type TrustEntry,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
@@ -1011,7 +1008,7 @@ describe("addAgentApproval", () => {
 describe("addOrganization — trust extraction", () => {
   it("collects a skill trust entry", () => {
     const output = emptyOutput();
-    const skillTrusts: SkillTrustEntry[] = [];
+    const skillTrusts: TrustEntry[] = [];
     addOrganization(
       {
         id: "theia",
@@ -1046,7 +1043,7 @@ describe("addOrganization — trust extraction", () => {
 
   it("ignores a trust entry with no recognized artifact type", () => {
     const output = emptyOutput();
-    const skillTrusts: SkillTrustEntry[] = [];
+    const skillTrusts: TrustEntry[] = [];
     addOrganization(
       {
         id: "theia",
@@ -1907,8 +1904,8 @@ describe("buildOrgEntryView", () => {
 describe("addOrganization — mcp trust extraction", () => {
   it("collects an mcp trust entry", () => {
     const output = emptyOutput();
-    const skillTrusts: SkillTrustEntry[] = [];
-    const mcpTrusts: McpTrustEntry[] = [];
+    const skillTrusts: TrustEntry[] = [];
+    const mcpTrusts: TrustEntry[] = [];
     addOrganization(
       {
         id: "theia",
@@ -1929,8 +1926,8 @@ describe("addOrganization — mcp trust extraction", () => {
 
   it("collects both a skill and an mcp trust entry from the same organization", () => {
     const output = emptyOutput();
-    const skillTrusts: SkillTrustEntry[] = [];
-    const mcpTrusts: McpTrustEntry[] = [];
+    const skillTrusts: TrustEntry[] = [];
+    const mcpTrusts: TrustEntry[] = [];
     addOrganization(
       {
         id: "theia",
@@ -1956,7 +1953,7 @@ describe("addOrganization — mcp trust extraction", () => {
 describe("addOrganization — plugin/agent trust extraction", () => {
   it("collects a plugin trust entry", () => {
     const output = emptyOutput();
-    const pluginTrusts: PluginTrustEntry[] = [];
+    const pluginTrusts: TrustEntry[] = [];
     addOrganization(
       {
         id: "theia",
@@ -1975,7 +1972,7 @@ describe("addOrganization — plugin/agent trust extraction", () => {
 
   it("collects an agent trust entry", () => {
     const output = emptyOutput();
-    const agentTrusts: AgentTrustEntry[] = [];
+    const agentTrusts: TrustEntry[] = [];
     addOrganization(
       {
         id: "theia",
@@ -1995,10 +1992,10 @@ describe("addOrganization — plugin/agent trust extraction", () => {
 
   it("collects skill, mcp, plugin, and agent trust entries from the same organization", () => {
     const output = emptyOutput();
-    const skillTrusts: SkillTrustEntry[] = [];
-    const mcpTrusts: McpTrustEntry[] = [];
-    const pluginTrusts: PluginTrustEntry[] = [];
-    const agentTrusts: AgentTrustEntry[] = [];
+    const skillTrusts: TrustEntry[] = [];
+    const mcpTrusts: TrustEntry[] = [];
+    const pluginTrusts: TrustEntry[] = [];
+    const agentTrusts: TrustEntry[] = [];
     addOrganization(
       {
         id: "theia",
