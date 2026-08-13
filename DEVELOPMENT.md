@@ -74,6 +74,12 @@ LOCAL_VENDORS_DIR=/path/to/parent/dir npm run dev
 | ----------- | ---------------------------------------------- | --------------------------------------------------------------------- |
 | `build.yml` | Push / PR to main, vendor dispatch, daily cron | Check + consolidate + build website. Deploys to GitHub Pages on main. |
 
+### Jenkins deployment
+
+After deploying to GitHub Pages, `build.yml` calls an Eclipse Foundation Jenkins job (via `JENKINS_API_TOKEN`) that publishes the site to [ai.open-vsx.org](https://ai.open-vsx.org). Check its build status/logs here:
+
+https://foundation.eclipse.org/ci/webdev/job/public/job/ai.open-vsx.org/
+
 ## Adding a vendor
 
 1. Create a vendor repository following the [vendor template](https://github.com/eclipsefdn-ai-registry/ai-registry-theia)
