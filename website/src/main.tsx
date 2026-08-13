@@ -9,6 +9,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { HomePage } from "./pages/HomePage.tsx";
 import { ToolPage } from "./pages/ToolPage.tsx";
+import { OrgPage } from "./pages/OrgPage.tsx";
 import { AboutPage } from "./pages/AboutPage.tsx";
 import { DocsLayout } from "./components/docs/DocsLayout.tsx";
 import { ApiPage } from "./pages/docs/ApiPage.tsx";
@@ -26,6 +27,7 @@ const router = createBrowserRouter(
       children: [
         { index: true, element: <HomePage /> },
         { path: "tools/:toolId", element: <ToolPage /> },
+        { path: "orgs/:orgId", element: <OrgPage /> },
         { path: "about", element: <AboutPage /> },
         {
           path: "docs",

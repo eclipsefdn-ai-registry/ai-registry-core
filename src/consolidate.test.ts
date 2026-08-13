@@ -19,6 +19,7 @@ import {
   buildToolSkillView,
   buildToolPluginView,
   buildToolAgentView,
+  buildOrgEntryView,
   findOrCreate,
   configHashOf,
   type ConsolidatedOutput,
@@ -1759,6 +1760,144 @@ describe("buildToolAgentView", () => {
 
     assert.equal(original.length, 2);
     assert.equal(original[0].approvals[1].installConfigs.length, 1);
+  });
+});
+
+describe("buildOrgEntryView", () => {
+  function servers(): McpEntry[] {
+    return [
+      {
+        serverId: "io.example/server-1",
+        name: "Server 1",
+        description: "Approved by acme",
+        mcpRegistryVerified: true,
+        approvals: [
+          {
+            organizationId: "acme",
+            date: "2026-05-01",
+            configHash: "aaa",
+            installConfigs: [{ tool: "tool-a", instructions: "use tool-a" }],
+          },
+          {
+            organizationId: "other",
+            date: "2026-05-02",
+            configHash: "bbb",
+            installConfigs: [{ tool: "tool-b", instructions: "use tool-b" }],
+          },
+        ],
+      },
+      {
+        serverId: "io.example/server-2",
+        name: "Server 2",
+        description: "Approved by other only",
+        mcpRegistryVerified: true,
+        approvals: [
+          {
+            organizationId: "other",
+            date: "2026-05-01",
+            configHash: "ccc",
+            installConfigs: [{ tool: "tool-b", instructions: "use tool-b" }],
+          },
+        ],
+      },
+      {
+        serverId: "io.example/server-3",
+        name: "Server 3",
+        description: "Approved by acme via trust delegation",
+        mcpRegistryVerified: true,
+        approvals: [
+          {
+            organizationId: "acme",
+            date: "2026-05-03",
+            configHash: "ddd",
+            installConfigs: [{ tool: "tool-a" }],
+            viaTrust: "other",
+          },
+        ],
+      },
+    ];
+  }
+
+  it("only includes entries approved by the target org", () => {
+    const view = buildOrgEntryView("acme", servers());
+    assert.deepEqual(
+      view.map((s) => s.serverId),
+      ["io.example/server-1", "io.example/server-3"],
+    );
+  });
+
+  it("includes trust-derived approvals, since organizationId is the trusting org", () => {
+    const view = buildOrgEntryView("acme", servers());
+    const viaTrust = view.find((s) => s.serverId === "io.example/server-3")!;
+    assert.equal(viaTrust.approvals[0].viaTrust, "other");
+  });
+
+  it("excludes entries with no approval from the target org", () => {
+    const view = buildOrgEntryView("acme", servers());
+    assert.equal(
+      view.some((s) => s.serverId === "io.example/server-2"),
+      false,
+    );
+  });
+
+  it("keeps all approvals intact, including other orgs' install configs", () => {
+    const view = buildOrgEntryView("acme", servers());
+    const entry = view.find((s) => s.serverId === "io.example/server-1")!;
+    assert.equal(entry.approvals.length, 2);
+    const otherApproval = entry.approvals.find(
+      (a) => a.organizationId === "other",
+    )!;
+    assert.equal(otherApproval.installConfigs.length, 1);
+    assert.equal(otherApproval.installConfigs[0].tool, "tool-b");
+  });
+
+  it("does not mutate the original input", () => {
+    const original = servers();
+    buildOrgEntryView("acme", original);
+
+    assert.equal(original.length, 3);
+    assert.equal(original[0].approvals.length, 2);
+  });
+
+  it("works across entry types other than mcp", () => {
+    const skills: SkillEntry[] = [
+      {
+        skillId: "io.example/skill-1",
+        name: "Skill 1",
+        description: "Approved by acme",
+        source: { url: "https://github.com/example/skills.git" },
+        contentHash: "abc123",
+        approvals: [
+          {
+            organizationId: "acme",
+            date: "2026-05-01",
+            configHash: "aaa",
+            installConfigs: [],
+          },
+        ],
+      },
+      {
+        skillId: "io.example/skill-2",
+        name: "Skill 2",
+        description: "Approved by other only",
+        source: { url: "https://github.com/example/skills.git" },
+        contentHash: "def456",
+        approvals: [
+          {
+            organizationId: "other",
+            date: "2026-05-01",
+            configHash: "bbb",
+            installConfigs: [],
+          },
+        ],
+      },
+    ];
+
+    const view = buildOrgEntryView("acme", skills);
+    assert.deepEqual(
+      view.map((s) => s.skillId),
+      ["io.example/skill-1"],
+    );
   });
 });
 

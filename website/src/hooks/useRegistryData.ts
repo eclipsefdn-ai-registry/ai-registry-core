@@ -31,7 +31,7 @@ export function useAllRegistryData(): RegistryDataResult {
   return { data, error, loading };
 }
 
-interface ToolRegistryDataResult extends RegistryDataResult {
+interface ScopedRegistryDataResult extends RegistryDataResult {
   notFound: boolean;
 }
 
@@ -40,14 +40,23 @@ interface OrgsData {
   tools: RegistryData["tools"];
 }
 
-interface ToolData {
+// Shape of both tools/<tool-id>.json and orgs/<org-id>.json — the per-org
+// file carries full, unstripped install configs (see buildOrgEntryView), but
+// otherwise matches the per-tool file's shape, so one type serves both.
+interface ScopedData {
   mcp: RegistryData["mcp"];
   skills: RegistryData["skills"];
   plugins: RegistryData["plugins"];
   agents: RegistryData["agents"];
 }
 
-export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
+// Shared by useToolRegistryData and useOrgRegistryData: both fetch one
+// "scope" file (tools/<id>.json or orgs/<id>.json) alongside
+// organizations.json, and merge them into a RegistryData the same way.
+function useScopedRegistryData(
+  dir: string,
+  id: string,
+): ScopedRegistryDataResult {
   const [data, setData] = useState<RegistryData | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [notFound, setNotFound] = useState(false);
@@ -57,29 +66,29 @@ export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
     const base = import.meta.env.BASE_URL + "api/v1/";
 
     Promise.all([
-      fetch(base + "tools/" + encodeURIComponent(toolId) + ".json"),
+      fetch(`${base}${dir}/${encodeURIComponent(id)}.json`),
       fetch(base + "organizations.json"),
     ])
-      .then(async ([toolRes, orgsRes]) => {
-        if (toolRes.status === 404) {
+      .then(async ([scopedRes, orgsRes]) => {
+        if (scopedRes.status === 404) {
           setNotFound(true);
           setLoading(false);
           return;
         }
-        if (!toolRes.ok) throw new Error(`HTTP ${toolRes.status}`);
+        if (!scopedRes.ok) throw new Error(`HTTP ${scopedRes.status}`);
         if (!orgsRes.ok)
           throw new Error(`HTTP ${orgsRes.status} loading organizations`);
 
-        const toolData = (await toolRes.json()) as ToolData;
+        const scopedData = (await scopedRes.json()) as ScopedData;
         const orgsData = (await orgsRes.json()) as OrgsData;
 
         setData({
           organizations: orgsData.organizations,
           tools: orgsData.tools,
-          mcp: toolData.mcp,
-          skills: toolData.skills ?? [],
-          plugins: toolData.plugins ?? [],
-          agents: toolData.agents ?? [],
+          mcp: scopedData.mcp,
+          skills: scopedData.skills ?? [],
+          plugins: scopedData.plugins ?? [],
+          agents: scopedData.agents ?? [],
         });
         setLoading(false);
       })
@@ -87,7 +96,15 @@ export function useToolRegistryData(toolId: string): ToolRegistryDataResult {
         setError(e instanceof Error ? e.message : String(e));
         setLoading(false);
       });
-  }, [toolId]);
+  }, [dir, id]);
 
   return { data, error, loading, notFound };
+}
+
+export function useToolRegistryData(toolId: string): ScopedRegistryDataResult {
+  return useScopedRegistryData("tools", toolId);
+}
+
+export function useOrgRegistryData(orgId: string): ScopedRegistryDataResult {
+  return useScopedRegistryData("orgs", orgId);
 }

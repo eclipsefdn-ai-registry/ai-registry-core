@@ -2,7 +2,7 @@
 name: implement-registry-client
 description: >
   Implement an AI Registry client in an agent, IDE, or development tool.
-  Use when adding registry support for MCP servers, Agent Skills, or Agent Plugins,
+  Use when adding registry support for MCP servers, Agent Skills, Agent Plugins, or A2A agents,
   or when a tool needs to browse, install, update, or verify registry-approved artifacts.
 ---
 
@@ -10,7 +10,7 @@ description: >
 
 A client reads the registry, shows users which artifacts their organizations endorsed, and installs them.
 
-Implement any subset of the three artifact types.
+Implement any subset of the four artifact types.
 
 ## What the registry vouches for
 
@@ -18,23 +18,30 @@ The registry records that a named organization **endorsed** an artifact on a dat
 
 It does not test, audit, sandbox, or certify anything. Endorsement is per organization, not a registry-wide certification. A client can present its per-tool list as its own and never name another organization, or it can show the endorsement chain behind each artifact. Both are valid; the second gives the user something to evaluate.
 
-Three limits shape everything below:
+Four limits shape everything below:
 
 - MCP servers are described by configuration, not by content. The registry publishes the command or URL to run. Nothing in the feed covers the server's code, and that code can change under a stable command at any time.
 - Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push. Sources are referenced by repository URL and path with no commit pin, so the hash is the only pin available.
+- Agents carry a content hash too, but of a single fetched Agent Card JSON file, not a directory — there is no path to pin.
 - Withdrawing an endorsement removes the entry from the feed, but so does a source that was briefly unreachable when consolidation ran. Nothing in the data separates the two, so there is no revocation signal a client can act on. See [Disappearing entries](#disappearing-entries).
 
 ## The data
 
 Base URL: `https://ai.open-vsx.org/api/v1/`
 
-| Endpoint               | What it gives you                                                            |
-| :--------------------- | :--------------------------------------------------------------------------- |
-| `tools/<tool-id>.json` | Artifacts endorsed for your tool, with other tools' install configs stripped |
-| `organizations.json`   | Organization identity: name, description, website, colour                    |
-| `all.json`             | Everything, unfiltered                                                       |
+| Endpoint                                                 | What it gives you                                                                                                                     |
+| :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `tools/<tool-id>.json`                                   | Artifacts endorsed for your tool, with other tools' install configs stripped                                                          |
+| `orgs/<org-id>.json`                                     | Artifacts endorsed by one organization, across every tool, full install configs kept                                                  |
+| `organizations.json`                                     | Organization identity: name, description, website, colour                                                                             |
+| `mcp.json`, `skills.json`, `plugins.json`, `agents.json` | Every endorsed artifact of one type, across every tool, full install configs kept — each a single-key object, e.g. `{ "mcp": [...] }` |
+| `all.json`                                               | Everything, unfiltered                                                                                                                |
 
 `tools/<tool-id>.json` is all you need to browse and install. Add `organizations.json` if you want to name the endorsing organizations, since the per-tool view carries `organizationId` strings and nothing else about them.
+
+Reach for `orgs/<org-id>.json` or the per-type files when your client's boundary is an organization or an artifact type rather than a tool — for example, an organization publishing its own curated allowlist, or a client that only ever handles one artifact type.
+
+Both keep every entry's `approvals` and `installConfigs` exactly as filed, unlike `tools/<tool-id>.json`. Filter `approvals` by `organizationId` and `installConfigs[].tool` yourself before installing, or treat these as browsing views like `all.json`.
 
 Use `all.json` when your tool has no registered tool id yet. It carries every artifact any organization endorsed, including install configs aimed at other tools, so treat it as a browsing view rather than an install source.
 
@@ -52,7 +59,7 @@ Every artifact type follows the same five steps.
 
 ### 1. Read the entries you handle
 
-Top-level keys are `organizations`, `tools`, `mcp`, `skills`, and `plugins`. New keys may appear, so ignore what you do not implement.
+Top-level keys are `organizations`, `tools`, `mcp`, `skills`, `plugins`, and `agents`. New keys may appear, so ignore what you do not implement.
 
 ### 2. Resolve endorsements
 
@@ -211,6 +218,35 @@ Two facts about the feed belong on this side of the line:
 
 Endorsement attaches to the plugin as a whole. No contained MCP server is endorsed independently, and since a plugin's MCP servers can run arbitrary local commands, say so before installing.
 
+## Agents
+
+An A2A agent's `source.url` points directly at its Agent Card, a single JSON file describing a remote agent — not a repository or a directory, and there is no `source.path`. `name` and `description` come from the card itself.
+
+```json
+{
+  "agentId": "eu.mosaico-project/ip-solution-agent",
+  "name": "IP Solution Agent",
+  "description": "Answers questions about IP licensing.",
+  "source": {
+    "url": "https://example.com/agents/ip-solution/agent_card.json"
+  },
+  "contentHash": "4d881ac8a3bd",
+  "approvals": [
+    {
+      "organizationId": "example-org",
+      "date": "2026-08-01",
+      "installConfigs": []
+    }
+  ]
+}
+```
+
+**`contentHash` covers the card's JSON text as fetched, not a directory.** Recompute it as a SHA-256 of the raw response body and take the first 12 hex characters — the same digest format [content hash](references/content-hash.md) documents for skills and plugins, but over one file instead of a walked tree.
+
+There is no plugin-root or skill-folder equivalent to download. Install means resolving the card from `source.url`, using it to reach the remote agent per the [A2A protocol](https://a2a-protocol.org), and registering that reference in your tool. `installConfigs[].config` carries whatever else your tool needs to do that — for a container-delivered agent, for example, an image, tag, port, or environment.
+
+Endorsement attaches to the agent as a whole, the same as for plugins: there is nothing smaller inside an Agent Card to endorse independently.
+
 ## Disappearing entries
 
 An installed artifact vanishing from the feed can mean an organization withdrew its endorsement. It can also mean consolidation skipped the entry because its source was briefly unreachable, or a vendor retargeted the approval, or an id was renamed. The data does not distinguish them.
@@ -235,7 +271,7 @@ Removing artifacts automatically deletes working installations whenever a source
 - [ ] Keep a failed fetch distinct from an empty response, and change nothing on failure
 - [ ] Ignore fields you do not recognise rather than rejecting the document
 - [ ] Pick an install config by `date` descending and `organizationId` ascending
-- [ ] Verify `contentHash` before installing a skill or plugin, and let the user override an explicit mismatch warning
+- [ ] Verify `contentHash` before installing a skill, plugin, or agent, and let the user override an explicit mismatch warning
 - [ ] Record provenance for everything you install, and never overwrite what you did not
 - [ ] Offer adoption when a local slot is already occupied
 - [ ] Install plugins whole, keyed by `pluginId`, and load from inside the plugin root
@@ -249,7 +285,7 @@ Removing artifacts automatically deletes working installations whenever a source
 
 **If you implement updates**
 
-- [ ] Use `configHash` for MCP servers and `contentHash` for skills and plugins
+- [ ] Use `configHash` for MCP servers and `contentHash` for skills, plugins, and agents
 - [ ] Preserve user-supplied configuration across an update
 
 **If you implement deep links**

@@ -4,6 +4,8 @@ The hash the registry publishes as `contentHash` for skills and plugins. Reprodu
 
 Consolidation computes it over the skill folder or the plugin directory. Both use the same algorithm.
 
+Agents also carry a `contentHash`, but it is not this algorithm: it is a SHA-256 of the fetched Agent Card JSON text, first 12 hex characters, with no directory walk. See [Agents](../SKILL.md#agents) in the main skill file.
+
 ## Algorithm
 
 1. Walk the directory recursively. Skip every entry whose name begins with `.`, at every level. Skipping a directory skips everything under it.

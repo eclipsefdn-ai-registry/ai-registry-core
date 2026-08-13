@@ -59,7 +59,7 @@ export function ClientsPage() {
       <p className="mb-3 leading-relaxed">
         A client reads the registry, shows users which artifacts their
         organizations approved, and installs them. Implement any subset of the
-        three artifact types.
+        four artifact types.
       </p>
       <p className="mb-3 leading-relaxed">
         The same guidance is packaged as an agent skill,{" "}
@@ -99,6 +99,10 @@ export function ClientsPage() {
             path with no commit pin, so the hash is the only pin available.
           </li>
           <li className="leading-relaxed">
+            Agents carry a content hash too, but of a single fetched Agent Card
+            JSON file, not a directory — there is no path to pin.
+          </li>
+          <li className="leading-relaxed">
             Withdrawing an approval removes the entry from the feed, but so does
             a source that was briefly unreachable when consolidation ran.
             Nothing in the data separates the two, so there is no revocation
@@ -124,6 +128,27 @@ export function ClientsPage() {
           tool id yet. It includes install configs aimed at other tools, so
           treat it as a browsing view rather than an install source.
         </p>
+        <p className="mb-3 leading-relaxed">
+          <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> is the same idea,
+          scoped to one organization instead of one tool — everything it
+          approved, across every tool. <InlineCode>mcp.json</InlineCode>,{" "}
+          <InlineCode>skills.json</InlineCode>,{" "}
+          <InlineCode>plugins.json</InlineCode>, and{" "}
+          <InlineCode>agents.json</InlineCode> scope the other way, to one
+          artifact type across the whole registry. Reach for these when your
+          client's boundary is an organization or a type rather than a tool.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Both keep every entry's <InlineCode>approvals</InlineCode> and{" "}
+          <InlineCode>installConfigs</InlineCode> exactly as filed — an
+          org-scoped or type-scoped file is not pre-filtered the way{" "}
+          <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> is. Filter{" "}
+          <InlineCode>approvals</InlineCode> by{" "}
+          <InlineCode>organizationId</InlineCode> and{" "}
+          <InlineCode>installConfigs[].tool</InlineCode> yourself before
+          installing, or treat these as browsing views like{" "}
+          <InlineCode>all.json</InlineCode>.
+        </p>
         <InfoCallout>
           <strong>The base URL and tool id are product configuration.</strong>{" "}
           Both decide who the user trusts. A user who can point the tool at
@@ -146,8 +171,9 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           <strong>1. Read the entries you handle.</strong> Top-level keys are{" "}
           <InlineCode>organizations</InlineCode>, <InlineCode>tools</InlineCode>
-          , <InlineCode>mcp</InlineCode>, <InlineCode>skills</InlineCode>, and{" "}
-          <InlineCode>plugins</InlineCode>. New keys may appear.
+          , <InlineCode>mcp</InlineCode>, <InlineCode>skills</InlineCode>,{" "}
+          <InlineCode>plugins</InlineCode>, and <InlineCode>agents</InlineCode>.
+          New keys may appear.
         </p>
         <p className="mb-3 leading-relaxed">
           <strong>2. Resolve approvals.</strong> Each entry carries an{" "}
@@ -362,6 +388,53 @@ export function ClientsPage() {
         </ul>
       </DocsSection>
 
+      <DocsSection id="a2a-agents">
+        <p className="mb-3 leading-relaxed">
+          An A2A agent's <InlineCode>source.url</InlineCode> points directly at
+          its Agent Card, a single JSON file describing a remote agent — not a
+          repository or a directory, and there is no{" "}
+          <InlineCode>source.path</InlineCode>. <InlineCode>name</InlineCode>{" "}
+          and <InlineCode>description</InlineCode> come from the card itself.
+        </p>
+        <InfoCallout>
+          <strong>
+            <InlineCode>contentHash</InlineCode> for agents covers the card's
+            JSON text as fetched, not a directory.
+          </strong>{" "}
+          Recompute it as a SHA-256 of the raw response body and take the first
+          12 hex characters — the same digest format as skills and plugins, but
+          over one file instead of a walked tree. The{" "}
+          <a href="#content-hash" className="text-primary hover:underline">
+            Content hash
+          </a>{" "}
+          section below has the exact algorithm for skills and plugins; agents
+          skip the walk and hash straight from the fetch.
+        </InfoCallout>
+        <p className="mt-3 mb-3 leading-relaxed">
+          There is no plugin-root or skill-folder equivalent to download.
+          Install means resolving the card from{" "}
+          <InlineCode>source.url</InlineCode>, using it to reach the remote
+          agent per the{" "}
+          <a
+            href="https://a2a-protocol.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            A2A protocol
+          </a>
+          , and registering that reference in your tool.{" "}
+          <InlineCode>installConfigs[].config</InlineCode> carries whatever else
+          your tool needs to do that — for a container-delivered agent, for
+          example, an image, tag, port, or environment.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Approval still attaches to the agent as a whole, the same as for
+          plugins: there is nothing smaller inside an Agent Card to approve
+          independently.
+        </p>
+      </DocsSection>
+
       <DocsSection id="disappearing-entries">
         <p className="mb-3 leading-relaxed">
           An installed artifact vanishing from the feed can mean an organization
@@ -391,9 +464,9 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           Compare a hash from the feed against the one you recorded at install:{" "}
           <InlineCode>approvals[].configHash</InlineCode> for MCP servers,{" "}
-          <InlineCode>contentHash</InlineCode> for skills and plugins. Different
-          means an update is available. Refetch before checking, since a cached
-          response cannot contain anything new.
+          <InlineCode>contentHash</InlineCode> for skills, plugins, and agents.
+          Different means an update is available. Refetch before checking, since
+          a cached response cannot contain anything new.
         </p>
         <p className="mb-3 leading-relaxed">
           <InlineCode>version</InlineCode> is not an update signal. A new
@@ -407,8 +480,8 @@ export function ClientsPage() {
           user supplied: authentication tokens, enablement flags, environment
           entries the user added. When an update switches transport, drop the
           previous transport's fields rather than leaving both in place. For
-          skills and plugins, updating is a clean replace, with the same hash
-          verification as at install.
+          skills, plugins, and agents, updating is a clean replace, with the
+          same hash verification as at install.
         </p>
         <p className="mb-3 leading-relaxed">
           Update only artifacts carrying your provenance marker. One the user
@@ -421,8 +494,9 @@ export function ClientsPage() {
           Local content can change after installation. Recompute the content
           hash over the artifact directory and compare it against the hash in
           your provenance marker. Different means the local content has changed
-          since install. This applies to skills and plugins; MCP servers have no
-          content to check.
+          since install. This applies to skills and plugins; MCP servers and
+          agents have no local content to check — an agent's card lives at its
+          source, not on disk.
         </p>
         <p className="mb-3 leading-relaxed">
           Offer to restore the artifact from its source, and leave it alone
@@ -590,7 +664,7 @@ export function ClientsPage() {
             "Keep a failed fetch distinct from an empty response, and change nothing on failure",
             "Ignore fields you do not recognise rather than rejecting the document",
             "Pick an install config by date descending, organizationId ascending",
-            "Verify contentHash before installing a skill or plugin, and let the user override an explicit mismatch warning",
+            "Verify contentHash before installing a skill, plugin, or agent, and let the user override an explicit mismatch warning",
             "Record provenance for everything you install, and never overwrite what you did not",
             "Offer adoption when a local slot is already occupied",
             "Install plugins whole, keyed by pluginId, and load from inside the plugin root",
@@ -610,7 +684,7 @@ export function ClientsPage() {
           title="If you implement updates"
           idPrefix="updates"
           items={[
-            "Use configHash for MCP servers and contentHash for skills and plugins",
+            "Use configHash for MCP servers and contentHash for skills, plugins, and agents",
             "Preserve user-supplied configuration across an update",
           ]}
         />

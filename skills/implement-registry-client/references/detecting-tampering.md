@@ -2,7 +2,7 @@
 
 Local content can change after installation: an edit by the user, a partial write, a process that rewrote files. Comparing the artifact on disk against the hash you recorded at install tells you when it has.
 
-This applies to skills and plugins. MCP servers have no content to check; the registry publishes their configuration, and comparing a locally stored config against the one in the feed is a different question with a different answer.
+This applies to skills and plugins. MCP servers and agents have no local content to check: the registry publishes MCP server configuration rather than content, and an agent's card lives at its source rather than on disk.
 
 ## Detecting it
 
