@@ -1,11 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   addOrganization,
   addApproval,
   addSkillApproval,
   addPluginApproval,
   addAgentApproval,
+  expandMarketplaceApprovals,
   resolveSkillInstallUrls,
   resolveSkillTrust,
   resolveMcpTrust,
@@ -2821,5 +2826,82 @@ describe("configHashOf", () => {
 
   it("differs for different input", () => {
     assert.notEqual(configHashOf({ foo: "bar" }), configHashOf({ foo: "baz" }));
+  });
+});
+
+// --- expandMarketplaceApprovals ---
+
+describe("expandMarketplaceApprovals", () => {
+  it("fans a marketplace approval out into plugin approvals with provenance", () => {
+    const tmpSourceDir = mkdtempSync(
+      join(tmpdir(), "consolidate-marketplace-src-"),
+    );
+    try {
+      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
+      writeFileSync(
+        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
+        JSON.stringify({
+          name: "test-plugins",
+          plugins: [
+            {
+              name: "alloydb",
+              source: {
+                source: "url",
+                url: "https://github.com/gemini-cli-extensions/alloydb.git",
+                ref: "0.2.0",
+              },
+            },
+          ],
+        }),
+      );
+      execSync("git add -A && git commit -m init", {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+
+      const sourceUrl = `file://${tmpSourceDir}`;
+      const output = emptyOutput();
+      expandMarketplaceApprovals(
+        [
+          {
+            organizationId: "acme",
+            data: {
+              date: "2026-09-04",
+              source: { url: sourceUrl, format: "codex" },
+            },
+          },
+        ],
+        output,
+      );
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(
+        output.plugins[0].pluginId,
+        "io.github.gemini-cli-extensions/alloydb",
+      );
+      assert.equal(output.plugins[0].source.ref, "0.2.0");
+      assert.equal(output.plugins[0].approvals[0].organizationId, "acme");
+      assert.deepEqual(output.plugins[0].approvals[0].sourcedFrom, {
+        marketplaceUrl: sourceUrl,
+        format: "codex",
+      });
+    } finally {
+      rmSync(tmpSourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does nothing when there are no pending marketplaces", () => {
+    const output = emptyOutput();
+    expandMarketplaceApprovals([], output);
+    assert.equal(output.plugins.length, 0);
   });
 });
