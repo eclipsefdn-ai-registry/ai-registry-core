@@ -41,6 +41,7 @@ src/
   skill-source.ts           Skill enrichment (sparse checkout, frontmatter, hashing)
   plugin-source.ts          Plugin enrichment (sparse checkout, manifest + contents)
   agent-source.ts           Agent enrichment (HTTP fetch, parse, hash)
+  marketplace-source.ts     Marketplace expansion (parse marketplace file, resolve + derive plugin IDs)
   anthropic-registry.ts     MCP server metadata lookup
   cli-validate.ts           CLI entry: validate a vendor repo
   cli-consolidate.ts        CLI entry: consolidate all vendors
@@ -72,7 +73,7 @@ Tests use Node.js built-in `node:test` with `assert/strict`. Pure function tests
 
 - Schemas are the contract — change schemas first, then update validation and consolidation to match.
 - `installConfigs` and `tools` are optional. Handle missing values with `?? []`.
-- Validation is split: Phase 1 (schema), Phase 2 (MCP registry verification), Phase 3 (skill source verification), Phase 4 (plugin manifest verification), Phase 5 (agent card verification). Phases 2-5 warn on failure, don't block.
+- Validation is split: Phase 1 (schema), Phase 2 (MCP registry verification), Phase 3 (skill source verification), Phase 4 (plugin manifest verification), Phase 5 (agent card verification), Phase 6 (marketplace expansion verification). Phases 2-6 warn on failure, don't block.
 - Consolidation is split: collect (no network) → enrich MCP (network, fatal on error) → enrich skills (network, skip on error) → expand marketplace approvals into plugin approvals (network, skip on error per marketplace) → enrich plugins (network, skip on error) → enrich agents (network, skip on error) → write.
 - Website types in `website/src/types.ts` mirror but don't import from `src/consolidate.ts` — keep them in sync manually.
 - Guidance for implementing clients exists twice on purpose: `skills/implement-registry-client/` for agents, `/docs/clients` (`website/src/pages/docs/ClientsPage.tsx`) for people. Each is complete and neither links to the other, so a rule that changes needs both edited. Drift here is accepted, not a bug to fix by merging them.
