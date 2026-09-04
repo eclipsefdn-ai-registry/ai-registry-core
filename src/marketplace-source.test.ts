@@ -1,10 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   parseCodexMarketplace,
   resolveCodexEntry,
   deriveGithubOwnerRepo,
   derivePluginIdFromSource,
+  fetchMarketplaceEntries,
 } from "./marketplace-source.js";
 
 // --- parseCodexMarketplace ---
@@ -191,5 +196,99 @@ describe("resolveCodexEntry", () => {
       source: 42,
     });
     assert.equal(resolved, undefined);
+  });
+});
+
+// --- fetchMarketplaceEntries ---
+
+describe("fetchMarketplaceEntries", () => {
+  it("clones the repo, reads the marketplace file at its default path, and resolves entries", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "marketplace-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "marketplace-src-"));
+    try {
+      execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      mkdirSync(join(sourceDir, ".agents", "plugins"), { recursive: true });
+      writeFileSync(
+        join(sourceDir, ".agents", "plugins", "marketplace.json"),
+        JSON.stringify({
+          name: "test-plugins",
+          plugins: [
+            {
+              name: "alloydb",
+              source: {
+                source: "url",
+                url: "https://github.com/gemini-cli-extensions/alloydb.git",
+                ref: "0.2.0",
+              },
+            },
+            {
+              name: "local-one",
+              source: "./plugins/local-one",
+            },
+            {
+              name: "unsupported-npm",
+              source: { source: "npm", package: "@scope/x" },
+            },
+          ],
+        }),
+      );
+      execSync("git add -A && git commit -m init", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      const sourceUrl = `file://${sourceDir}`;
+      const result = fetchMarketplaceEntries(
+        sourceUrl,
+        "codex",
+        undefined,
+        tmpDir,
+      );
+
+      assert.equal(result.entries.length, 2);
+      assert.deepEqual(result.entries[0], {
+        name: "alloydb",
+        resolved: {
+          url: "https://github.com/gemini-cli-extensions/alloydb.git",
+          ref: "0.2.0",
+        },
+      });
+      assert.deepEqual(result.entries[1], {
+        name: "local-one",
+        resolved: { url: sourceUrl, path: "plugins/local-one" },
+      });
+      assert.equal(result.warnings.length, 1);
+      assert.match(result.warnings[0], /unsupported-npm/);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("throws a clear error for an unknown format", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "marketplace-badformat-"));
+    try {
+      assert.throws(
+        () =>
+          fetchMarketplaceEntries(
+            "https://example.com/repo.git",
+            "not-a-real-format",
+            undefined,
+            tmpDir,
+          ),
+        /Unknown marketplace format/,
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

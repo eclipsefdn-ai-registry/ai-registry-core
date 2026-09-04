@@ -1,3 +1,8 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { join } from "node:path";
+
 // --- Types ---
 
 export interface CodexMarketplaceEntry {
@@ -109,4 +114,115 @@ export function resolveCodexEntry(
 
   // "npm" and anything else unrecognized: unsupported.
   return undefined;
+}
+
+// --- Format registry ---
+
+interface MarketplaceFormat {
+  defaultPath: string;
+  parse: (content: string) => CodexMarketplaceEntry[];
+  resolve: (
+    marketplaceRepoUrl: string,
+    entry: CodexMarketplaceEntry,
+  ) => ResolvedPluginSource | undefined;
+}
+
+const marketplaceFormats: Record<string, MarketplaceFormat> = {
+  codex: {
+    defaultPath: ".agents/plugins/marketplace.json",
+    parse: parseCodexMarketplace,
+    resolve: resolveCodexEntry,
+  },
+};
+
+// --- Fetching (network: clones the marketplace-hosting repo) ---
+
+function marketplaceCloneKey(sourceUrl: string): string {
+  return createHash("sha256").update(sourceUrl).digest("hex").slice(0, 8);
+}
+
+function cloneMarketplaceRepo(sourceUrl: string, tmpDir: string): string {
+  const cloneDir = join(
+    tmpDir,
+    `marketplace-${marketplaceCloneKey(sourceUrl)}`,
+  );
+
+  if (!existsSync(cloneDir)) {
+    const token = process.env.GH_TOKEN;
+    const repoUrl = token
+      ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
+      : sourceUrl;
+
+    try {
+      execFileSync(
+        "git",
+        [
+          "clone",
+          "--depth",
+          "1",
+          "--filter=blob:none",
+          "--sparse",
+          repoUrl,
+          cloneDir,
+        ],
+        { stdio: "pipe" },
+      );
+    } catch {
+      throw new Error(`Failed to clone ${sourceUrl}`);
+    }
+  }
+
+  return cloneDir;
+}
+
+export function fetchMarketplaceEntries(
+  sourceUrl: string,
+  format: string,
+  sourcePath: string | undefined,
+  tmpDir: string,
+): {
+  entries: { name: string; resolved: ResolvedPluginSource }[];
+  warnings: string[];
+} {
+  const fmt = marketplaceFormats[format];
+  if (!fmt) {
+    throw new Error(`Unknown marketplace format "${format}"`);
+  }
+
+  const effectivePath = sourcePath ?? fmt.defaultPath;
+  const cloneDir = cloneMarketplaceRepo(sourceUrl, tmpDir);
+
+  // Disable sparse-checkout to get all files, since we only need one file
+  // and sparse-checkout cone mode has restrictions on patterns
+  try {
+    execFileSync("git", ["-C", cloneDir, "sparse-checkout", "disable"], {
+      stdio: "pipe",
+    });
+  } catch {
+    throw new Error(`Failed to disable sparse-checkout in ${sourceUrl}`);
+  }
+
+  const filePath = join(cloneDir, effectivePath);
+  if (!existsSync(filePath)) {
+    throw new Error(
+      `Marketplace file not found at "${effectivePath}" in ${sourceUrl}`,
+    );
+  }
+
+  const rawEntries = fmt.parse(readFileSync(filePath, "utf-8"));
+
+  const entries: { name: string; resolved: ResolvedPluginSource }[] = [];
+  const warnings: string[] = [];
+  for (const raw of rawEntries) {
+    const resolved = fmt.resolve(sourceUrl, raw);
+    if (!resolved) {
+      warnings.push(
+        `entry "${raw.name}" has an unsupported source type — skipped`,
+      );
+      continue;
+    }
+    entries.push({ name: raw.name, resolved });
+  }
+
+  return { entries, warnings };
 }
