@@ -11,6 +11,7 @@ import {
   validateApproval,
   validateOrganization,
   validatePluginApproval,
+  validateMarketplaceApproval,
   readApprovalDir,
   validateSimpleApprovals,
   type SkillApprovalEntry,
@@ -946,6 +947,107 @@ describe("validateVendorData — agent approvals", () => {
   });
 });
 
+describe("validateMarketplaceApproval", () => {
+  it("accepts a valid marketplace approval", () => {
+    const result = validateMarketplaceApproval({
+      date: "2026-09-04",
+      source: {
+        url: "https://github.com/google/skills.git",
+        format: "codex",
+      },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts an explicit path override", () => {
+    const result = validateMarketplaceApproval({
+      date: "2026-09-04",
+      source: {
+        url: "https://github.com/google/skills.git",
+        format: "codex",
+        path: "custom/marketplace.json",
+      },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects an unknown format", () => {
+    const result = validateMarketplaceApproval({
+      date: "2026-09-04",
+      source: {
+        url: "https://github.com/google/skills.git",
+        format: "not-a-format",
+      },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a missing source", () => {
+    const result = validateMarketplaceApproval({ date: "2026-09-04" });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects an installConfigs field (not supported on this approval type)", () => {
+    const result = validateMarketplaceApproval({
+      date: "2026-09-04",
+      source: {
+        url: "https://github.com/google/skills.git",
+        format: "codex",
+      },
+      installConfigs: [{ tool: "some-tool" }],
+    });
+    assert.equal(result.valid, false);
+  });
+});
+
+describe("validateVendorData — marketplace approvals", () => {
+  it("collects valid marketplace approvals into the result", () => {
+    const orgData = {
+      id: "acme",
+      name: "Acme",
+      description: "d",
+      website: "https://acme.example",
+    };
+    const result = validateVendorData(orgData, [], {
+      marketplaceApprovals: [
+        {
+          file: "google-plugins.json",
+          data: {
+            date: "2026-09-04",
+            source: {
+              url: "https://github.com/google/skills.git",
+              format: "codex",
+            },
+          },
+        },
+      ],
+    });
+
+    assert.equal(result.valid, true);
+    assert.equal(result.marketplaceApprovals.length, 1);
+  });
+
+  it("fails validation on an invalid marketplace approval", () => {
+    const orgData = {
+      id: "acme",
+      name: "Acme",
+      description: "d",
+      website: "https://acme.example",
+    };
+    const result = validateVendorData(orgData, [], {
+      marketplaceApprovals: [
+        {
+          file: "bad.json",
+          data: { date: "2026-09-04" } as never,
+        },
+      ],
+    });
+
+    assert.equal(result.valid, false);
+    assert.equal(result.errors.length, 1);
+  });
+});
+
 // --- validateApproval — root config and derived marker ---
 
 describe("validateApproval — root config and derived marker", () => {
@@ -1341,6 +1443,7 @@ function freshVendorResult(): VendorValidationResult {
     skillApprovals: [],
     pluginApprovals: [],
     agentApprovals: [],
+    marketplaceApprovals: [],
   };
 }
 
