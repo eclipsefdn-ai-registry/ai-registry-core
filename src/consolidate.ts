@@ -730,14 +730,21 @@ export function expandMarketplaceApprovals(
       }
 
       for (const { resolved } of entries) {
-        const pluginId = derivePluginIdFromSource(resolved);
-        addPluginApproval(
-          { pluginId, date: data.date, source: resolved },
-          organizationId,
-          output,
-          { marketplaceUrl: url, format },
-        );
-        console.log(`  Collected plugin (via marketplace): ${pluginId}`);
+        try {
+          const pluginId = derivePluginIdFromSource(resolved);
+          addPluginApproval(
+            { pluginId, date: data.date, source: resolved },
+            organizationId,
+            output,
+            { marketplaceUrl: url, format },
+          );
+          console.log(`  Collected plugin (via marketplace): ${pluginId}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(
+            `  WARNING: marketplace "${url}" — could not derive pluginId, skipping entry: ${message}`,
+          );
+        }
       }
     }
   } finally {

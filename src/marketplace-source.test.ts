@@ -10,6 +10,7 @@ import {
   deriveGithubOwnerRepo,
   derivePluginIdFromSource,
   fetchMarketplaceEntries,
+  normalizeGithubShorthand,
 } from "./marketplace-source.js";
 
 // --- parseCodexMarketplace ---
@@ -47,6 +48,38 @@ describe("parseCodexMarketplace", () => {
 
   it("throws on invalid JSON", () => {
     assert.throws(() => parseCodexMarketplace("not json"));
+  });
+});
+
+// --- normalizeGithubShorthand ---
+
+describe("normalizeGithubShorthand", () => {
+  it("expands a bare owner/repo shorthand into a full GitHub URL", () => {
+    assert.equal(
+      normalizeGithubShorthand("GoogleCloudPlatform/db-context-enrichment"),
+      "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
+    );
+  });
+
+  it("returns an already-full GitHub URL unchanged", () => {
+    assert.equal(
+      normalizeGithubShorthand("https://github.com/google/skills.git"),
+      "https://github.com/google/skills.git",
+    );
+  });
+
+  it("returns an already-full URL without .git unchanged (does not double-append .git)", () => {
+    assert.equal(
+      normalizeGithubShorthand("https://github.com/google/skills"),
+      "https://github.com/google/skills",
+    );
+  });
+
+  it("returns a string with more than one slash unchanged", () => {
+    assert.equal(
+      normalizeGithubShorthand("some/path/like/value"),
+      "some/path/like/value",
+    );
   });
 });
 
@@ -165,6 +198,23 @@ describe("resolveCodexEntry", () => {
     });
     assert.deepEqual(resolved, {
       url: "https://github.com/GoogleCloudPlatform/db-context-enrichment",
+      path: "plugin",
+      ref: "v0.7.2",
+    });
+  });
+
+  it('resolves a {source: "git-subdir"} entry with a bare owner/repo shorthand url into a full GitHub URL', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "db-context-engineering",
+      source: {
+        source: "git-subdir",
+        url: "GoogleCloudPlatform/db-context-enrichment",
+        path: "plugin",
+        ref: "v0.7.2",
+      },
+    });
+    assert.deepEqual(resolved, {
+      url: "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
       path: "plugin",
       ref: "v0.7.2",
     });

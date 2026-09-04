@@ -2904,4 +2904,75 @@ describe("expandMarketplaceApprovals", () => {
     expandMarketplaceApprovals([], output);
     assert.equal(output.plugins.length, 0);
   });
+
+  it("skips an entry that resolves to a source derivePluginIdFromSource cannot parse, without crashing, and still collects the other entries", () => {
+    const tmpSourceDir = mkdtempSync(
+      join(tmpdir(), "consolidate-marketplace-bad-src-"),
+    );
+    try {
+      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
+      writeFileSync(
+        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
+        JSON.stringify({
+          name: "test-plugins",
+          plugins: [
+            {
+              name: "good-plugin",
+              source: {
+                source: "url",
+                url: "https://github.com/gemini-cli-extensions/alloydb.git",
+                ref: "0.2.0",
+              },
+            },
+            {
+              name: "bad-plugin",
+              source: {
+                source: "url",
+                url: "https://gitlab.com/foo/bar.git",
+                ref: "1.0.0",
+              },
+            },
+          ],
+        }),
+      );
+      execSync("git add -A && git commit -m init", {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+
+      const sourceUrl = `file://${tmpSourceDir}`;
+      const output = emptyOutput();
+      assert.doesNotThrow(() => {
+        expandMarketplaceApprovals(
+          [
+            {
+              organizationId: "acme",
+              data: {
+                date: "2026-09-04",
+                source: { url: sourceUrl, format: "codex" },
+              },
+            },
+          ],
+          output,
+        );
+      });
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(
+        output.plugins[0].pluginId,
+        "io.github.gemini-cli-extensions/alloydb",
+      );
+    } finally {
+      rmSync(tmpSourceDir, { recursive: true, force: true });
+    }
+  });
 });

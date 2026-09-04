@@ -33,6 +33,21 @@ export function parseCodexMarketplace(
     .map((p) => ({ name: p.name as string, source: p.source }));
 }
 
+// --- GitHub shorthand normalization ---
+
+// A bare "owner/repo" (no scheme, exactly one slash, valid GitHub identifier
+// characters on each side) is shorthand for a GitHub URL — expand it so
+// downstream git clone and ID derivation both get a real, clonable URL.
+// Anything else (already a full URL, or not shaped like owner/repo at all)
+// is returned unchanged; deriveGithubOwnerRepo's own validation is what
+// ultimately rejects genuinely malformed input.
+export function normalizeGithubShorthand(url: string): string {
+  if (/^[\w.-]+\/[\w.-]+$/.test(url)) {
+    return `https://github.com/${url}.git`;
+  }
+  return url;
+}
+
 // --- ID derivation ---
 
 const GITHUB_URL_RE = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/;
@@ -96,7 +111,7 @@ export function resolveCodexEntry(
     // sha-only pins are unsupported: git clone --branch cannot check out an
     // arbitrary commit sha, only a tag or branch name.
     if (typeof source.ref !== "string") return undefined;
-    return { url: source.url, ref: source.ref };
+    return { url: normalizeGithubShorthand(source.url), ref: source.ref };
   }
 
   if (
@@ -105,7 +120,7 @@ export function resolveCodexEntry(
     typeof source.path === "string"
   ) {
     const resolved: ResolvedPluginSource = {
-      url: source.url,
+      url: normalizeGithubShorthand(source.url),
       path: source.path,
     };
     if (typeof source.ref === "string") resolved.ref = source.ref;
