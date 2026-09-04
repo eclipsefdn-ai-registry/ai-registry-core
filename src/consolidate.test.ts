@@ -3050,4 +3050,174 @@ describe("expandMarketplaceApprovals", () => {
       rmSync(tmpSourceDir, { recursive: true, force: true });
     }
   });
+
+  it("does not leak the internal pathIsDescriptive field into the published plugin source for a local-kind entry", () => {
+    const tmpSourceDir = mkdtempSync(
+      join(tmpdir(), "consolidate-marketplace-local-src-"),
+    );
+    try {
+      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
+      writeFileSync(
+        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
+        JSON.stringify({
+          name: "test-plugins",
+          plugins: [
+            {
+              name: "some-plugin",
+              source: "./plugins/some-plugin",
+            },
+          ],
+        }),
+      );
+      execSync("git add -A && git commit -m init", {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+
+      // "local"-kind entries derive their pluginId from the marketplace
+      // repo's own GitHub owner/repo, so the marketplace source URL here
+      // must look like a real GitHub URL. It's redirected to the local
+      // fixture repo via git's url.<base>.insteadOf so no network access
+      // is needed.
+      const fakeGithubUrl = "https://github.com/testowner/testrepo.git";
+      const savedEnv = {
+        GIT_CONFIG_COUNT: process.env.GIT_CONFIG_COUNT,
+        GIT_CONFIG_KEY_0: process.env.GIT_CONFIG_KEY_0,
+        GIT_CONFIG_VALUE_0: process.env.GIT_CONFIG_VALUE_0,
+      };
+      process.env.GIT_CONFIG_COUNT = "1";
+      process.env.GIT_CONFIG_KEY_0 = `url.file://${tmpSourceDir}.insteadOf`;
+      process.env.GIT_CONFIG_VALUE_0 = fakeGithubUrl;
+
+      const output = emptyOutput();
+      try {
+        expandMarketplaceApprovals(
+          [
+            {
+              organizationId: "acme",
+              data: {
+                date: "2026-09-04",
+                source: { url: fakeGithubUrl, format: "codex" },
+              },
+            },
+          ],
+          output,
+        );
+      } finally {
+        for (const [key, value] of Object.entries(savedEnv)) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(
+        output.plugins[0].pluginId,
+        "io.github.testowner/some-plugin",
+      );
+      assert.deepEqual(Object.keys(output.plugins[0].source).sort(), [
+        "path",
+        "url",
+      ]);
+      assert.equal("pathIsDescriptive" in output.plugins[0].source, false);
+    } finally {
+      rmSync(tmpSourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not collapse approvals from two different organizations for the same plugin (marketplace dedup guard is per-organization)", () => {
+    const tmpSourceDir = mkdtempSync(
+      join(tmpdir(), "consolidate-marketplace-crossorg-src-"),
+    );
+    try {
+      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
+      writeFileSync(
+        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
+        JSON.stringify({
+          name: "test-plugins",
+          plugins: [
+            {
+              name: "bigquery",
+              source: {
+                source: "url",
+                url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+                ref: "1.0.0",
+              },
+            },
+          ],
+        }),
+      );
+      execSync("git add -A && git commit -m init", {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+
+      const sourceUrl = `file://${tmpSourceDir}`;
+      const output = emptyOutput();
+
+      // Seed a pre-existing hand-authored approval from "acme" for the same
+      // pluginId the "google" marketplace entry below resolves to. Only
+      // same-organization duplicates should be skipped by the dedup guard —
+      // a different organization approving the same plugin must still get
+      // its own approval recorded.
+      addPluginApproval(
+        {
+          pluginId: "io.github.gemini-cli-extensions/bigquery-data-analytics",
+          date: "2026-08-01",
+          source: {
+            url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          },
+        },
+        "acme",
+        output,
+      );
+
+      expandMarketplaceApprovals(
+        [
+          {
+            organizationId: "google",
+            data: {
+              date: "2026-09-04",
+              source: { url: sourceUrl, format: "codex" },
+            },
+          },
+        ],
+        output,
+      );
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(output.plugins[0].approvals.length, 2);
+      assert.deepEqual(
+        output.plugins[0].approvals.map((a) => a.organizationId).sort(),
+        ["acme", "google"],
+      );
+      const googleApproval = output.plugins[0].approvals.find(
+        (a) => a.organizationId === "google",
+      );
+      assert.deepEqual(googleApproval?.sourcedFrom, {
+        marketplaceUrl: sourceUrl,
+        format: "codex",
+      });
+    } finally {
+      rmSync(tmpSourceDir, { recursive: true, force: true });
+    }
+  });
 });

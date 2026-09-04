@@ -741,8 +741,17 @@ export function expandMarketplaceApprovals(
             );
             continue;
           }
+          // Build the public source explicitly rather than passing `resolved`
+          // through — it carries internal-only fields (e.g.
+          // pathIsDescriptive, used solely by derivePluginIdFromSource above)
+          // that must never reach PluginEntry.source / the published JSON.
+          const source: { url: string; path?: string; ref?: string } = {
+            url: resolved.url,
+          };
+          if (resolved.path !== undefined) source.path = resolved.path;
+          if (resolved.ref !== undefined) source.ref = resolved.ref;
           addPluginApproval(
-            { pluginId, date: data.date, source: resolved },
+            { pluginId, date: data.date, source },
             organizationId,
             output,
             { marketplaceUrl: url, format },
