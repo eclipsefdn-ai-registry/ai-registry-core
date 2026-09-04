@@ -315,6 +315,7 @@ export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
           entry.source.url,
           entry.source.path,
           tmpDir,
+          entry.source.ref,
         );
         entry.name = metadata.name || entry.pluginId;
         entry.description = metadata.description;

@@ -187,7 +187,7 @@ export interface PluginInstallConfig {
 export interface PluginApprovalData {
   pluginId: string;
   date: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   installConfigs?: PluginInstallConfig[];
 }
 
@@ -210,7 +210,7 @@ export interface PluginEntry {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   contentHash: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];

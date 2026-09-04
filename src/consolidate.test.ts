@@ -734,6 +734,20 @@ describe("addPluginApproval", () => {
     assert.equal(output.plugins[0].approvals[0].organizationId, "acme");
   });
 
+  it("preserves an explicit source.ref on the created entry", () => {
+    const output = emptyOutput();
+    addPluginApproval(
+      {
+        ...pluginApproval,
+        source: { ...pluginApproval.source, ref: "1.2.0" },
+      },
+      "acme",
+      output,
+    );
+
+    assert.equal(output.plugins[0].source.ref, "1.2.0");
+  });
+
   it("merges approvals from multiple vendors for the same plugin", () => {
     const output = emptyOutput();
     addPluginApproval(pluginApproval, "acme", output);
