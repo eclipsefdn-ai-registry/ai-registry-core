@@ -134,9 +134,10 @@ export function stripPathPrefix(fullPath: string, prefix: string): string {
 export function pluginCloneKey(
   sourceUrl: string,
   pluginPath: string | undefined,
+  ref?: string,
 ): string {
   return createHash("sha256")
-    .update(`${sourceUrl}|${pluginPath ?? ""}`)
+    .update(`${sourceUrl}|${pluginPath ?? ""}|${ref ?? ""}`)
     .digest("hex")
     .slice(0, 8);
 }
@@ -145,18 +146,20 @@ function clonePluginRepo(
   sourceUrl: string,
   pluginPath: string | undefined,
   tmpDir: string,
+  ref?: string,
 ): { repoRoot: string; pluginDir: string } {
   const cloneDir = join(
     tmpDir,
-    `plugin-${pluginCloneKey(sourceUrl, pluginPath)}`,
+    `plugin-${pluginCloneKey(sourceUrl, pluginPath, ref)}`,
   );
 
-  // cloneDir is keyed on url+path, so two entries reaching this point with
-  // the same key (e.g. two different pluginIds that cite the identical
-  // source) would otherwise both try to clone into the same directory —
-  // the second one hits a non-empty dir and throws. Skip re-cloning if it's
-  // already there; the key guarantees it already has exactly the right
-  // content checked out. Mirrors skill-source.ts's cloneSkillFolder guard.
+  // cloneDir is keyed on url+path+ref, so two entries reaching this point
+  // with the same key (e.g. two different pluginIds that cite the identical
+  // source at the identical ref) would otherwise both try to clone into the
+  // same directory — the second one hits a non-empty dir and throws. Skip
+  // re-cloning if it's already there; the key guarantees it already has
+  // exactly the right content checked out. Mirrors skill-source.ts's
+  // cloneSkillFolder guard.
   if (!existsSync(cloneDir)) {
     const token = process.env.GH_TOKEN;
     const repoUrl = token
@@ -164,21 +167,25 @@ function clonePluginRepo(
       : sourceUrl;
 
     try {
-      execFileSync(
-        "git",
-        [
-          "clone",
-          "--depth",
-          "1",
-          "--filter=blob:none",
-          "--sparse",
-          repoUrl,
-          cloneDir,
-        ],
-        { stdio: "pipe" },
-      );
+      const cloneArgs = [
+        "clone",
+        "--depth",
+        "1",
+        "--filter=blob:none",
+        "--sparse",
+      ];
+      // --branch accepts a tag or branch name, not an arbitrary commit sha —
+      // callers are responsible for only ever passing a ref of that kind
+      // (see marketplace-source.ts, which skips sha-only entries entirely).
+      if (ref) {
+        cloneArgs.push("--branch", ref);
+      }
+      cloneArgs.push(repoUrl, cloneDir);
+      execFileSync("git", cloneArgs, { stdio: "pipe" });
     } catch {
-      throw new Error(`Failed to clone ${sourceUrl}`);
+      throw new Error(
+        `Failed to clone ${sourceUrl}${ref ? ` at ref "${ref}"` : ""}`,
+      );
     }
 
     // Unlike a skill source (a single SKILL.md file at the target path), a
@@ -239,6 +246,7 @@ export function fetchPluginManifest(
   sourceUrl: string,
   sourcePath?: string,
   tmpDir?: string,
+  ref?: string,
 ): PluginMetadata {
   sourcePath = normalizePluginPath(sourcePath);
   const dir = tmpDir ?? join(ROOT, ".tmp-plugins");
@@ -246,7 +254,12 @@ export function fetchPluginManifest(
     mkdirSync(dir, { recursive: true });
   }
 
-  const { repoRoot, pluginDir } = clonePluginRepo(sourceUrl, sourcePath, dir);
+  const { repoRoot, pluginDir } = clonePluginRepo(
+    sourceUrl,
+    sourcePath,
+    dir,
+    ref,
+  );
   const manifestPath = join(pluginDir, "plugin.json");
 
   if (!existsSync(manifestPath)) {

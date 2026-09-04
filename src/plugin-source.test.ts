@@ -1,11 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   parsePluginManifest,
   parseMcpServers,
   normalizePluginPath,
   pluginCloneKey,
   stripPathPrefix,
+  fetchPluginManifest,
 } from "./plugin-source.js";
 
 // --- normalizePluginPath ---
@@ -97,6 +102,30 @@ describe("pluginCloneKey", () => {
     const a = pluginCloneKey("https://github.com/example/repo-a.git", "p");
     const b = pluginCloneKey("https://github.com/example/repo-b.git", "p");
     assert.notEqual(a, b);
+  });
+
+  it("produces different keys for the same url/path with different refs", () => {
+    const a = pluginCloneKey(
+      "https://github.com/example/repo.git",
+      "p",
+      "0.1.0",
+    );
+    const b = pluginCloneKey(
+      "https://github.com/example/repo.git",
+      "p",
+      "0.2.0",
+    );
+    assert.notEqual(a, b);
+  });
+
+  it("produces the same key when ref is omitted vs explicitly undefined", () => {
+    const a = pluginCloneKey("https://github.com/example/repo.git", "p");
+    const b = pluginCloneKey(
+      "https://github.com/example/repo.git",
+      "p",
+      undefined,
+    );
+    assert.equal(a, b);
   });
 });
 
@@ -195,5 +224,57 @@ describe("parseMcpServers", () => {
 
   it("throws on invalid JSON", () => {
     assert.throws(() => parseMcpServers("not json"));
+  });
+});
+
+// --- fetchPluginManifest with ref ---
+
+describe("fetchPluginManifest with ref", () => {
+  it("checks out the pinned ref instead of the default branch", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-ref-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "plugin-ref-src-"));
+    try {
+      execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      writeFileSync(
+        join(sourceDir, "plugin.json"),
+        JSON.stringify({ name: "on-main", version: "2.0.0" }),
+      );
+      execSync("git add -A && git commit -m main", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      execSync("git checkout -b v1.0.0", { cwd: sourceDir, stdio: "pipe" });
+      writeFileSync(
+        join(sourceDir, "plugin.json"),
+        JSON.stringify({ name: "on-v1", version: "1.0.0" }),
+      );
+      execSync("git add -A && git commit -m v1", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      execSync("git checkout main", { cwd: sourceDir, stdio: "pipe" });
+
+      const metadata = fetchPluginManifest(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+        "v1.0.0",
+      );
+      assert.equal(metadata.name, "on-v1");
+      assert.equal(metadata.version, "1.0.0");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
   });
 });
