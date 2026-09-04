@@ -192,14 +192,25 @@ export function fetchMarketplaceEntries(
   const effectivePath = sourcePath ?? fmt.defaultPath;
   const cloneDir = cloneMarketplaceRepo(sourceUrl, tmpDir);
 
-  // Disable sparse-checkout to get all files, since we only need one file
-  // and sparse-checkout cone mode has restrictions on patterns
+  // Add the marketplace file to sparse-checkout. --skip-checks is needed because
+  // cone-mode sparse-checkout rejects a file (non-directory) pathspec without it.
   try {
-    execFileSync("git", ["-C", cloneDir, "sparse-checkout", "disable"], {
-      stdio: "pipe",
-    });
+    execFileSync(
+      "git",
+      [
+        "-C",
+        cloneDir,
+        "sparse-checkout",
+        "add",
+        "--skip-checks",
+        effectivePath,
+      ],
+      { stdio: "pipe" },
+    );
   } catch {
-    throw new Error(`Failed to disable sparse-checkout in ${sourceUrl}`);
+    throw new Error(
+      `Failed to check out marketplace file "${effectivePath}" in ${sourceUrl}`,
+    );
   }
 
   const filePath = join(cloneDir, effectivePath);
