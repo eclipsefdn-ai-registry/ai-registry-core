@@ -200,6 +200,10 @@ export interface PluginApproval {
   viaTrust?: string;
   // present only on trust-derived approvals; holds the id of the
   // organization that actually filed the approval
+  sourcedFrom?: { marketplaceUrl: string; format: string };
+  // present only when this approval was produced by fanning out a
+  // marketplaces/*.json approval, rather than a hand-authored plugins/*.json
+  // file — see marketplace-source.ts
 }
 
 export interface PluginEntry {
@@ -613,6 +617,7 @@ export function addPluginApproval(
   approvalData: PluginApprovalData,
   organizationId: string,
   output: ConsolidatedOutput,
+  sourcedFrom?: { marketplaceUrl: string; format: string },
 ): void {
   const { entry: pluginEntry, created } = findOrCreate(
     output.plugins,
@@ -668,6 +673,9 @@ export function addPluginApproval(
     configHash,
     installConfigs: resolvedInstallConfigs,
   };
+  if (sourcedFrom) {
+    approval.sourcedFrom = sourcedFrom;
+  }
   pluginEntry.approvals.push(approval);
 }
 

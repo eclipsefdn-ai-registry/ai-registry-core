@@ -872,6 +872,26 @@ describe("addPluginApproval", () => {
     assert.equal(warnCalls.length, 1);
     assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
   });
+
+  it("stamps sourcedFrom on the approval when provided", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output, {
+      marketplaceUrl: "https://github.com/google/skills.git",
+      format: "codex",
+    });
+
+    assert.deepEqual(output.plugins[0].approvals[0].sourcedFrom, {
+      marketplaceUrl: "https://github.com/google/skills.git",
+      format: "codex",
+    });
+  });
+
+  it("omits sourcedFrom when not provided", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+
+    assert.equal(output.plugins[0].approvals[0].sourcedFrom, undefined);
+  });
 });
 
 describe("addAgentApproval", () => {

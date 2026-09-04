@@ -76,6 +76,7 @@ export interface PluginApproval {
   configHash: string;
   installConfigs: PluginInstallConfig[];
   viaTrust?: string;
+  sourcedFrom?: { marketplaceUrl: string; format: string };
 }
 
 export interface ContainedSkill {
