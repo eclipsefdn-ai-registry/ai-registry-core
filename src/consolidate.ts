@@ -732,6 +732,15 @@ export function expandMarketplaceApprovals(
       for (const { resolved } of entries) {
         try {
           const pluginId = derivePluginIdFromSource(resolved);
+          const existing = output.plugins.find((p) => p.pluginId === pluginId);
+          if (
+            existing?.approvals.some((a) => a.organizationId === organizationId)
+          ) {
+            console.warn(
+              `  WARNING: marketplace "${url}" — "${organizationId}" already has a direct approval for plugin "${pluginId}", skipping marketplace-derived duplicate`,
+            );
+            continue;
+          }
           addPluginApproval(
             { pluginId, date: data.date, source: resolved },
             organizationId,

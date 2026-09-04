@@ -792,7 +792,9 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
 
   if (result.marketplaceApprovals.length > 0) {
     console.log("\nPhase 6: Marketplace expansion verification");
-    const { fetchMarketplaceEntries } = await import("./marketplace-source.js");
+    const { fetchMarketplaceEntries, derivePluginIdFromSource } =
+      await import("./marketplace-source.js");
+    const { fetchPluginManifest } = await import("./plugin-source.js");
     const tmpDir = join(repoDir, ".tmp-validate-marketplaces");
     mkdirSync(tmpDir, { recursive: true });
 
@@ -806,13 +808,29 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
             tmpDir,
           );
           console.log(`  PASS: ${file} — ${entries.length} plugin(s) resolved`);
-          for (const entry of entries) {
-            console.log(
-              `    - ${entry.name} -> ${entry.resolved.url}${entry.resolved.path ? `/${entry.resolved.path}` : ""}`,
-            );
-          }
           for (const w of warnings) {
             console.warn(`  WARNING: ${file} — ${w}`);
+          }
+
+          for (const entry of entries) {
+            const label = `${file} — ${entry.name} -> ${entry.resolved.url}${entry.resolved.path ? `/${entry.resolved.path}` : ""}`;
+            try {
+              const pluginId = derivePluginIdFromSource(entry.resolved);
+              const metadata = fetchPluginManifest(
+                entry.resolved.url,
+                entry.resolved.path,
+                tmpDir,
+                entry.resolved.ref,
+              );
+              console.log(`    PASS: ${label} (${pluginId})`);
+              console.log(`      Name: ${metadata.name}`);
+              console.log(`      Description: ${metadata.description}`);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.warn(
+                `    WARNING: ${label} — could not verify plugin source: ${message}`,
+              );
+            }
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);

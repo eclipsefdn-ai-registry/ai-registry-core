@@ -126,11 +126,12 @@ describe("derivePluginIdFromSource", () => {
     );
   });
 
-  it("uses the last path segment when a path is present", () => {
+  it("uses the last path segment when a path is present and marked descriptive", () => {
     assert.equal(
       derivePluginIdFromSource({
         url: "https://github.com/google/skills.git",
         path: "plugins/cloud/google-cloud-developer",
+        pathIsDescriptive: true,
       }),
       "io.github.google/google-cloud-developer",
     );
@@ -140,9 +141,20 @@ describe("derivePluginIdFromSource", () => {
     assert.equal(
       derivePluginIdFromSource({
         url: "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
+        path: "plugins/cloud/google-cloud-developer",
+        pathIsDescriptive: true,
+      }),
+      "io.github.googlecloudplatform/google-cloud-developer",
+    );
+  });
+
+  it("falls back to the repo name for a git-subdir-shaped source whose path is not marked descriptive, avoiding a generic-path collision", () => {
+    assert.equal(
+      derivePluginIdFromSource({
+        url: "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
         path: "plugin",
       }),
-      "io.github.googlecloudplatform/plugin",
+      "io.github.googlecloudplatform/db-context-enrichment",
     );
   });
 });
@@ -160,6 +172,7 @@ describe("resolveCodexEntry", () => {
     assert.deepEqual(resolved, {
       url: marketplaceUrl,
       path: "plugins/cloud/google-cloud-developer",
+      pathIsDescriptive: true,
     });
   });
 
@@ -168,7 +181,11 @@ describe("resolveCodexEntry", () => {
       name: "x",
       source: { source: "local", path: "plugins/x" },
     });
-    assert.deepEqual(resolved, { url: marketplaceUrl, path: "plugins/x" });
+    assert.deepEqual(resolved, {
+      url: marketplaceUrl,
+      path: "plugins/x",
+      pathIsDescriptive: true,
+    });
   });
 
   it('resolves a {source: "url"} entry, carrying its ref', () => {
@@ -186,7 +203,7 @@ describe("resolveCodexEntry", () => {
     });
   });
 
-  it('resolves a {source: "git-subdir"} entry, carrying path and ref', () => {
+  it('resolves a {source: "git-subdir"} entry, carrying path and ref, without marking the path descriptive', () => {
     const resolved = resolveCodexEntry(marketplaceUrl, {
       name: "db-context-engineering",
       source: {
@@ -196,6 +213,7 @@ describe("resolveCodexEntry", () => {
         ref: "v0.7.2",
       },
     });
+    assert.ok(!resolved?.pathIsDescriptive);
     assert.deepEqual(resolved, {
       url: "https://github.com/GoogleCloudPlatform/db-context-enrichment",
       path: "plugin",
@@ -203,7 +221,7 @@ describe("resolveCodexEntry", () => {
     });
   });
 
-  it('resolves a {source: "git-subdir"} entry with a bare owner/repo shorthand url into a full GitHub URL', () => {
+  it('resolves a {source: "git-subdir"} entry with a bare owner/repo shorthand url into a full GitHub URL, without marking the path descriptive', () => {
     const resolved = resolveCodexEntry(marketplaceUrl, {
       name: "db-context-engineering",
       source: {
@@ -213,6 +231,7 @@ describe("resolveCodexEntry", () => {
         ref: "v0.7.2",
       },
     });
+    assert.ok(!resolved?.pathIsDescriptive);
     assert.deepEqual(resolved, {
       url: "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
       path: "plugin",
@@ -246,6 +265,59 @@ describe("resolveCodexEntry", () => {
       source: 42,
     });
     assert.equal(resolved, undefined);
+  });
+
+  it('rejects a path-traversal path for a bare-string local source ("../../etc")', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "x",
+      source: "../../etc",
+    });
+    assert.equal(resolved, undefined);
+  });
+
+  it('rejects a path containing a ".." segment for a {source: "local"} entry ("a/../b")', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "x",
+      source: { source: "local", path: "a/../b" },
+    });
+    assert.equal(resolved, undefined);
+  });
+
+  it('rejects a path-traversal path for a {source: "git-subdir"} entry', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "x",
+      source: {
+        source: "git-subdir",
+        url: "https://github.com/example/x.git",
+        path: "../../etc",
+      },
+    });
+    assert.equal(resolved, undefined);
+  });
+
+  it("still resolves a normal, safe path for both local and git-subdir sources", () => {
+    const local = resolveCodexEntry(marketplaceUrl, {
+      name: "x",
+      source: { source: "local", path: "plugins/data-tools" },
+    });
+    assert.deepEqual(local, {
+      url: marketplaceUrl,
+      path: "plugins/data-tools",
+      pathIsDescriptive: true,
+    });
+
+    const subdir = resolveCodexEntry(marketplaceUrl, {
+      name: "y",
+      source: {
+        source: "git-subdir",
+        url: "https://github.com/example/x.git",
+        path: "plugins/data-tools",
+      },
+    });
+    assert.deepEqual(subdir, {
+      url: "https://github.com/example/x.git",
+      path: "plugins/data-tools",
+    });
   });
 });
 
@@ -314,7 +386,11 @@ describe("fetchMarketplaceEntries", () => {
       });
       assert.deepEqual(result.entries[1], {
         name: "local-one",
-        resolved: { url: sourceUrl, path: "plugins/local-one" },
+        resolved: {
+          url: sourceUrl,
+          path: "plugins/local-one",
+          pathIsDescriptive: true,
+        },
       });
       assert.equal(result.warnings.length, 1);
       assert.match(result.warnings[0], /unsupported-npm/);

@@ -2975,4 +2975,79 @@ describe("expandMarketplaceApprovals", () => {
       rmSync(tmpSourceDir, { recursive: true, force: true });
     }
   });
+
+  it("skips a marketplace-derived entry when the same organization already has a direct approval for that pluginId", () => {
+    const tmpSourceDir = mkdtempSync(
+      join(tmpdir(), "consolidate-marketplace-dup-src-"),
+    );
+    try {
+      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
+      writeFileSync(
+        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
+        JSON.stringify({
+          name: "test-plugins",
+          plugins: [
+            {
+              name: "bigquery",
+              source: {
+                source: "url",
+                url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+                ref: "1.0.0",
+              },
+            },
+          ],
+        }),
+      );
+      execSync("git add -A && git commit -m init", {
+        cwd: tmpSourceDir,
+        stdio: "pipe",
+      });
+
+      const sourceUrl = `file://${tmpSourceDir}`;
+      const output = emptyOutput();
+
+      // Seed a pre-existing hand-authored approval from "google" for the
+      // same pluginId the marketplace entry above resolves to.
+      addPluginApproval(
+        {
+          pluginId: "io.github.gemini-cli-extensions/bigquery-data-analytics",
+          date: "2026-08-01",
+          source: {
+            url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          },
+        },
+        "google",
+        output,
+      );
+
+      expandMarketplaceApprovals(
+        [
+          {
+            organizationId: "google",
+            data: {
+              date: "2026-09-04",
+              source: { url: sourceUrl, format: "codex" },
+            },
+          },
+        ],
+        output,
+      );
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(output.plugins[0].approvals.length, 1);
+      assert.equal(output.plugins[0].approvals[0].organizationId, "google");
+      assert.equal(output.plugins[0].approvals[0].sourcedFrom, undefined);
+    } finally {
+      rmSync(tmpSourceDir, { recursive: true, force: true });
+    }
+  });
 });

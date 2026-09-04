@@ -14,6 +14,15 @@ export interface ResolvedPluginSource {
   url: string;
   path?: string;
   ref?: string;
+  // "local" paths are authored directly within the marketplace-hosting
+  // repo (e.g. a monorepo's own plugins/<name> folder) and are reliably
+  // descriptive of the plugin. "git-subdir" paths point into an
+  // *external* repo's internal folder structure, which is often a
+  // generic implementation detail (e.g. "plugin", "src") rather than a
+  // meaningful name — so only descriptive paths are used for ID
+  // derivation; everything else falls back to the resolved repo's own
+  // name instead.
+  pathIsDescriptive?: boolean;
 }
 
 // --- Codex format parsing ---
@@ -67,7 +76,10 @@ export function derivePluginIdFromSource(
   resolved: ResolvedPluginSource,
 ): string {
   const { owner, repo } = deriveGithubOwnerRepo(resolved.url);
-  const name = resolved.path ? resolved.path.split("/").pop()! : repo;
+  const name =
+    resolved.path && resolved.pathIsDescriptive
+      ? resolved.path.split("/").pop()!
+      : repo;
   return `io.github.${owner}/${name}`;
 }
 
@@ -85,6 +97,18 @@ function isStructuredSource(value: unknown): value is StructuredCodexSource {
   return typeof value === "object" && value !== null;
 }
 
+// Same pattern as plugin-approval.schema.json's source.path — copied
+// verbatim rather than loaded from the schema file, since this module has
+// no other dependency on schema JSON and a resolved marketplace path must
+// be just as safe as a hand-authored one before it ever reaches
+// clonePluginRepo's sparse-checkout call.
+const SAFE_PATH_RE =
+  /^(?!\.\.?(?:\/|$))[A-Za-z0-9._-]+(?:\/(?!\.\.?(?:\/|$))[A-Za-z0-9._-]+)*$/;
+
+function isSafePath(path: string): boolean {
+  return SAFE_PATH_RE.test(path);
+}
+
 export function resolveCodexEntry(
   marketplaceRepoUrl: string,
   entry: CodexMarketplaceEntry,
@@ -93,7 +117,13 @@ export function resolveCodexEntry(
 
   // Bare string ("./plugins/x") is shorthand for a local path.
   if (typeof source === "string") {
-    return { url: marketplaceRepoUrl, path: source.replace(/^\.\//, "") };
+    const path = source.replace(/^\.\//, "");
+    if (!isSafePath(path)) return undefined;
+    return {
+      url: marketplaceRepoUrl,
+      path,
+      pathIsDescriptive: true,
+    };
   }
 
   if (!isStructuredSource(source)) return undefined;
@@ -101,9 +131,12 @@ export function resolveCodexEntry(
   const kind = source.source;
 
   if (kind === "local" && typeof source.path === "string") {
+    const path = source.path.replace(/^\.\//, "");
+    if (!isSafePath(path)) return undefined;
     return {
       url: marketplaceRepoUrl,
-      path: source.path.replace(/^\.\//, ""),
+      path,
+      pathIsDescriptive: true,
     };
   }
 
@@ -119,6 +152,7 @@ export function resolveCodexEntry(
     typeof source.url === "string" &&
     typeof source.path === "string"
   ) {
+    if (!isSafePath(source.path)) return undefined;
     const resolved: ResolvedPluginSource = {
       url: normalizeGithubShorthand(source.url),
       path: source.path,
