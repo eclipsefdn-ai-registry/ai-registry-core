@@ -72,6 +72,13 @@ export function deriveGithubOwnerRepo(url: string): {
   return { owner: match[1].toLowerCase(), repo: match[2] };
 }
 
+// Known limitation: two git-subdir entries pointing at different
+// subdirectories of the *same* external repo (both non-descriptive paths)
+// derive the identical repo-based ID here, and the second is then dropped
+// as an apparent duplicate by expandMarketplaceApprovals' dedup guard. Not
+// exercised by any currently-known real marketplace (each lists at most one
+// git-subdir entry per external repo) — accepted as a scope limit rather
+// than adding a disambiguation scheme for a case with no real data yet.
 export function derivePluginIdFromSource(
   resolved: ResolvedPluginSource,
 ): string {
