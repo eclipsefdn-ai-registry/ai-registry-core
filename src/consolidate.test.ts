@@ -1,9 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { execSync } from "node:child_process";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { makeMarketplaceRepo } from "./marketplace-test-fixtures.js";
 import {
   addOrganization,
   addApproval,
@@ -2862,42 +2859,17 @@ describe("configHashOf", () => {
 
 describe("expandMarketplaceApprovals", () => {
   it("fans a marketplace approval out into plugin approvals with provenance", () => {
-    const tmpSourceDir = mkdtempSync(
-      join(tmpdir(), "consolidate-marketplace-src-"),
-    );
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "alloydb",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/alloydb.git",
+          ref: "0.2.0",
+        },
+      },
+    ]);
     try {
-      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
-      execSync('git config user.email "test@test.com"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      execSync('git config user.name "Test"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
-      writeFileSync(
-        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
-        JSON.stringify({
-          name: "test-plugins",
-          plugins: [
-            {
-              name: "alloydb",
-              source: {
-                source: "url",
-                url: "https://github.com/gemini-cli-extensions/alloydb.git",
-                ref: "0.2.0",
-              },
-            },
-          ],
-        }),
-      );
-      execSync("git add -A && git commit -m init", {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-
-      const sourceUrl = `file://${tmpSourceDir}`;
       const output = emptyOutput();
       expandMarketplaceApprovals(
         [
@@ -2924,7 +2896,7 @@ describe("expandMarketplaceApprovals", () => {
         format: "codex",
       });
     } finally {
-      rmSync(tmpSourceDir, { recursive: true, force: true });
+      cleanup();
     }
   });
 
@@ -2935,50 +2907,25 @@ describe("expandMarketplaceApprovals", () => {
   });
 
   it("skips an entry that resolves to a source derivePluginIdFromSource cannot parse, without crashing, and still collects the other entries", () => {
-    const tmpSourceDir = mkdtempSync(
-      join(tmpdir(), "consolidate-marketplace-bad-src-"),
-    );
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "good-plugin",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/alloydb.git",
+          ref: "0.2.0",
+        },
+      },
+      {
+        name: "bad-plugin",
+        source: {
+          source: "url",
+          url: "https://gitlab.com/foo/bar.git",
+          ref: "1.0.0",
+        },
+      },
+    ]);
     try {
-      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
-      execSync('git config user.email "test@test.com"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      execSync('git config user.name "Test"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
-      writeFileSync(
-        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
-        JSON.stringify({
-          name: "test-plugins",
-          plugins: [
-            {
-              name: "good-plugin",
-              source: {
-                source: "url",
-                url: "https://github.com/gemini-cli-extensions/alloydb.git",
-                ref: "0.2.0",
-              },
-            },
-            {
-              name: "bad-plugin",
-              source: {
-                source: "url",
-                url: "https://gitlab.com/foo/bar.git",
-                ref: "1.0.0",
-              },
-            },
-          ],
-        }),
-      );
-      execSync("git add -A && git commit -m init", {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-
-      const sourceUrl = `file://${tmpSourceDir}`;
       const output = emptyOutput();
       assert.doesNotThrow(() => {
         expandMarketplaceApprovals(
@@ -3001,47 +2948,22 @@ describe("expandMarketplaceApprovals", () => {
         "io.github.gemini-cli-extensions/alloydb",
       );
     } finally {
-      rmSync(tmpSourceDir, { recursive: true, force: true });
+      cleanup();
     }
   });
 
   it("skips a marketplace-derived entry when the same organization already has a direct approval for that pluginId", () => {
-    const tmpSourceDir = mkdtempSync(
-      join(tmpdir(), "consolidate-marketplace-dup-src-"),
-    );
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "bigquery",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          ref: "1.0.0",
+        },
+      },
+    ]);
     try {
-      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
-      execSync('git config user.email "test@test.com"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      execSync('git config user.name "Test"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
-      writeFileSync(
-        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
-        JSON.stringify({
-          name: "test-plugins",
-          plugins: [
-            {
-              name: "bigquery",
-              source: {
-                source: "url",
-                url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
-                ref: "1.0.0",
-              },
-            },
-          ],
-        }),
-      );
-      execSync("git add -A && git commit -m init", {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-
-      const sourceUrl = `file://${tmpSourceDir}`;
       const output = emptyOutput();
 
       // Seed a pre-existing hand-authored approval from "google" for the
@@ -3076,42 +2998,18 @@ describe("expandMarketplaceApprovals", () => {
       assert.equal(output.plugins[0].approvals[0].organizationId, "google");
       assert.equal(output.plugins[0].approvals[0].sourcedFrom, undefined);
     } finally {
-      rmSync(tmpSourceDir, { recursive: true, force: true });
+      cleanup();
     }
   });
 
   it("does not leak the internal pathIsDescriptive field into the published plugin source for a local-kind entry", () => {
-    const tmpSourceDir = mkdtempSync(
-      join(tmpdir(), "consolidate-marketplace-local-src-"),
-    );
+    const { dir, cleanup } = makeMarketplaceRepo([
+      {
+        name: "some-plugin",
+        source: "./plugins/some-plugin",
+      },
+    ]);
     try {
-      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
-      execSync('git config user.email "test@test.com"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      execSync('git config user.name "Test"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
-      writeFileSync(
-        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
-        JSON.stringify({
-          name: "test-plugins",
-          plugins: [
-            {
-              name: "some-plugin",
-              source: "./plugins/some-plugin",
-            },
-          ],
-        }),
-      );
-      execSync("git add -A && git commit -m init", {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-
       // "local"-kind entries derive their pluginId from the marketplace
       // repo's own GitHub owner/repo, so the marketplace source URL here
       // must look like a real GitHub URL. It's redirected to the local
@@ -3124,7 +3022,7 @@ describe("expandMarketplaceApprovals", () => {
         GIT_CONFIG_VALUE_0: process.env.GIT_CONFIG_VALUE_0,
       };
       process.env.GIT_CONFIG_COUNT = "1";
-      process.env.GIT_CONFIG_KEY_0 = `url.file://${tmpSourceDir}.insteadOf`;
+      process.env.GIT_CONFIG_KEY_0 = `url.file://${dir}.insteadOf`;
       process.env.GIT_CONFIG_VALUE_0 = fakeGithubUrl;
 
       const output = emptyOutput();
@@ -3159,47 +3057,22 @@ describe("expandMarketplaceApprovals", () => {
       ]);
       assert.equal("pathIsDescriptive" in output.plugins[0].source, false);
     } finally {
-      rmSync(tmpSourceDir, { recursive: true, force: true });
+      cleanup();
     }
   });
 
   it("does not collapse approvals from two different organizations for the same plugin (marketplace dedup guard is per-organization)", () => {
-    const tmpSourceDir = mkdtempSync(
-      join(tmpdir(), "consolidate-marketplace-crossorg-src-"),
-    );
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "bigquery",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          ref: "1.0.0",
+        },
+      },
+    ]);
     try {
-      execSync("git init -b main", { cwd: tmpSourceDir, stdio: "pipe" });
-      execSync('git config user.email "test@test.com"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      execSync('git config user.name "Test"', {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-      mkdirSync(join(tmpSourceDir, ".agents", "plugins"), { recursive: true });
-      writeFileSync(
-        join(tmpSourceDir, ".agents", "plugins", "marketplace.json"),
-        JSON.stringify({
-          name: "test-plugins",
-          plugins: [
-            {
-              name: "bigquery",
-              source: {
-                source: "url",
-                url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
-                ref: "1.0.0",
-              },
-            },
-          ],
-        }),
-      );
-      execSync("git add -A && git commit -m init", {
-        cwd: tmpSourceDir,
-        stdio: "pipe",
-      });
-
-      const sourceUrl = `file://${tmpSourceDir}`;
       const output = emptyOutput();
 
       // Seed a pre-existing hand-authored approval from "acme" for the same
@@ -3246,7 +3119,7 @@ describe("expandMarketplaceApprovals", () => {
         format: "codex",
       });
     } finally {
-      rmSync(tmpSourceDir, { recursive: true, force: true });
+      cleanup();
     }
   });
 });

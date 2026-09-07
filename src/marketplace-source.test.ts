@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -12,6 +11,7 @@ import {
   fetchMarketplaceEntries,
   normalizeGithubShorthand,
 } from "./marketplace-source.js";
+import { makeMarketplaceRepo } from "./marketplace-test-fixtures.js";
 
 // --- parseCodexMarketplace ---
 
@@ -395,49 +395,25 @@ describe("resolveCodexEntry", () => {
 describe("fetchMarketplaceEntries", () => {
   it("clones the repo, reads the marketplace file at its default path, and resolves entries", () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "marketplace-test-"));
-    const sourceDir = mkdtempSync(join(tmpdir(), "marketplace-src-"));
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "alloydb",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/alloydb.git",
+          ref: "0.2.0",
+        },
+      },
+      {
+        name: "local-one",
+        source: "./plugins/local-one",
+      },
+      {
+        name: "unsupported-npm",
+        source: { source: "npm", package: "@scope/x" },
+      },
+    ]);
     try {
-      execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
-      execSync('git config user.email "test@test.com"', {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
-      execSync('git config user.name "Test"', {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
-
-      mkdirSync(join(sourceDir, ".agents", "plugins"), { recursive: true });
-      writeFileSync(
-        join(sourceDir, ".agents", "plugins", "marketplace.json"),
-        JSON.stringify({
-          name: "test-plugins",
-          plugins: [
-            {
-              name: "alloydb",
-              source: {
-                source: "url",
-                url: "https://github.com/gemini-cli-extensions/alloydb.git",
-                ref: "0.2.0",
-              },
-            },
-            {
-              name: "local-one",
-              source: "./plugins/local-one",
-            },
-            {
-              name: "unsupported-npm",
-              source: { source: "npm", package: "@scope/x" },
-            },
-          ],
-        }),
-      );
-      execSync("git add -A && git commit -m init", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
-
-      const sourceUrl = `file://${sourceDir}`;
       const result = fetchMarketplaceEntries(
         sourceUrl,
         "codex",
@@ -465,7 +441,7 @@ describe("fetchMarketplaceEntries", () => {
       assert.match(result.warnings[0], /unsupported-npm/);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
-      rmSync(sourceDir, { recursive: true, force: true });
+      cleanup();
     }
   });
 
