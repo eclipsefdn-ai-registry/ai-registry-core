@@ -650,7 +650,8 @@ export function addPluginApproval(
   if (
     !created &&
     (pluginEntry.source.url !== approvalData.source.url ||
-      pluginEntry.source.path !== approvalData.source.path)
+      pluginEntry.source.path !== approvalData.source.path ||
+      pluginEntry.source.ref !== approvalData.source.ref)
   ) {
     // First-collected vendor's source wins. Mirrors resolveVendorMetadata's
     // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a

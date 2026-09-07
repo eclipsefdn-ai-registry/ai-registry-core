@@ -75,7 +75,7 @@ export interface SkillApprovalEntry {
 export interface PluginApprovalData {
   pluginId: string;
   date: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   installConfigs?: {
     tool: string;
     installUrl?: string;
@@ -754,6 +754,7 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
             data.source.url,
             data.source.path,
             tmpDir,
+            data.source.ref,
           );
           console.log(`  PASS: ${file}`);
           console.log(`    Name: ${metadata.name}`);

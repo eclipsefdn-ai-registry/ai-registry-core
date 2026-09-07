@@ -878,6 +878,35 @@ describe("addPluginApproval", () => {
     assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
   });
 
+  it("warns when a second vendor's source has a different ref", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addPluginApproval(
+        {
+          ...pluginApproval,
+          source: { ...pluginApproval.source, ref: "1.0.0" },
+        },
+        "acme",
+        output,
+      );
+      addPluginApproval(
+        {
+          ...pluginApproval,
+          source: { ...pluginApproval.source, ref: "2.0.0" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
+  });
+
   it("stamps sourcedFrom on the approval when provided", () => {
     const output = emptyOutput();
     addPluginApproval(pluginApproval, "acme", output, {
