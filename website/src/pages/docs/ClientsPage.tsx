@@ -95,8 +95,11 @@ export function ClientsPage() {
           </li>
           <li className="leading-relaxed">
             Skills and plugins carry a content hash of their source as of the
-            last consolidation run. Sources are referenced by repository URL and
-            path with no commit pin, so the hash is the only pin available.
+            last consolidation run. Skill sources are referenced by repository
+            URL and path with no commit pin, so the hash is the only pin
+            available. Plugin sources can additionally carry an optional{" "}
+            <InlineCode>source.ref</InlineCode> (a git tag or branch) pinning a
+            specific revision instead of tracking the default branch.
           </li>
           <li className="leading-relaxed">
             Agents carry a content hash too, but of a single fetched Agent Card
@@ -300,10 +303,14 @@ export function ClientsPage() {
         <p className="mt-3 mb-3 leading-relaxed">
           On a mismatch, tell the user the source has changed since the
           organization approved it, name the organization and the date, and let
-          them install anyway with an explicit choice. A mismatch is expected
+          them install anyway with an explicit choice. For a skill, or a plugin
+          with no <InlineCode>source.ref</InlineCode>, a mismatch is expected
           for up to a day after any upstream commit, because consolidation runs
-          daily and the source has no commit pin. It is also what a compromised
-          source looks like, and the user is the one who gets to weigh that.
+          daily and the source has no commit pin — this transient case doesn't
+          apply to a plugin with a pinned ref, where a mismatch means the pinned
+          revision's own content changed and won't resolve on its own. Either
+          way it's also what a compromised source looks like, and the user is
+          the one who gets to weigh that.
         </p>
         <p className="mb-3 leading-relaxed">
           Record the hash you computed, not the one from the feed. The recorded
