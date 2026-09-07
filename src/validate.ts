@@ -817,6 +817,14 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
             const label = `${file} — ${entry.name} -> ${entry.resolved.url}${entry.resolved.path ? `/${entry.resolved.path}` : ""}`;
             try {
               const pluginId = derivePluginIdFromSource(entry.resolved);
+              if (
+                result.pluginApprovals.some((p) => p.data.pluginId === pluginId)
+              ) {
+                console.warn(
+                  `    WARNING: ${label} (${pluginId}) — this organization already directly approves this pluginId; consolidation will skip this marketplace-derived duplicate`,
+                );
+                continue;
+              }
               const metadata = fetchPluginManifest(
                 entry.resolved.url,
                 entry.resolved.path,
