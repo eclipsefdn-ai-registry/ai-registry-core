@@ -28,9 +28,9 @@ export function PluginDetail({
     : `${plugin.source.url.replace(/\.git$/, "")}/tree/${sourceRef}`;
   // The plugins CLI takes a source and nothing else, so a plugin stored in a
   // subdirectory resolves by discovery rather than by path. The CLI also has
-  // no flag to pin a ref/tag (checked its --help output directly) — it
-  // always installs from the default branch, so a pinned plugin's install
-  // command necessarily diverges from the version/hash shown above.
+  // no flag to pin a ref/tag — it always installs from the default branch,
+  // so a pinned plugin's install command necessarily diverges from the
+  // version/hash shown above.
   const installCommand = `npx plugins add ${cliSource(plugin.source.url)}`;
 
   return (
