@@ -319,6 +319,75 @@ describe("resolveCodexEntry", () => {
       path: "plugins/data-tools",
     });
   });
+
+  it('resolves a {source: "url"} entry with neither ref nor sha, tracking the default branch', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "x",
+      source: {
+        source: "url",
+        url: "https://github.com/example/x.git",
+      },
+    });
+    assert.deepEqual(resolved, {
+      url: "https://github.com/example/x.git",
+    });
+  });
+
+  it('resolves a {source: "url"} entry that also carries a path, without marking it descriptive', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "db-context-engineering",
+      source: {
+        source: "url",
+        url: "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
+        path: "plugin",
+        ref: "v0.7.2",
+      },
+    });
+    assert.ok(!resolved?.pathIsDescriptive);
+    assert.deepEqual(resolved, {
+      url: "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
+      path: "plugin",
+      ref: "v0.7.2",
+    });
+  });
+
+  it('strips a leading "./" from a {source: "url"} entry\'s path', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "x",
+      source: {
+        source: "url",
+        url: "https://github.com/example/x.git",
+        path: "./plugin",
+      },
+    });
+    assert.equal(resolved?.path, "plugin");
+  });
+
+  it('returns undefined for a {source: "git-subdir"} entry pinned only by sha', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "x",
+      source: {
+        source: "git-subdir",
+        url: "https://github.com/example/x.git",
+        path: "plugin",
+        sha: "abc123",
+      },
+    });
+    assert.equal(resolved, undefined);
+  });
+
+  it('strips a leading "./" from a {source: "git-subdir"} entry\'s path', () => {
+    const resolved = resolveCodexEntry(marketplaceUrl, {
+      name: "db-context-engineering",
+      source: {
+        source: "git-subdir",
+        url: "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
+        path: "./plugin",
+        ref: "v0.7.2",
+      },
+    });
+    assert.equal(resolved?.path, "plugin");
+  });
 });
 
 // --- fetchMarketplaceEntries ---

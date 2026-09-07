@@ -116,6 +116,21 @@ function isSafePath(path: string): boolean {
   return SAFE_PATH_RE.test(path);
 }
 
+// Resolves the ref/sha portion of a structured source. Returns `undefined`
+// to mean "unsupported" — a sha-only pin, which git clone --branch cannot
+// check out (it only accepts a tag or branch name, not an arbitrary commit
+// sha). An entry with a real `ref` uses it regardless of whether `sha` is
+// also present (ref is what --branch can act on); an entry with neither is
+// valid and means "track the default branch", per this registry's own
+// plugin schema — it must NOT be treated as unsupported.
+function resolveEntryRef(
+  source: StructuredCodexSource,
+): { ref?: string } | undefined {
+  if (typeof source.ref === "string") return { ref: source.ref };
+  if (typeof source.sha === "string") return undefined;
+  return {};
+}
+
 export function resolveCodexEntry(
   marketplaceRepoUrl: string,
   entry: CodexMarketplaceEntry,
@@ -148,10 +163,24 @@ export function resolveCodexEntry(
   }
 
   if (kind === "url" && typeof source.url === "string") {
-    // sha-only pins are unsupported: git clone --branch cannot check out an
-    // arbitrary commit sha, only a tag or branch name.
-    if (typeof source.ref !== "string") return undefined;
-    return { url: normalizeGithubShorthand(source.url), ref: source.ref };
+    const refResult = resolveEntryRef(source);
+    if (!refResult) return undefined;
+
+    const resolved: ResolvedPluginSource = {
+      url: normalizeGithubShorthand(source.url),
+      ...refResult,
+    };
+    // The "url" source kind optionally carries a subdirectory path too
+    // (upstream Codex's RawMarketplaceManifestPluginSourceObject::Url has
+    // an optional path field) — without it, an entry like
+    // {"source":"url","url":"...","path":"plugin"} silently resolved to
+    // the repo root instead of the intended subdirectory.
+    if (typeof source.path === "string") {
+      const path = source.path.replace(/^\.\//, "");
+      if (!isSafePath(path)) return undefined;
+      resolved.path = path;
+    }
+    return resolved;
   }
 
   if (
@@ -159,13 +188,16 @@ export function resolveCodexEntry(
     typeof source.url === "string" &&
     typeof source.path === "string"
   ) {
-    if (!isSafePath(source.path)) return undefined;
-    const resolved: ResolvedPluginSource = {
+    const refResult = resolveEntryRef(source);
+    if (!refResult) return undefined;
+
+    const path = source.path.replace(/^\.\//, "");
+    if (!isSafePath(path)) return undefined;
+    return {
       url: normalizeGithubShorthand(source.url),
-      path: source.path,
+      path,
+      ...refResult,
     };
-    if (typeof source.ref === "string") resolved.ref = source.ref;
-    return resolved;
   }
 
   // "npm" and anything else unrecognized: unsupported.
