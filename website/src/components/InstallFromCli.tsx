@@ -9,7 +9,13 @@ import { useState } from "react";
  * affordance mirror `CollapsibleJson` so both copy boxes on the site behave the
  * same.
  */
-export function InstallFromCli({ command }: { command: string }) {
+export function InstallFromCli({
+  command,
+  note,
+}: {
+  command: string;
+  note?: React.ReactNode;
+}) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -36,6 +42,7 @@ export function InstallFromCli({ command }: { command: string }) {
       <pre className="mt-2 bg-background border border-border p-3 rounded-md overflow-x-auto text-xs leading-relaxed">
         {command}
       </pre>
+      {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
     </div>
   );
 }

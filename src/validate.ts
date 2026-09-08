@@ -37,6 +37,9 @@ const validatePluginAppr = ajv.compile(
   loadSchema("plugin-approval.schema.json"),
 );
 const validateAgentAppr = ajv.compile(loadSchema("agent-approval.schema.json"));
+const validateMarketplaceAppr = ajv.compile(
+  loadSchema("marketplace-approval.schema.json"),
+);
 
 // --- Types ---
 
@@ -72,7 +75,7 @@ export interface SkillApprovalEntry {
 export interface PluginApprovalData {
   pluginId: string;
   date: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   installConfigs?: {
     tool: string;
     installUrl?: string;
@@ -103,6 +106,16 @@ export interface AgentApprovalEntry {
   data: AgentApprovalData;
 }
 
+export interface MarketplaceApprovalData {
+  date: string;
+  source: { url: string; format: string; path?: string };
+}
+
+export interface MarketplaceApprovalEntry {
+  file: string;
+  data: MarketplaceApprovalData;
+}
+
 export interface VendorValidationResult {
   valid: boolean;
   errors: string[];
@@ -116,6 +129,7 @@ export interface VendorValidationResult {
   skillApprovals: SkillApprovalEntry[];
   pluginApprovals: PluginApprovalEntry[];
   agentApprovals: AgentApprovalEntry[];
+  marketplaceApprovals: MarketplaceApprovalEntry[];
 }
 
 // A VendorValidationResult with no organization and no collected approvals —
@@ -131,6 +145,7 @@ export function emptyResult(errors: string[]): VendorValidationResult {
     skillApprovals: [],
     pluginApprovals: [],
     agentApprovals: [],
+    marketplaceApprovals: [],
   };
 }
 
@@ -179,6 +194,14 @@ export function validateAgentApproval(data: unknown): ValidationResult {
   return {
     valid: !!valid,
     errors: valid ? [] : formatErrors(validateAgentAppr),
+  };
+}
+
+export function validateMarketplaceApproval(data: unknown): ValidationResult {
+  const valid = validateMarketplaceAppr(data);
+  return {
+    valid: !!valid,
+    errors: valid ? [] : formatErrors(validateMarketplaceAppr),
   };
 }
 
@@ -281,6 +304,7 @@ export interface ValidateVendorDataOptions {
   skillApprovals?: SkillApprovalEntry[];
   pluginApprovals?: PluginApprovalEntry[];
   agentApprovals?: AgentApprovalEntry[];
+  marketplaceApprovals?: MarketplaceApprovalEntry[];
 }
 
 /**
@@ -297,6 +321,7 @@ export function validateVendorData(
     skillApprovals = [],
     pluginApprovals = [],
     agentApprovals = [],
+    marketplaceApprovals = [],
   } = options;
   const result: VendorValidationResult = {
     valid: true,
@@ -306,6 +331,7 @@ export function validateVendorData(
     skillApprovals: [],
     pluginApprovals: [],
     agentApprovals: [],
+    marketplaceApprovals: [],
   };
 
   const orgResult = validateOrganization(orgData);
@@ -456,6 +482,23 @@ export function validateVendorData(
     result,
   );
 
+  // Marketplace approvals — no id/installConfigs, so this doesn't fit
+  // validateSimpleApprovals' shape (which dedupes by id and checks tool
+  // references); a bespoke loop mirrors what skill approvals already do for
+  // the same reason.
+  for (const { file, data } of marketplaceApprovals) {
+    const marketplaceResult = validateMarketplaceApproval(data);
+    if (!marketplaceResult.valid) {
+      result.valid = false;
+      result.errors.push(`${file}: ${marketplaceResult.errors.join(", ")}`);
+      continue;
+    }
+    result.marketplaceApprovals.push({
+      file,
+      data: data as MarketplaceApprovalData,
+    });
+  }
+
   return result;
 }
 
@@ -523,11 +566,19 @@ export function validateVendorFiles(
   const agentsResult = readApprovalDir<AgentApprovalData>(repoDir, "agents");
   if ("error" in agentsResult) return emptyResult([agentsResult.error]);
 
+  const marketplacesResult = readApprovalDir<MarketplaceApprovalData>(
+    repoDir,
+    "marketplaces",
+  );
+  if ("error" in marketplacesResult)
+    return emptyResult([marketplacesResult.error]);
+
   return validateVendorData(orgRaw, mcpResult.entries, {
     expectedVendorId,
     skillApprovals: skillsResult.entries,
     pluginApprovals: pluginsResult.entries,
     agentApprovals: agentsResult.entries,
+    marketplaceApprovals: marketplacesResult.entries,
   });
 }
 
@@ -703,6 +754,7 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
             data.source.url,
             data.source.path,
             tmpDir,
+            data.source.ref,
           );
           console.log(`  PASS: ${file}`);
           console.log(`    Name: ${metadata.name}`);
@@ -736,6 +788,68 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
           `  WARNING: ${file} — could not verify agent card: ${message}`,
         );
       }
+    }
+  }
+
+  if (result.marketplaceApprovals.length > 0) {
+    console.log("\nPhase 6: Marketplace expansion verification");
+    const { fetchMarketplaceEntries, derivePluginIdFromSource } =
+      await import("./marketplace-source.js");
+    const { fetchPluginManifest } = await import("./plugin-source.js");
+    const tmpDir = join(repoDir, ".tmp-validate-marketplaces");
+    mkdirSync(tmpDir, { recursive: true });
+
+    try {
+      for (const { file, data } of result.marketplaceApprovals) {
+        try {
+          const { entries, warnings } = fetchMarketplaceEntries(
+            data.source.url,
+            data.source.format,
+            data.source.path,
+            tmpDir,
+          );
+          console.log(`  PASS: ${file} — ${entries.length} plugin(s) resolved`);
+          for (const w of warnings) {
+            console.warn(`  WARNING: ${file} — ${w}`);
+          }
+
+          for (const entry of entries) {
+            const label = `${file} — ${entry.name} -> ${entry.resolved.url}${entry.resolved.path ? `/${entry.resolved.path}` : ""}`;
+            try {
+              const pluginId = derivePluginIdFromSource(entry.resolved);
+              if (
+                result.pluginApprovals.some((p) => p.data.pluginId === pluginId)
+              ) {
+                console.warn(
+                  `    WARNING: ${label} (${pluginId}) — this organization already directly approves this pluginId; consolidation will skip this marketplace-derived duplicate`,
+                );
+                continue;
+              }
+              const metadata = fetchPluginManifest(
+                entry.resolved.url,
+                entry.resolved.path,
+                tmpDir,
+                entry.resolved.ref,
+              );
+              console.log(`    PASS: ${label} (${pluginId})`);
+              console.log(`      Name: ${metadata.name}`);
+              console.log(`      Description: ${metadata.description}`);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              console.warn(
+                `    WARNING: ${label} — could not verify plugin source: ${message}`,
+              );
+            }
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(
+            `  WARNING: ${file} — could not resolve marketplace: ${message}`,
+          );
+        }
+      }
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
     }
   }
 

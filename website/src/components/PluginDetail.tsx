@@ -22,11 +22,15 @@ export function PluginDetail({
   getTool: (id: string) => Tool | undefined;
   onBack: () => void;
 }) {
+  const sourceRef = plugin.source.ref ?? "main";
   const sourceUrl = plugin.source.path
-    ? `${plugin.source.url.replace(/\.git$/, "")}/tree/main/${plugin.source.path}`
-    : plugin.source.url.replace(/\.git$/, "");
+    ? `${plugin.source.url.replace(/\.git$/, "")}/tree/${sourceRef}/${plugin.source.path}`
+    : `${plugin.source.url.replace(/\.git$/, "")}/tree/${sourceRef}`;
   // The plugins CLI takes a source and nothing else, so a plugin stored in a
-  // subdirectory resolves by discovery rather than by path.
+  // subdirectory resolves by discovery rather than by path. The CLI also has
+  // no flag to pin a ref/tag — it always installs from the default branch,
+  // so a pinned plugin's install command necessarily diverges from the
+  // version/hash shown above.
   const installCommand = `npx plugins add ${cliSource(plugin.source.url)}`;
 
   return (
@@ -47,6 +51,11 @@ export function PluginDetail({
         {plugin.version && (
           <span className="text-muted-foreground text-xs">
             v{plugin.version}
+          </span>
+        )}
+        {plugin.source.ref && (
+          <span className="text-muted-foreground text-xs">
+            Pinned to: {plugin.source.ref}
           </span>
         )}
         <span className="text-muted-foreground text-xs">
@@ -114,7 +123,14 @@ export function PluginDetail({
         ))}
       </div>
 
-      <InstallFromCli command={installCommand} />
+      <InstallFromCli
+        command={installCommand}
+        note={
+          plugin.source.ref
+            ? `This plugin pins ${plugin.source.ref}; the plugins CLI has no way to request a specific ref and always installs from the default branch.`
+            : undefined
+        }
+      />
     </div>
   );
 }

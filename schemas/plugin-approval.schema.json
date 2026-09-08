@@ -33,6 +33,11 @@
           "minLength": 1,
           "pattern": "^(?!\\.\\.?(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.\\.?(?:/|$))[A-Za-z0-9._-]+)*$",
           "description": "Path within the repository to the plugin folder (containing plugin.json). Omit if the plugin is at the repository root. Restricted to safe path characters (no whitespace or shell metacharacters, since this value is passed to a git sparse-checkout command during consolidation) and no '.' or '..' path segments (no traversal, no empty segments from a double slash). A segment may still start with a dot otherwise (e.g. '.claude/plugins/foo')."
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Git ref (tag or branch name) to check out instead of the repository's default branch. Does not support arbitrary commit SHAs. Omit to always track the default branch."
         }
       }
     },

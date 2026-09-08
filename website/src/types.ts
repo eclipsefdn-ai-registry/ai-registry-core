@@ -76,6 +76,7 @@ export interface PluginApproval {
   configHash: string;
   installConfigs: PluginInstallConfig[];
   viaTrust?: string;
+  sourcedFrom?: { marketplaceUrl: string; format: string };
 }
 
 export interface ContainedSkill {
@@ -97,7 +98,7 @@ export interface Plugin {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   contentHash: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];

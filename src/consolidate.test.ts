@@ -1,11 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { makeMarketplaceRepo } from "./marketplace-test-fixtures.js";
 import {
   addOrganization,
   addApproval,
   addSkillApproval,
   addPluginApproval,
   addAgentApproval,
+  expandMarketplaceApprovals,
   resolveSkillInstallUrls,
   resolveSkillTrust,
   resolveMcpTrust,
@@ -734,6 +736,20 @@ describe("addPluginApproval", () => {
     assert.equal(output.plugins[0].approvals[0].organizationId, "acme");
   });
 
+  it("preserves an explicit source.ref on the created entry", () => {
+    const output = emptyOutput();
+    addPluginApproval(
+      {
+        ...pluginApproval,
+        source: { ...pluginApproval.source, ref: "1.2.0" },
+      },
+      "acme",
+      output,
+    );
+
+    assert.equal(output.plugins[0].source.ref, "1.2.0");
+  });
+
   it("merges approvals from multiple vendors for the same plugin", () => {
     const output = emptyOutput();
     addPluginApproval(pluginApproval, "acme", output);
@@ -857,6 +873,55 @@ describe("addPluginApproval", () => {
     }
     assert.equal(warnCalls.length, 1);
     assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
+  });
+
+  it("warns when a second vendor's source has a different ref", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addPluginApproval(
+        {
+          ...pluginApproval,
+          source: { ...pluginApproval.source, ref: "1.0.0" },
+        },
+        "acme",
+        output,
+      );
+      addPluginApproval(
+        {
+          ...pluginApproval,
+          source: { ...pluginApproval.source, ref: "2.0.0" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
+  });
+
+  it("stamps sourcedFrom on the approval when provided", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output, {
+      marketplaceUrl: "https://github.com/google/skills.git",
+      format: "codex",
+    });
+
+    assert.deepEqual(output.plugins[0].approvals[0].sourcedFrom, {
+      marketplaceUrl: "https://github.com/google/skills.git",
+      format: "codex",
+    });
+  });
+
+  it("omits sourcedFrom when not provided", () => {
+    const output = emptyOutput();
+    addPluginApproval(pluginApproval, "acme", output);
+
+    assert.equal(output.plugins[0].approvals[0].sourcedFrom, undefined);
   });
 });
 
@@ -2787,5 +2852,274 @@ describe("configHashOf", () => {
 
   it("differs for different input", () => {
     assert.notEqual(configHashOf({ foo: "bar" }), configHashOf({ foo: "baz" }));
+  });
+});
+
+// --- expandMarketplaceApprovals ---
+
+describe("expandMarketplaceApprovals", () => {
+  it("fans a marketplace approval out into plugin approvals with provenance", () => {
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "alloydb",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/alloydb.git",
+          ref: "0.2.0",
+        },
+      },
+    ]);
+    try {
+      const output = emptyOutput();
+      expandMarketplaceApprovals(
+        [
+          {
+            organizationId: "acme",
+            data: {
+              date: "2026-09-04",
+              source: { url: sourceUrl, format: "codex" },
+            },
+          },
+        ],
+        output,
+      );
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(
+        output.plugins[0].pluginId,
+        "io.github.gemini-cli-extensions/alloydb",
+      );
+      assert.equal(output.plugins[0].source.ref, "0.2.0");
+      assert.equal(output.plugins[0].approvals[0].organizationId, "acme");
+      assert.deepEqual(output.plugins[0].approvals[0].sourcedFrom, {
+        marketplaceUrl: sourceUrl,
+        format: "codex",
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("does nothing when there are no pending marketplaces", () => {
+    const output = emptyOutput();
+    expandMarketplaceApprovals([], output);
+    assert.equal(output.plugins.length, 0);
+  });
+
+  it("skips an entry that resolves to a source derivePluginIdFromSource cannot parse, without crashing, and still collects the other entries", () => {
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "good-plugin",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/alloydb.git",
+          ref: "0.2.0",
+        },
+      },
+      {
+        name: "bad-plugin",
+        source: {
+          source: "url",
+          url: "https://gitlab.com/foo/bar.git",
+          ref: "1.0.0",
+        },
+      },
+    ]);
+    try {
+      const output = emptyOutput();
+      assert.doesNotThrow(() => {
+        expandMarketplaceApprovals(
+          [
+            {
+              organizationId: "acme",
+              data: {
+                date: "2026-09-04",
+                source: { url: sourceUrl, format: "codex" },
+              },
+            },
+          ],
+          output,
+        );
+      });
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(
+        output.plugins[0].pluginId,
+        "io.github.gemini-cli-extensions/alloydb",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("skips a marketplace-derived entry when the same organization already has a direct approval for that pluginId", () => {
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "bigquery",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          ref: "1.0.0",
+        },
+      },
+    ]);
+    try {
+      const output = emptyOutput();
+
+      // Seed a pre-existing hand-authored approval from "google" for the
+      // same pluginId the marketplace entry above resolves to.
+      addPluginApproval(
+        {
+          pluginId: "io.github.gemini-cli-extensions/bigquery-data-analytics",
+          date: "2026-08-01",
+          source: {
+            url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          },
+        },
+        "google",
+        output,
+      );
+
+      expandMarketplaceApprovals(
+        [
+          {
+            organizationId: "google",
+            data: {
+              date: "2026-09-04",
+              source: { url: sourceUrl, format: "codex" },
+            },
+          },
+        ],
+        output,
+      );
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(output.plugins[0].approvals.length, 1);
+      assert.equal(output.plugins[0].approvals[0].organizationId, "google");
+      assert.equal(output.plugins[0].approvals[0].sourcedFrom, undefined);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("does not leak the internal pathIsDescriptive field into the published plugin source for a local-kind entry", () => {
+    const { dir, cleanup } = makeMarketplaceRepo([
+      {
+        name: "some-plugin",
+        source: "./plugins/some-plugin",
+      },
+    ]);
+    try {
+      // "local"-kind entries derive their pluginId from the marketplace
+      // repo's own GitHub owner/repo, so the marketplace source URL here
+      // must look like a real GitHub URL. It's redirected to the local
+      // fixture repo via git's url.<base>.insteadOf so no network access
+      // is needed.
+      const fakeGithubUrl = "https://github.com/testowner/testrepo.git";
+      const savedEnv = {
+        GIT_CONFIG_COUNT: process.env.GIT_CONFIG_COUNT,
+        GIT_CONFIG_KEY_0: process.env.GIT_CONFIG_KEY_0,
+        GIT_CONFIG_VALUE_0: process.env.GIT_CONFIG_VALUE_0,
+      };
+      process.env.GIT_CONFIG_COUNT = "1";
+      process.env.GIT_CONFIG_KEY_0 = `url.file://${dir}.insteadOf`;
+      process.env.GIT_CONFIG_VALUE_0 = fakeGithubUrl;
+
+      const output = emptyOutput();
+      try {
+        expandMarketplaceApprovals(
+          [
+            {
+              organizationId: "acme",
+              data: {
+                date: "2026-09-04",
+                source: { url: fakeGithubUrl, format: "codex" },
+              },
+            },
+          ],
+          output,
+        );
+      } finally {
+        for (const [key, value] of Object.entries(savedEnv)) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(
+        output.plugins[0].pluginId,
+        "io.github.testowner/some-plugin",
+      );
+      assert.deepEqual(Object.keys(output.plugins[0].source).sort(), [
+        "path",
+        "url",
+      ]);
+      assert.equal("pathIsDescriptive" in output.plugins[0].source, false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("does not collapse approvals from two different organizations for the same plugin (marketplace dedup guard is per-organization)", () => {
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "bigquery",
+        source: {
+          source: "url",
+          url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          ref: "1.0.0",
+        },
+      },
+    ]);
+    try {
+      const output = emptyOutput();
+
+      // Seed a pre-existing hand-authored approval from "acme" for the same
+      // pluginId the "google" marketplace entry below resolves to. Only
+      // same-organization duplicates should be skipped by the dedup guard —
+      // a different organization approving the same plugin must still get
+      // its own approval recorded.
+      addPluginApproval(
+        {
+          pluginId: "io.github.gemini-cli-extensions/bigquery-data-analytics",
+          date: "2026-08-01",
+          source: {
+            url: "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+          },
+        },
+        "acme",
+        output,
+      );
+
+      expandMarketplaceApprovals(
+        [
+          {
+            organizationId: "google",
+            data: {
+              date: "2026-09-04",
+              source: { url: sourceUrl, format: "codex" },
+            },
+          },
+        ],
+        output,
+      );
+
+      assert.equal(output.plugins.length, 1);
+      assert.equal(output.plugins[0].approvals.length, 2);
+      assert.deepEqual(
+        output.plugins[0].approvals.map((a) => a.organizationId).sort(),
+        ["acme", "google"],
+      );
+      const googleApproval = output.plugins[0].approvals.find(
+        (a) => a.organizationId === "google",
+      );
+      assert.deepEqual(googleApproval?.sourcedFrom, {
+        marketplaceUrl: sourceUrl,
+        format: "codex",
+      });
+    } finally {
+      cleanup();
+    }
   });
 });

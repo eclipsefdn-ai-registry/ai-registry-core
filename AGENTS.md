@@ -11,6 +11,8 @@ Four artifact types, same approval model:
 - **Agent Plugins** ([agent-plugins.org](https://agent-plugins.org)) — referenced by `pluginId` pointing to a git repo + path (single directory, no glob/array). Consolidation fetches the whole plugin directory via sparse checkout to read `plugin.json` (name, description, version, author, homepage, keywords) and enumerate contents: skills under `skills/*/SKILL.md` and MCP servers in `mcp.json`, surfaced as read-only `containedSkills`/`containedMcpServers` metadata — not as separate standalone entries.
 - **A2A agents** — referenced by `agentId` pointing directly at a fetchable `agent_card.json` URL (no repo, no path — a single JSON file). Metadata (name, description) and a content hash are extracted from the fetched card during consolidation.
 
+**Marketplace sources** are not a fifth artifact type — a `marketplaces/*.json` approval trusts a vendor-published marketplace file (e.g. OpenAI Codex/ChatGPT's `.agents/plugins/marketplace.json`) instead of a single plugin, and every entry it lists is resolved and fanned out into an ordinary Agent Plugin entry at consolidation time, tagged with a `sourcedFrom` provenance field. It's re-resolved on every run, so new entries the vendor adds to their marketplace file are picked up automatically. See `docs/superpowers/specs/2026-09-04-agent-plugin-marketplaces-design.md` for the full design.
+
 Organizations can provide tools (with `installConfigs`) or just approve artifacts without tool-specific configuration. All four use the same approval file format — `installConfigs` is optional.
 
 ## Data flow
@@ -25,7 +27,7 @@ Unreachable MCP servers get `mcpRegistryVerified: false`. Unreachable skill and 
 
 - **IDs**: Reverse-domain notation with `/` separator (e.g., `io.github.anthropics/code-review`)
 - **Filenames**: ID with `/` replaced by `--` + `.json` (e.g., `io.github.anthropics--code-review.json`)
-- **Directories**: `mcp/` for server approvals, `skills/` for skill approvals, `plugins/` for plugin approvals, `agents/` for agent approvals
+- **Directories**: `mcp/` for server approvals, `skills/` for skill approvals, `plugins/` for plugin approvals, `agents/` for agent approvals, `marketplaces/` for marketplace approvals (fan out into plugin approvals at consolidation time)
 - **Schemas**: `schemas/*.schema.json` — source of truth for all approval formats
 - **Pure functions**: Core validation and consolidation logic has no I/O for testability. I/O wrappers are thin layers on top.
 
@@ -39,6 +41,7 @@ src/
   skill-source.ts           Skill enrichment (sparse checkout, frontmatter, hashing)
   plugin-source.ts          Plugin enrichment (sparse checkout, manifest + contents)
   agent-source.ts           Agent enrichment (HTTP fetch, parse, hash)
+  marketplace-source.ts     Marketplace expansion (parse marketplace file, resolve + derive plugin IDs)
   anthropic-registry.ts     MCP server metadata lookup
   cli-validate.ts           CLI entry: validate a vendor repo
   cli-consolidate.ts        CLI entry: consolidate all vendors
@@ -70,8 +73,8 @@ Tests use Node.js built-in `node:test` with `assert/strict`. Pure function tests
 
 - Schemas are the contract — change schemas first, then update validation and consolidation to match.
 - `installConfigs` and `tools` are optional. Handle missing values with `?? []`.
-- Validation is split: Phase 1 (schema), Phase 2 (MCP registry verification), Phase 3 (skill source verification), Phase 4 (plugin manifest verification), Phase 5 (agent card verification). Phases 2-5 warn on failure, don't block.
-- Consolidation is split: collect (no network) → enrich MCP (network, fatal on error) → enrich skills (network, skip on error) → enrich plugins (network, skip on error) → enrich agents (network, skip on error) → write.
+- Validation is split: Phase 1 (schema), Phase 2 (MCP registry verification), Phase 3 (skill source verification), Phase 4 (plugin manifest verification), Phase 5 (agent card verification), Phase 6 (marketplace expansion verification). Phases 2-6 warn on failure, don't block.
+- Consolidation is split: collect (no network) → enrich MCP (network, fatal on error) → enrich skills (network, skip on error) → expand marketplace approvals into plugin approvals (network, skip on error per marketplace) → enrich plugins (network, skip on error) → enrich agents (network, skip on error) → write.
 - Website types in `website/src/types.ts` mirror but don't import from `src/consolidate.ts` — keep them in sync manually.
 - Guidance for implementing clients exists twice on purpose: `skills/implement-registry-client/` for agents, `/docs/clients` (`website/src/pages/docs/ClientsPage.tsx`) for people. Each is complete and neither links to the other, so a rule that changes needs both edited. Drift here is accepted, not a bug to fix by merging them.
 - Docs pages live under `/docs` with a sidebar driven by `website/src/components/docs/docsNav.ts`. Section titles come from that file via `DocsSection`, so a section is added by adding it there and rendering `<DocsSection id="...">` on the page.

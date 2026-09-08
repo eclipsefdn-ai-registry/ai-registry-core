@@ -18,6 +18,10 @@ import {
   type ContainedMcpServer,
 } from "./plugin-source.js";
 import { enrichAgentMetadata } from "./agent-source.js";
+import {
+  fetchMarketplaceEntries,
+  derivePluginIdFromSource,
+} from "./marketplace-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -187,7 +191,7 @@ export interface PluginInstallConfig {
 export interface PluginApprovalData {
   pluginId: string;
   date: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   installConfigs?: PluginInstallConfig[];
 }
 
@@ -200,6 +204,10 @@ export interface PluginApproval {
   viaTrust?: string;
   // present only on trust-derived approvals; holds the id of the
   // organization that actually filed the approval
+  sourcedFrom?: { marketplaceUrl: string; format: string };
+  // present only when this approval was produced by fanning out a
+  // marketplaces/*.json approval, rather than a hand-authored plugins/*.json
+  // file — see marketplace-source.ts
 }
 
 export interface PluginEntry {
@@ -210,7 +218,7 @@ export interface PluginEntry {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   contentHash: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
@@ -229,6 +237,16 @@ export interface AgentApprovalData {
   date: string;
   source: { url: string };
   installConfigs?: AgentInstallConfig[];
+}
+
+export interface MarketplaceApprovalData {
+  date: string;
+  source: { url: string; format: string; path?: string };
+}
+
+export interface PendingMarketplace {
+  organizationId: string;
+  data: MarketplaceApprovalData;
 }
 
 export interface AgentApproval {
@@ -613,6 +631,7 @@ export function addPluginApproval(
   approvalData: PluginApprovalData,
   organizationId: string,
   output: ConsolidatedOutput,
+  sourcedFrom?: { marketplaceUrl: string; format: string },
 ): void {
   const { entry: pluginEntry, created } = findOrCreate(
     output.plugins,
@@ -631,7 +650,8 @@ export function addPluginApproval(
   if (
     !created &&
     (pluginEntry.source.url !== approvalData.source.url ||
-      pluginEntry.source.path !== approvalData.source.path)
+      pluginEntry.source.path !== approvalData.source.path ||
+      pluginEntry.source.ref !== approvalData.source.ref)
   ) {
     // First-collected vendor's source wins. Mirrors resolveVendorMetadata's
     // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a
@@ -668,7 +688,87 @@ export function addPluginApproval(
     configHash,
     installConfigs: resolvedInstallConfigs,
   };
+  if (sourcedFrom) {
+    approval.sourcedFrom = sourcedFrom;
+  }
   pluginEntry.approvals.push(approval);
+}
+
+// Fans a marketplace approval out into ordinary plugin approvals — one
+// addPluginApproval call per resolved entry, tagged with sourcedFrom so the
+// provenance isn't lost. Must run before enrichPluginMetadata so fanned-out
+// entries get their plugin.json fetched exactly like any hand-authored one.
+export function expandMarketplaceApprovals(
+  pending: PendingMarketplace[],
+  output: ConsolidatedOutput,
+): void {
+  if (pending.length === 0) return;
+
+  const tmpDir = resolve(ROOT, ".tmp-marketplaces");
+  if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  mkdirSync(tmpDir, { recursive: true });
+
+  try {
+    for (const { organizationId, data } of pending) {
+      const { url, format, path } = data.source;
+      let entries: {
+        name: string;
+        resolved: { url: string; path?: string; ref?: string };
+      }[];
+
+      try {
+        const result = fetchMarketplaceEntries(url, format, path, tmpDir);
+        for (const w of result.warnings) {
+          console.warn(`  WARNING: marketplace "${url}" — ${w}`);
+        }
+        entries = result.entries;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `  WARNING: marketplace "${url}" — could not resolve: ${message}`,
+        );
+        continue;
+      }
+
+      for (const { resolved } of entries) {
+        try {
+          const pluginId = derivePluginIdFromSource(resolved);
+          const existing = output.plugins.find((p) => p.pluginId === pluginId);
+          if (
+            existing?.approvals.some((a) => a.organizationId === organizationId)
+          ) {
+            console.warn(
+              `  WARNING: marketplace "${url}" — "${organizationId}" already has a direct approval for plugin "${pluginId}", skipping marketplace-derived duplicate`,
+            );
+            continue;
+          }
+          // Build the public source explicitly rather than passing `resolved`
+          // through — it carries internal-only fields (e.g.
+          // pathIsDescriptive, used solely by derivePluginIdFromSource above)
+          // that must never reach PluginEntry.source / the published JSON.
+          const source: { url: string; path?: string; ref?: string } = {
+            url: resolved.url,
+          };
+          if (resolved.path !== undefined) source.path = resolved.path;
+          if (resolved.ref !== undefined) source.ref = resolved.ref;
+          addPluginApproval(
+            { pluginId, date: data.date, source },
+            organizationId,
+            output,
+            { marketplaceUrl: url, format },
+          );
+          console.log(`  Collected plugin (via marketplace): ${pluginId}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(
+            `  WARNING: marketplace "${url}" — could not derive pluginId, skipping entry: ${message}`,
+          );
+        }
+      }
+    }
+  } finally {
+    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  }
 }
 
 export function buildToolPluginView(
@@ -999,6 +1099,7 @@ function collectVendorData(
   mcpTrusts: TrustEntry[],
   pluginTrusts: TrustEntry[],
   agentTrusts: TrustEntry[],
+  pendingMarketplaces: PendingMarketplace[],
 ): void {
   const result = validateVendorFiles(vendorPath, vendorId);
 
@@ -1039,6 +1140,14 @@ function collectVendorData(
   for (const { data } of result.agentApprovals) {
     addAgentApproval(data as AgentApprovalData, vendorId, output);
     console.log(`  Collected agent: ${data.agentId}`);
+  }
+
+  for (const { data } of result.marketplaceApprovals) {
+    pendingMarketplaces.push({
+      organizationId: vendorId,
+      data: data as MarketplaceApprovalData,
+    });
+    console.log(`  Collected marketplace: ${data.source.url}`);
   }
 }
 
@@ -1160,6 +1269,7 @@ export async function main(): Promise<void> {
   const mcpTrusts: TrustEntry[] = [];
   const pluginTrusts: TrustEntry[] = [];
   const agentTrusts: TrustEntry[] = [];
+  const pendingMarketplaces: PendingMarketplace[] = [];
 
   // Step 1: Collect all vendor data (fails build on any error)
   const tmpDir = resolve(ROOT, ".tmp-vendors");
@@ -1180,6 +1290,7 @@ export async function main(): Promise<void> {
         mcpTrusts,
         pluginTrusts,
         agentTrusts,
+        pendingMarketplaces,
       );
       console.log();
     }
@@ -1265,6 +1376,10 @@ export async function main(): Promise<void> {
     }
     seenSkillIds.add(skill.skillId);
   }
+
+  // Step 2c-pre: Expand marketplace approvals into plugin approvals (network:
+  // fetches and parses each approved marketplace file)
+  expandMarketplaceApprovals(pendingMarketplaces, output);
 
   // Step 2c: Enrich plugins with source metadata (skips unreachable sources)
   output.plugins = enrichPluginMetadata(output.plugins);

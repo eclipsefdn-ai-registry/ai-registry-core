@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai.open-vsx.org/schemas/marketplace-approval.schema.json",
+  "title": "Marketplace Approval",
+  "description": "Vendor approval for a plugin marketplace file. Every plugin the marketplace file lists is fanned out into its own registry plugin entry during consolidation, re-resolved on every run.",
+  "type": "object",
+  "required": ["date", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date of approval (YYYY-MM-DD)"
+    },
+    "source": {
+      "type": "object",
+      "required": ["url", "format"],
+      "additionalProperties": false,
+      "description": "Location and format of the marketplace file",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Git repository URL hosting the marketplace file"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["codex"],
+          "description": "Which marketplace file format to parse. \"codex\" is OpenAI Codex/ChatGPT's .agents/plugins/marketplace.json format."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!\\.\\.?(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.\\.?(?:/|$))[A-Za-z0-9._-]+)*$",
+          "description": "Path within the repository to the marketplace file. Omit to use the format's conventional path (.agents/plugins/marketplace.json for \"codex\")."
+        }
+      }
+    }
+  }
+}

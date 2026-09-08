@@ -39,6 +39,12 @@ const APPROVAL_FIELDS = [
     description:
       "Present when the approval is derived from trusting another organization; names the trusted organization.",
   },
+  {
+    name: "sourcedFrom",
+    type: "object?",
+    description:
+      "Present only on plugin approvals produced by fanning out a marketplace approval; records which marketplace (marketplaceUrl, format) produced this entry.",
+  },
 ];
 
 export function ApiPage() {
@@ -360,7 +366,7 @@ export function ApiPage() {
               name: "source",
               type: "object",
               description:
-                "Git repository URL and optional path to the directory holding plugin.json.",
+                "Git repository URL and optional path to the directory holding plugin.json, plus an optional git ref (tag or branch) to pin instead of the default branch.",
             },
             {
               name: "contentHash",
@@ -484,6 +490,10 @@ export function ApiPage() {
                 "Agent Plugin (agent-plugins.org) approval file",
               ],
               ["agent-approval.schema.json", "A2A agent approval file"],
+              [
+                "marketplace-approval.schema.json",
+                "Marketplace approval file (fans out into plugin approvals)",
+              ],
             ].map(([file, description]) => (
               <tr key={file} className="border-b border-border align-top">
                 <td className="py-2 pr-3">
