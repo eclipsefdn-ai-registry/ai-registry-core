@@ -1055,7 +1055,7 @@ describe("validateApproval — root config and derived marker", () => {
     const result = validateApproval({
       serverId: "io.example/foo",
       date: "2026-08-05",
-      config: { url: "https://mcp.example.com" },
+      config: { type: "streamable-http", url: "https://mcp.example.com" },
     });
     assert.equal(result.valid, true);
   });
@@ -1064,7 +1064,7 @@ describe("validateApproval — root config and derived marker", () => {
     const result = validateApproval({
       serverId: "io.example/foo",
       date: "2026-08-05",
-      config: { command: "npx", args: ["-y", "pkg"] },
+      config: { type: "stdio", command: "npx", args: ["-y", "pkg"] },
     });
     assert.equal(result.valid, true);
   });
@@ -1083,10 +1083,10 @@ describe("validateApproval — root config and derived marker", () => {
       serverId: "io.example/foo",
       date: "2026-08-05",
       config: {
-        type: "http",
+        type: "streamable-http",
         url: "https://mcp.example.com",
-        headers: { Authorization: "Bearer abc" },
-        oauth: { scopes: "read write", clientId: "abc123" },
+        headers: { Authorization: "Bearer ${MY_TOKEN}" },
+        oauth: { scopes: ["read", "write"], clientId: "abc123" },
       },
     });
     assert.equal(result.valid, true);
@@ -1124,7 +1124,11 @@ describe("validateApproval — root config and derived marker", () => {
     const result = validateApproval({
       serverId: "io.example/foo",
       date: "2026-08-05",
-      config: { command: "npx", headers: { Authorization: "Bearer abc" } },
+      config: {
+        type: "stdio",
+        command: "npx",
+        headers: { Authorization: "Bearer abc" },
+      },
     });
     assert.equal(result.valid, false);
   });
@@ -1134,6 +1138,83 @@ describe("validateApproval — root config and derived marker", () => {
       serverId: "io.example/foo",
       date: "2026-08-05",
       config: { type: "stdio", url: "https://mcp.example.com" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a root config with no type — every branch requires it", () => {
+    assert.equal(
+      validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { url: "https://mcp.example.com" },
+      }).valid,
+      false,
+    );
+    assert.equal(
+      validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { command: "npx" },
+      }).valid,
+      false,
+    );
+  });
+
+  // "http" is the mcp.json spelling of Streamable HTTP. The registry keeps one
+  // canonical value and leaves translation to the per-tool transforms.
+  it('rejects "http" as a type value', () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "http", url: "https://mcp.example.com" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts cwd on the local branch", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "node", cwd: "${PLUGIN_ROOT}/dist" },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects non-string env values", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "npx", env: { PORT: 8080 } },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts a ${VAR} clientSecret but rejects a literal one", () => {
+    const withConfig = (clientSecret: string) => ({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        oauth: { clientId: "abc", clientSecret },
+      },
+    });
+    assert.equal(validateApproval(withConfig("${MY_SECRET}")).valid, true);
+    assert.equal(validateApproval(withConfig("${MY_SECRET:-x}")).valid, true);
+    assert.equal(validateApproval(withConfig("s3cr3t")).valid, false);
+    assert.equal(validateApproval(withConfig("<clientSecret>")).valid, false);
+  });
+
+  it("rejects oauth on the ws branch — WebSocket auth is header-only", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "ws",
+        url: "wss://mcp.example.com",
+        oauth: { clientId: "abc" },
+      },
     });
     assert.equal(result.valid, false);
   });

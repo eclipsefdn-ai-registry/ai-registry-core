@@ -2098,12 +2098,13 @@ describe("addApproval — genericConfig", () => {
       {
         serverId: "io.example/foo",
         date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
+        config: { type: "streamable-http", url: "https://mcp.example.com" },
       },
       "eclipsesource",
       output,
     );
     assert.deepEqual(output.mcp[0].approvals[0].genericConfig, {
+      type: "streamable-http",
       url: "https://mcp.example.com",
     });
   });
@@ -2129,7 +2130,7 @@ describe("addApproval — genericConfig", () => {
       {
         serverId: "io.example/foo",
         date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
+        config: { type: "streamable-http", url: "https://mcp.example.com" },
         installConfigs: [{ tool: "theia-ide", config: "derived" }],
       },
       "theia",
@@ -2152,7 +2153,7 @@ describe("addApproval — genericConfig", () => {
       {
         serverId: "io.example/foo",
         date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
+        config: { type: "streamable-http", url: "https://mcp.example.com" },
         installConfigs: [
           { tool: "theia-ide", config: { servers: { custom: {} } } },
         ],
@@ -2177,7 +2178,7 @@ describe("pickWinningGenericConfig", () => {
       date,
       configHash: "abc",
       installConfigs: [],
-      genericConfig: { url },
+      genericConfig: { type: "streamable-http", url },
     };
   }
 
@@ -2192,6 +2193,7 @@ describe("pickWinningGenericConfig", () => {
       "https://a.example.com",
     );
     assert.deepEqual(pickWinningGenericConfig([only], "io.example/foo"), {
+      type: "streamable-http",
       url: "https://a.example.com",
     });
   });
@@ -2201,7 +2203,7 @@ describe("pickWinningGenericConfig", () => {
     const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
     assert.deepEqual(
       pickWinningGenericConfig([older, newer], "io.example/foo"),
-      { url: "https://b.example.com" },
+      { type: "streamable-http", url: "https://b.example.com" },
     );
   });
 
@@ -2210,7 +2212,7 @@ describe("pickWinningGenericConfig", () => {
     const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
     assert.deepEqual(
       pickWinningGenericConfig([older, newer], "io.example/foo", "vendor-a"),
-      { url: "https://a.example.com" },
+      { type: "streamable-http", url: "https://a.example.com" },
     );
   });
 });
@@ -2234,7 +2236,10 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-01",
           configHash: "xyz",
           installConfigs: [],
-          genericConfig: { url: "https://mcp.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+          },
         },
         {
           organizationId: "theia",
@@ -2270,14 +2275,20 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-01",
           configHash: "abc",
           installConfigs: [{ tool: "theia-ide", config: "derived" }],
-          genericConfig: { url: "https://theias-own.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://theias-own.example.com",
+          },
         },
         {
           organizationId: "eclipsesource",
           date: "2026-08-05",
           configHash: "xyz",
           installConfigs: [],
-          genericConfig: { url: "https://newer-vendor.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://newer-vendor.example.com",
+          },
         },
       ],
     });
@@ -2307,17 +2318,18 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-01",
           configHash: "abc",
           installConfigs: [{ tool: "theia-ide", config: "derived" }],
-          genericConfig: {
-            url: "https://mcp.example.com",
-            headers: { Authorization: "Bearer x", "X-Extra": "y" },
-          },
+          // Theia speaks no WebSocket transport, so this cannot be derived.
+          genericConfig: { type: "ws", url: "wss://mcp.example.com" },
         },
         {
           organizationId: "eclipsesource",
           date: "2026-08-05",
           configHash: "xyz",
           installConfigs: [],
-          genericConfig: { url: "https://newer-vendor.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://newer-vendor.example.com",
+          },
         },
       ],
     });
@@ -2407,7 +2419,10 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-05",
           configHash: "abc",
           installConfigs: [{ tool: "unregistered-tool", config: "derived" }],
-          genericConfig: { url: "https://mcp.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+          },
         },
       ],
     });
@@ -2473,7 +2488,10 @@ describe("resolveMcpTrust", () => {
           date: "2026-08-04",
           configHash: "abc",
           installConfigs: [],
-          genericConfig: { url: "https://review-guard.example.com/mcp" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://review-guard.example.com/mcp",
+          },
         },
       ],
     });
