@@ -22,6 +22,7 @@ import {
   fetchMarketplaceEntries,
   derivePluginIdFromSource,
 } from "./marketplace-source.js";
+import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -57,11 +58,13 @@ interface OrganizationData {
       mcp?: Record<string, never>;
       plugins?: Record<string, never>;
       agents?: Record<string, never>;
+      sandboxExtensions?: Record<string, never>;
     };
   }[];
 }
 
-// Shared shape for all four trust-entry lists (skill, mcp, plugin, agent).
+// Shared shape for all five trust-entry lists (skill, mcp, plugin, agent,
+// sandbox extension).
 // Kept as one type rather than one per artifact type since none of them add
 // artifact-specific fields — the distinction lives in which list an entry
 // ends up in, not in the entry's shape.
@@ -268,6 +271,50 @@ export interface AgentEntry {
   approvals: AgentApproval[];
 }
 
+export interface SandboxExtensionApprovalData {
+  sandboxExtensionId: string;
+  date: string;
+  source: { url: string; ref?: string };
+}
+
+export interface SandboxExtensionApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  viaTrust?: string;
+  // present only on trust-derived approvals; holds the id of the
+  // organization that actually filed the approval
+}
+
+// One approved repository, before it has been expanded into the individual
+// extensions inside it. Approvals accumulate here across vendors so that a
+// repository two organizations approved is still cloned once and expands into
+// entries carrying both approvals — mirroring how a skill entry accumulates
+// approvals before its glob is expanded.
+export interface PendingSandboxExtension {
+  sandboxExtensionId: string;
+  source: { url: string; ref?: string };
+  approvals: SandboxExtensionApproval[];
+}
+
+// Published shape of one sandbox extension. Unlike every other artifact type
+// there are no installConfigs: nothing about installing a sandbox extension is
+// tool-specific, so an approval is the organization, the date and the hash,
+// and the install command is derived by the website from `source` and `kind`.
+export interface SandboxExtensionEntry {
+  sandboxExtensionId: string;
+  kind: SandboxKind;
+  // display title: the spec's displayName, falling back to its name
+  name: string;
+  // the spec's own name — the identity Enclave addresses the extension by,
+  // and what `enclave add --name` matches on
+  extensionName: string;
+  description: string;
+  source: { url: string; path: string; ref?: string };
+  contentHash: string;
+  approvals: SandboxExtensionApproval[];
+}
+
 export interface ConsolidatedOutput {
   organizations: Organization[];
   tools: Tool[];
@@ -275,6 +322,8 @@ export interface ConsolidatedOutput {
   skills: SkillEntry[];
   plugins: PluginEntry[];
   agents: AgentEntry[];
+  sandboxTools: SandboxExtensionEntry[];
+  sandboxFeatures: SandboxExtensionEntry[];
 }
 
 // --- Pure logic (testable) ---
@@ -286,6 +335,7 @@ export function addOrganization(
   mcpTrusts: TrustEntry[] = [],
   pluginTrusts: TrustEntry[] = [],
   agentTrusts: TrustEntry[] = [],
+  sandboxExtensionTrusts: TrustEntry[] = [],
 ): void {
   const { tools: orgTools = [], trusts = [], ...orgMeta } = orgData;
   output.organizations.push(orgMeta);
@@ -314,6 +364,9 @@ export function addOrganization(
     }
     if (trust.artifactTypes.agents) {
       agentTrusts.push({ org: orgData.id, trustedOrg: trust.org });
+    }
+    if (trust.artifactTypes.sandboxExtensions) {
+      sandboxExtensionTrusts.push({ org: orgData.id, trustedOrg: trust.org });
     }
   }
 }
@@ -589,9 +642,14 @@ interface HasOrganizationId {
 // other orgs' approvals of the same artifact (e.g. "also approved by"), so
 // filtering to the matching org's approvals alone would throw that context
 // away for no benefit — nothing in installConfigs is org-specific.
+//
+// The constraint asks only for organizationId, unlike buildToolEntryView:
+// sandbox extension approvals have no installConfigs at all, and this function
+// never reads them. That also means sandbox extensions appear in the per-org
+// files but not the per-tool ones — there is nothing to scope to a tool.
 export function buildOrgEntryView<
-  A extends HasInstallConfigs & HasOrganizationId,
-  E extends HasApprovals<A>,
+  A extends HasOrganizationId,
+  E extends { approvals: A[] },
 >(orgId: string, entries: E[]): E[] {
   return entries.filter((entry) =>
     entry.approvals.some((a) => a.organizationId === orgId),
@@ -832,6 +890,74 @@ export function buildToolAgentView(
   agents: AgentEntry[],
 ): AgentEntry[] {
   return buildToolEntryView(toolId, agents);
+}
+
+// Collects one approved repository. Unlike the other add*Approval functions
+// this doesn't create a published entry — a sandbox extension approval names a
+// repository, and which entries come out of it isn't known until the source is
+// read (see enrichSandboxExtensions). Approvals from several vendors for the
+// same repository accumulate on one pending record so the repository is cloned
+// once and every entry it yields carries all of them.
+export function addSandboxExtensionApproval(
+  approvalData: SandboxExtensionApprovalData,
+  organizationId: string,
+  pending: PendingSandboxExtension[],
+): void {
+  const { entry, created } = findOrCreate(
+    pending,
+    (p) => p.sandboxExtensionId === approvalData.sandboxExtensionId,
+    () => ({
+      sandboxExtensionId: approvalData.sandboxExtensionId,
+      source: approvalData.source,
+      approvals: [],
+    }),
+  );
+
+  if (
+    !created &&
+    (entry.source.url !== approvalData.source.url ||
+      entry.source.ref !== approvalData.source.ref)
+  ) {
+    // First-collected vendor's source wins, matching addPluginApproval — a
+    // disagreement between vendors is surfaced but doesn't fail the shared
+    // build.
+    console.warn(
+      `  WARNING: sandbox extensions "${approvalData.sandboxExtensionId}" approved with a different source by "${organizationId}" — using "${entry.approvals[0]?.organizationId}"'s (first collected)`,
+    );
+  }
+
+  entry.approvals.push({
+    organizationId,
+    date: approvalData.date,
+    configHash: configHashOf(approvalData),
+  });
+}
+
+// Mirrors resolveAgentTrust, minus install configs: a sandbox extension
+// approval carries none, so a derived approval is just the delegating
+// organization's name against the trusted organization's date and hash. Runs
+// over both published kinds, since one approval yields both and the trust flag
+// that produced it doesn't distinguish them.
+export function resolveSandboxExtensionTrust(
+  output: ConsolidatedOutput,
+  sandboxExtensionTrusts: TrustEntry[],
+): void {
+  for (const { org, trustedOrg } of sandboxExtensionTrusts) {
+    for (const entry of [...output.sandboxTools, ...output.sandboxFeatures]) {
+      const sourceApproval = entry.approvals.find(
+        (a) => a.organizationId === trustedOrg && !a.viaTrust,
+      );
+      if (!sourceApproval) continue;
+      if (entry.approvals.some((a) => a.organizationId === org)) continue;
+
+      entry.approvals.push({
+        organizationId: org,
+        date: sourceApproval.date,
+        configHash: sourceApproval.configHash,
+        viaTrust: trustedOrg,
+      });
+    }
+  }
 }
 
 // Splits trust entries (skill, mcp, plugin, or agent) into those referencing
@@ -1099,7 +1225,9 @@ function collectVendorData(
   mcpTrusts: TrustEntry[],
   pluginTrusts: TrustEntry[],
   agentTrusts: TrustEntry[],
+  sandboxExtensionTrusts: TrustEntry[],
   pendingMarketplaces: PendingMarketplace[],
+  pendingSandboxExtensions: PendingSandboxExtension[],
 ): void {
   const result = validateVendorFiles(vendorPath, vendorId);
 
@@ -1120,6 +1248,7 @@ function collectVendorData(
     mcpTrusts,
     pluginTrusts,
     agentTrusts,
+    sandboxExtensionTrusts,
   );
 
   for (const { data } of result.approvals) {
@@ -1148,6 +1277,15 @@ function collectVendorData(
       data: data as MarketplaceApprovalData,
     });
     console.log(`  Collected marketplace: ${data.source.url}`);
+  }
+
+  for (const { data } of result.sandboxExtensionApprovals) {
+    addSandboxExtensionApproval(
+      data as SandboxExtensionApprovalData,
+      vendorId,
+      pendingSandboxExtensions,
+    );
+    console.log(`  Collected sandbox extensions: ${data.sandboxExtensionId}`);
   }
 }
 
@@ -1215,6 +1353,18 @@ function writeOutput(output: ConsolidatedOutput): void {
   writeJson(agentsPath, { agents: output.agents });
   console.log(`Written: ${agentsPath}`);
 
+  const sandboxToolsPath = resolve(outputDir, "sandbox-tools.json");
+  writeJson(sandboxToolsPath, { sandboxTools: output.sandboxTools });
+  console.log(`Written: ${sandboxToolsPath}`);
+
+  const sandboxFeaturesPath = resolve(outputDir, "sandbox-features.json");
+  writeJson(sandboxFeaturesPath, { sandboxFeatures: output.sandboxFeatures });
+  console.log(`Written: ${sandboxFeaturesPath}`);
+
+  // Sandbox extensions are deliberately absent from the per-tool files below:
+  // their approvals carry no installConfigs, so there is nothing that scopes an
+  // entry to one tool. They do appear in the per-org files, which scope by
+  // approving organization instead.
   const toolsDir = resolve(outputDir, "tools");
   mkdirSync(toolsDir, { recursive: true });
 
@@ -1239,6 +1389,8 @@ function writeOutput(output: ConsolidatedOutput): void {
       skills: buildOrgEntryView(org.id, output.skills),
       plugins: buildOrgEntryView(org.id, output.plugins),
       agents: buildOrgEntryView(org.id, output.agents),
+      sandboxTools: buildOrgEntryView(org.id, output.sandboxTools),
+      sandboxFeatures: buildOrgEntryView(org.id, output.sandboxFeatures),
     });
     console.log(`Written: ${orgPath}`);
   }
@@ -1249,6 +1401,8 @@ function writeOutput(output: ConsolidatedOutput): void {
   console.log(`  Skills: ${output.skills.length}`);
   console.log(`  Plugins: ${output.plugins.length}`);
   console.log(`  Agents: ${output.agents.length}`);
+  console.log(`  Sandbox tool extensions: ${output.sandboxTools.length}`);
+  console.log(`  Sandbox feature extensions: ${output.sandboxFeatures.length}`);
 }
 
 // --- Main ---
@@ -1264,12 +1418,16 @@ export async function main(): Promise<void> {
     skills: [],
     plugins: [],
     agents: [],
+    sandboxTools: [],
+    sandboxFeatures: [],
   };
   const skillTrusts: TrustEntry[] = [];
   const mcpTrusts: TrustEntry[] = [];
   const pluginTrusts: TrustEntry[] = [];
   const agentTrusts: TrustEntry[] = [];
+  const sandboxExtensionTrusts: TrustEntry[] = [];
   const pendingMarketplaces: PendingMarketplace[] = [];
+  const pendingSandboxExtensions: PendingSandboxExtension[] = [];
 
   // Step 1: Collect all vendor data (fails build on any error)
   const tmpDir = resolve(ROOT, ".tmp-vendors");
@@ -1290,7 +1448,9 @@ export async function main(): Promise<void> {
         mcpTrusts,
         pluginTrusts,
         agentTrusts,
+        sandboxExtensionTrusts,
         pendingMarketplaces,
+        pendingSandboxExtensions,
       );
       console.log();
     }
@@ -1345,6 +1505,16 @@ export async function main(): Promise<void> {
     );
   }
 
+  const {
+    valid: validSandboxExtensionTrusts,
+    unknown: unknownSandboxExtensionTrusts,
+  } = filterValidTrusts(sandboxExtensionTrusts, vendorIds);
+  for (const { org, trustedOrg } of unknownSandboxExtensionTrusts) {
+    console.warn(
+      `  WARNING: organization.json for "${org}" trusts unknown organization "${trustedOrg}" for sandbox extensions — skipping`,
+    );
+  }
+
   // Step 2a: Enrich MCP with Anthropic registry (fails build on registry errors)
   await enrichRegistryMetadata(output);
 
@@ -1393,10 +1563,43 @@ export async function main(): Promise<void> {
   // Resolve trust delegations into derived agent approvals
   resolveAgentTrust(output, validAgentTrusts);
 
+  // Step 2e: Expand each approved repository into its individual sandbox
+  // extensions, split by kind (network, skips a repository or a single
+  // extension on error)
+  const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions(
+    pendingSandboxExtensions,
+  );
+  output.sandboxTools = sandboxTools;
+  output.sandboxFeatures = sandboxFeatures;
+
+  // Resolve trust delegations into derived sandbox extension approvals. Must
+  // run after expansion so trust matches against the final, per-extension ids
+  // rather than the repository prefix the approval named.
+  resolveSandboxExtensionTrust(output, validSandboxExtensionTrusts);
+
+  // Check for duplicate ids after expansion — two approvals whose prefixes
+  // collide (e.g. two repositories both filed under "io.github.acme") would
+  // otherwise publish two entries under one id
+  const seenSandboxIds = new Set<string>();
+  for (const entry of [...output.sandboxTools, ...output.sandboxFeatures]) {
+    if (seenSandboxIds.has(entry.sandboxExtensionId)) {
+      throw new Error(
+        `Duplicate sandboxExtensionId after expansion: "${entry.sandboxExtensionId}"`,
+      );
+    }
+    seenSandboxIds.add(entry.sandboxExtensionId);
+  }
+
   // Step 3: Write output
   output.mcp.sort((a, b) => a.serverId.localeCompare(b.serverId));
   output.skills.sort((a, b) => a.skillId.localeCompare(b.skillId));
   output.plugins.sort((a, b) => a.pluginId.localeCompare(b.pluginId));
   output.agents.sort((a, b) => a.agentId.localeCompare(b.agentId));
+  output.sandboxTools.sort((a, b) =>
+    a.sandboxExtensionId.localeCompare(b.sandboxExtensionId),
+  );
+  output.sandboxFeatures.sort((a, b) =>
+    a.sandboxExtensionId.localeCompare(b.sandboxExtensionId),
+  );
   writeOutput(output);
 }
