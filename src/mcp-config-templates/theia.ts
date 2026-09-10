@@ -53,6 +53,11 @@ function toTheiaOAuth(oauth: GenericMcpOAuth) {
 // no Authorization header and exactly one other, that one is unambiguously the
 // token, so it gets the dedicated pair. With several and no Authorization there
 // is no non-guessing way to pick one, so they all go in headers.
+// Taking the first case-insensitive "authorization" match is safe because
+// validateApproval rejects a config whose header names collide case-
+// insensitively — see checkGenericConfigHeaders. Without that guarantee this
+// would put the losing spelling in the headers bag and emit the same header
+// twice with different values.
 function toTheiaAuth(headers: Record<string, string> | undefined) {
   const entries = Object.entries(headers ?? {});
   if (entries.length === 0) return {};

@@ -1206,6 +1206,41 @@ describe("validateApproval — root config and derived marker", () => {
     assert.equal(validateApproval(withConfig("<clientSecret>")).valid, false);
   });
 
+  // HTTP header names are case-insensitive, so these are one header with two
+  // values — a transform can only pick one and drop or duplicate the other.
+  it("rejects header names that collide case-insensitively", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        headers: {
+          Authorization: "Bearer ${A}",
+          AUTHORIZATION: "Bearer ${B}",
+        },
+      },
+    });
+    assert.equal(result.valid, false);
+    assert.ok(
+      result.errors.some((e) => e.includes("same HTTP header")),
+      `expected a same-HTTP-header error, got: ${result.errors.join("; ")}`,
+    );
+  });
+
+  it("allows header names that differ by more than case", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        headers: { Authorization: "Bearer ${A}", "X-Api-Key": "${B}" },
+      },
+    });
+    assert.equal(result.valid, true);
+  });
+
   it("rejects oauth on the ws branch — WebSocket auth is header-only", () => {
     const result = validateApproval({
       serverId: "io.example/foo",
