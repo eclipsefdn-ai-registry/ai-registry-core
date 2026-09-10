@@ -15,7 +15,7 @@
     "website:build": "npm run build --prefix website",
     "ci:build": "npm ci && npm run consolidate && npm run website:prepare && npm run website:build",
     "lint": "eslint src/",
-    "test": "tsx --test 'src/**/*.test.ts'",
+    "test": "tsx --test 'src/**/*.test.ts' 'website/src/**/*.test.ts'",
     "check": "tsc --noEmit && npm run lint && npm run format:check && npm test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -23,7 +23,8 @@
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "gray-matter": "^4.0.3"
+    "gray-matter": "^4.0.3",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.0",

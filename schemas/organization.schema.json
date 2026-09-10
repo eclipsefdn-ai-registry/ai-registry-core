@@ -113,6 +113,11 @@
                 "type": "object",
                 "additionalProperties": false,
                 "description": "Trust the organization's A2A agent approvals. Empty today — reserved for future per-type conditions."
+              },
+              "sandboxExtensions": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Trust the organization's sandbox extension approvals, both tool (kind: sandbox) and feature (kind: mixin) extensions. One approval yields both kinds, so they cannot be delegated apart. Empty today — reserved for future per-type conditions."
               }
             }
           }

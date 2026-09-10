@@ -12,21 +12,21 @@ import { AgentList } from "../components/AgentList";
 import { AgentDetail } from "../components/AgentDetail";
 import { OrgList } from "../components/OrgList";
 import { ToolList } from "../components/ToolList";
+import { SandboxExtensionList } from "../components/SandboxExtensionList";
+import { SandboxExtensionDetail } from "../components/SandboxExtensionDetail";
+import { BrowserTabsRow } from "../components/BrowserTabsRow";
+import type { BrowserTab } from "../browserTabs";
 import { filterByNameDescId } from "../filterArtifacts";
 
-type Tab =
-  | "servers"
-  | "skills"
-  | "plugins"
-  | "agents"
-  | "tools"
-  | "organizations";
+type Tab = BrowserTab;
 
 const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
   servers: "Search MCP servers...",
   skills: "Search agent skills...",
   plugins: "Search agent plugins...",
   agents: "Search agents...",
+  "sandbox-tools": "Search sandbox tool extensions...",
+  "sandbox-features": "Search sandbox feature extensions...",
   tools: "Search tools...",
   organizations: "Search organizations...",
 };
@@ -40,6 +40,9 @@ export function HomePage() {
   const selectedSkillId = searchParams.get("skill") ?? undefined;
   const selectedPluginId = searchParams.get("plugin") ?? undefined;
   const selectedAgentId = searchParams.get("agent") ?? undefined;
+  const selectedSandboxToolId = searchParams.get("sandboxTool") ?? undefined;
+  const selectedSandboxFeatureId =
+    searchParams.get("sandboxFeature") ?? undefined;
 
   const filteredServers = useMemo(() => {
     if (!data) return [];
@@ -79,6 +82,24 @@ export function HomePage() {
     return filterByNameDescId(data.agents ?? [], search, (a) => a.agentId);
   }, [data, search]);
 
+  const filteredSandboxTools = useMemo(() => {
+    if (!data) return [];
+    return filterByNameDescId(
+      data.sandboxTools ?? [],
+      search,
+      (e) => e.sandboxExtensionId,
+    );
+  }, [data, search]);
+
+  const filteredSandboxFeatures = useMemo(() => {
+    if (!data) return [];
+    return filterByNameDescId(
+      data.sandboxFeatures ?? [],
+      search,
+      (e) => e.sandboxExtensionId,
+    );
+  }, [data, search]);
+
   if (error) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -107,6 +128,16 @@ export function HomePage() {
   const selectedAgent = selectedAgentId
     ? (data.agents ?? []).find((a) => a.agentId === selectedAgentId)
     : undefined;
+
+  const selectedSandboxExtension = selectedSandboxToolId
+    ? (data.sandboxTools ?? []).find(
+        (e) => e.sandboxExtensionId === selectedSandboxToolId,
+      )
+    : selectedSandboxFeatureId
+      ? (data.sandboxFeatures ?? []).find(
+          (e) => e.sandboxExtensionId === selectedSandboxFeatureId,
+        )
+      : undefined;
 
   const getOrg = (id: string) => data.organizations.find((o) => o.id === id);
   const getTool = (id: string) => data.tools.find((t) => t.id === id);
@@ -165,18 +196,34 @@ export function HomePage() {
     );
   }
 
-  const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: "servers", label: "MCP Servers", count: filteredServers.length },
-    { key: "skills", label: "Skills", count: filteredSkills.length },
-    { key: "plugins", label: "Plugins", count: filteredPlugins.length },
-    { key: "agents", label: "Agents", count: filteredAgents.length },
-    { key: "tools", label: "Tools", count: filteredTools.length },
-    {
-      key: "organizations",
-      label: "Organizations",
-      count: filteredOrgs.length,
+  if (selectedSandboxExtension) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <SandboxExtensionDetail
+          extension={selectedSandboxExtension}
+          getOrg={getOrg}
+          onBack={() => setSearchParams({})}
+        />
+      </div>
+    );
+  }
+
+  const tabs: Record<Tab, { label: string; count: number }> = {
+    servers: { label: "MCP Servers", count: filteredServers.length },
+    skills: { label: "Skills", count: filteredSkills.length },
+    plugins: { label: "Plugins", count: filteredPlugins.length },
+    agents: { label: "Agents", count: filteredAgents.length },
+    "sandbox-tools": {
+      label: "Sandbox Tools",
+      count: filteredSandboxTools.length,
     },
-  ];
+    "sandbox-features": {
+      label: "Sandbox Features",
+      count: filteredSandboxFeatures.length,
+    },
+    tools: { label: "Tools", count: filteredTools.length },
+    organizations: { label: "Organizations", count: filteredOrgs.length },
+  };
 
   return (
     <div>
@@ -193,9 +240,9 @@ export function HomePage() {
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-            Discover MCP servers, agent skills, agent plugins, and A2A agents,
-            with transparent provenance and approval signals from participating
-            tool providers.
+            Discover MCP servers, agent skills, agent plugins, A2A agents, and
+            sandbox extensions, with transparent provenance and approval signals
+            from participating tool providers.
           </p>
 
           <div className="w-full max-w-2xl mb-3">
@@ -226,26 +273,15 @@ export function HomePage() {
 
       {/* Registry Browser */}
       <section className="pt-6 pb-24">
-        <div className="max-w-5xl mx-auto px-4">
-          {/* Tabs */}
-          <div className="flex items-end mb-8 border-b border-border">
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => {
-                  setTab(t.key);
-                  setSearch("");
-                }}
-                className={`h-11 px-4 text-sm font-medium border-b-2 transition-colors ${
-                  tab === t.key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.label} ({t.count})
-              </button>
-            ))}
-          </div>
+        <div className="max-w-6xl mx-auto px-4">
+          <BrowserTabsRow
+            tabs={tabs}
+            active={tab}
+            onSelect={(key) => {
+              setTab(key);
+              setSearch("");
+            }}
+          />
 
           {/* Tab content */}
           {tab === "servers" && (
@@ -280,6 +316,24 @@ export function HomePage() {
             />
           )}
 
+          {tab === "sandbox-tools" && (
+            <SandboxExtensionList
+              extensions={filteredSandboxTools}
+              emptyLabel="No sandbox tool extensions found."
+              getOrg={getOrg}
+              onSelect={(id) => setSearchParams({ sandboxTool: id })}
+            />
+          )}
+
+          {tab === "sandbox-features" && (
+            <SandboxExtensionList
+              extensions={filteredSandboxFeatures}
+              emptyLabel="No sandbox feature extensions found."
+              getOrg={getOrg}
+              onSelect={(id) => setSearchParams({ sandboxFeature: id })}
+            />
+          )}
+
           {tab === "tools" && (
             <ToolList tools={filteredTools} getOrg={getOrg} />
           )}
@@ -291,6 +345,8 @@ export function HomePage() {
               skills={data.skills ?? []}
               plugins={data.plugins ?? []}
               agents={data.agents ?? []}
+              sandboxTools={data.sandboxTools ?? []}
+              sandboxFeatures={data.sandboxFeatures ?? []}
               getToolsForOrg={getToolsForOrg}
             />
           )}

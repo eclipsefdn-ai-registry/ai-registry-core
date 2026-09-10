@@ -2,11 +2,11 @@
 
 > **Preview** — This registry is currently in preview. Data, APIs, and the website may change as we iterate on the concept.
 
-A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclipse Foundation. Supports [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers, [Agent Skills](https://agentskills.io), [Agent Plugins](https://agent-plugins.org), and [A2A agents](https://a2a-protocol.org).
+A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclipse Foundation. Supports [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers, [Agent Skills](https://agentskills.io), [Agent Plugins](https://agent-plugins.org), [A2A agents](https://a2a-protocol.org), and sandbox extensions for [Eclipse Enclave](https://enclave.eclipse.dev/).
 
 ## How It Works
 
-The registry follows a federated model: **vendors** maintain their own repositories with approval files for AI artifacts (MCP servers, Agent Skills, Agent Plugins, and A2A agents) they endorse. A **central repository** consolidates all vendor data into a single JSON file that tools can consume.
+The registry follows a federated model: **vendors** maintain their own repositories with approval files for AI artifacts (MCP servers, Agent Skills, Agent Plugins, A2A agents, and sandbox extensions) they endorse. A **central repository** consolidates all vendor data into a single JSON file that tools can consume.
 
 ```
 Vendor Repos                    Central Repo                    Consumers
@@ -250,6 +250,29 @@ Example: `agents/eu.mosaico-project--ip-solution-agent.json`
 
 Unlike skill and plugin approvals, `source` has no `path` field — `source.url` must point directly at a fetchable `agent_card.json` file (the standard A2A Agent Card format), not at a repository or directory. Agent metadata (name, description) and a content hash are derived automatically from the fetched card during consolidation — you only supply the ID, the card URL, and optionally install configurations.
 
+### Sandbox extension approval files
+
+One JSON file per approved **repository** of sandbox extensions, stored in `sandbox-extensions/`. The filename must be `<sandboxExtensionId>.json` with `/` replaced by `--`. See the [sandbox extension approval schema](schemas/sandbox-extension-approval.schema.json) for the full field reference.
+
+Example: `sandbox-extensions/io.github.eclipse-enclave--enclave-extensions.json`
+
+```json
+{
+  "sandboxExtensionId": "io.github.eclipse-enclave/enclave-extensions",
+  "date": "2026-09-09",
+  "source": {
+    "url": "https://github.com/eclipse-enclave/enclave-extensions.git",
+    "ref": "v1.2.0"
+  }
+}
+```
+
+Unlike every other approval type, one file covers a whole repository and there is no `source.path`. During consolidation the repository is cloned (at `ref`, or the default branch when it is omitted) and every extension under `tools/*` and `features/*` is published as its own entry, with its id, name, description, and content hash read from its `spec.yaml` or `spec.json`. The spec's `kind` decides which list it lands in: `sandbox` for a **tool extension** (`sandboxTools`), `mixin` for a **feature extension** (`sandboxFeatures`).
+
+Those two directories are a registry convention, stricter than what [Eclipse Enclave](https://enclave.eclipse.dev/) itself accepts — an extension elsewhere in the repository, or one whose `kind` or `name` contradicts its own directory, is skipped with a warning rather than published.
+
+`installConfigs` is not part of this schema: nothing about installing a sandbox extension is tool-specific, so an approval is the organization, the date, and the hash. The website builds the `enclave tools add` / `enclave features add` command from the published metadata.
+
 ### Validation
 
 Validation runs in CI by checking out the central repo and running its CLI against your vendor repo.
@@ -266,7 +289,7 @@ See the [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registr
 ### Becoming a vendor
 
 1. Request a vendor repository by [opening an issue](https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues) on this repo describing your organization and the artifacts you plan to approve
-2. We create a new repository for you from a template, with the structure above and CI (the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml)) already set up — you only need to fill in your `organization.json` and add approval files in `mcp/`, `skills/`, `plugins/`, and/or `agents/`
+2. We create a new repository for you from a template, with the structure above and CI (the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml)) already set up — you only need to fill in your `organization.json` and add approval files in `mcp/`, `skills/`, `plugins/`, `agents/`, and/or `sandbox-extensions/`
 3. Request registration by opening a PR on this repo that adds your entry to `vendors.json`
 
 ## API
@@ -277,13 +300,13 @@ The registry is served as static JSON files from the registry website. Base URL:
 https://ai.open-vsx.org/api/v1/
 ```
 
-| Endpoint                                                                  | Description                                                                                                                |
-| :------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------- |
-| [`all.json`](https://ai.open-vsx.org/api/v1/all.json)                     | Full registry — organizations, tools, MCP servers, skills, plugins, and agents with merged approvals                       |
-| [`organizations.json`](https://ai.open-vsx.org/api/v1/organizations.json) | All organizations and their tools                                                                                          |
-| `tools/<tool-id>.json`                                                    | Per-tool view — servers, skills, plugins, and agents approved for that tool, with install configs for other tools stripped |
+| Endpoint                                                                  | Description                                                                                                                                                                                                       |
+| :------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`all.json`](https://ai.open-vsx.org/api/v1/all.json)                     | Full registry — organizations, tools, MCP servers, skills, plugins, agents, and sandbox extensions with merged approvals                                                                                          |
+| [`organizations.json`](https://ai.open-vsx.org/api/v1/organizations.json) | All organizations and their tools                                                                                                                                                                                 |
+| `tools/<tool-id>.json`                                                    | Per-tool view — servers, skills, plugins, and agents approved for that tool, with install configs for other tools stripped. Sandbox extensions have no install configs and appear in `orgs/<org-id>.json` instead |
 
-Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://ai.open-vsx.org/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://ai.open-vsx.org/schemas/skill-approval.schema.json), [`plugin-approval.schema.json`](https://ai.open-vsx.org/schemas/plugin-approval.schema.json), [`agent-approval.schema.json`](https://ai.open-vsx.org/schemas/agent-approval.schema.json)).
+Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://ai.open-vsx.org/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://ai.open-vsx.org/schemas/skill-approval.schema.json), [`plugin-approval.schema.json`](https://ai.open-vsx.org/schemas/plugin-approval.schema.json), [`agent-approval.schema.json`](https://ai.open-vsx.org/schemas/agent-approval.schema.json), [`sandbox-extension-approval.schema.json`](https://ai.open-vsx.org/schemas/sandbox-extension-approval.schema.json)).
 
 A tool integration typically fetches `organizations.json` + its own `tools/<tool-id>.json`. See the [client implementation guidance](skills/implement-registry-client/SKILL.md) for what to do with them: resolving approvals, showing who approved an artifact, verifying content, installing, and keeping it current.
 

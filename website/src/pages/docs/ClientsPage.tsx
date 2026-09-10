@@ -59,7 +59,7 @@ export function ClientsPage() {
       <p className="mb-3 leading-relaxed">
         A client reads the registry, shows users which artifacts their
         organizations approved, and installs them. Implement any subset of the
-        four artifact types.
+        artifact types.
       </p>
       <p className="mb-3 leading-relaxed">
         The same guidance is packaged as an agent skill,{" "}
@@ -104,6 +104,13 @@ export function ClientsPage() {
           <li className="leading-relaxed">
             Agents carry a content hash too, but of a single fetched Agent Card
             JSON file, not a directory — there is no path to pin.
+          </li>
+          <li className="leading-relaxed">
+            Sandbox extensions carry a content hash of their directory, and are
+            the one type where an approval can name a specific revision:{" "}
+            <InlineCode>source.ref</InlineCode> holds a git tag or branch when
+            the organization approved one. A branch is still a moving target, so
+            read the ref rather than treating its presence as a pin.
           </li>
           <li className="leading-relaxed">
             Withdrawing an approval removes the entry from the feed, but so does
@@ -175,8 +182,9 @@ export function ClientsPage() {
           <strong>1. Read the entries you handle.</strong> Top-level keys are{" "}
           <InlineCode>organizations</InlineCode>, <InlineCode>tools</InlineCode>
           , <InlineCode>mcp</InlineCode>, <InlineCode>skills</InlineCode>,{" "}
-          <InlineCode>plugins</InlineCode>, and <InlineCode>agents</InlineCode>.
-          New keys may appear.
+          <InlineCode>plugins</InlineCode>, <InlineCode>agents</InlineCode>,{" "}
+          <InlineCode>sandboxTools</InlineCode>, and{" "}
+          <InlineCode>sandboxFeatures</InlineCode>. New keys may appear.
         </p>
         <p className="mb-3 leading-relaxed">
           <strong>2. Resolve approvals.</strong> Each entry carries an{" "}
@@ -442,6 +450,79 @@ export function ClientsPage() {
         </p>
       </DocsSection>
 
+      <DocsSection id="sandbox-extensions">
+        <p className="mb-3 leading-relaxed">
+          A sandbox extension configures an agent sandbox: the container an
+          agent runs inside, or a capability layered into one. Two lists carry
+          them, and they are separate because their install verbs differ, not
+          because their shapes do — <InlineCode>sandboxTools</InlineCode> holds{" "}
+          <InlineCode>kind: sandbox</InlineCode> tool extensions (a runnable
+          agent, with its entrypoint, network policy and credentials) and{" "}
+          <InlineCode>sandboxFeatures</InlineCode> holds{" "}
+          <InlineCode>kind: mixin</InlineCode> feature extensions (a capability
+          such as a CLI or a language toolchain).
+        </p>
+        <InfoCallout>
+          <strong>
+            An extension is code that runs as root at container build and start
+            time.
+          </strong>{" "}
+          It can install packages, run install and startup scripts, widen the
+          sandbox's network allowlist, declare credentials it may hold, seed
+          files into the user's project, and turn off the agent's own approval
+          prompts. Say what it can do before installing one.
+        </InfoCallout>
+        <p className="mt-3 mb-3 leading-relaxed">
+          The registry does not publish those capabilities today, and a
+          description is not a substitute for them. Derive them from the
+          extension's own <InlineCode>spec.yaml</InlineCode> once you have the
+          directory, or defer to a host that does — the Enclave CLI prints a
+          capability summary from the staged content before it writes anything.
+        </p>
+        <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
+          <li className="leading-relaxed">
+            <InlineCode>source.path</InlineCode> points at the extension's own
+            directory inside the repository. Its last segment equals{" "}
+            <InlineCode>extensionName</InlineCode>, and both equal the{" "}
+            <InlineCode>name</InlineCode> in the spec: the registry publishes
+            nothing where those disagree.
+          </li>
+          <li className="leading-relaxed">
+            <InlineCode>extensionName</InlineCode> is the identity, the way a
+            skill's frontmatter name is. Two extensions of the same kind with
+            the same name collide no matter which directories they occupy.
+          </li>
+          <li className="leading-relaxed">
+            <InlineCode>name</InlineCode> is a display title from the spec's{" "}
+            <InlineCode>displayName</InlineCode>. Do not address an extension by
+            it.
+          </li>
+          <li className="leading-relaxed">
+            Approvals carry no <InlineCode>installConfigs</InlineCode> — nothing
+            about installing an extension is tool-specific — so sandbox
+            extensions appear in{" "}
+            <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> but not in{" "}
+            <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode>.
+          </li>
+          <li className="leading-relaxed">
+            The registry publishes only extensions found at{" "}
+            <InlineCode>tools/&lt;name&gt;/</InlineCode> and{" "}
+            <InlineCode>features/&lt;name&gt;/</InlineCode> in a repository
+            root. A host may accept other layouts; an approval here never covers
+            one.
+          </li>
+        </ul>
+        <p className="mb-3 leading-relaxed">
+          Install means downloading <InlineCode>source.path</InlineCode> from{" "}
+          <InlineCode>source.url</InlineCode> at{" "}
+          <InlineCode>source.ref</InlineCode> where one is set, verifying it
+          against <InlineCode>contentHash</InlineCode> as you would a skill, and
+          placing it where your sandbox host keeps extensions. With no{" "}
+          <InlineCode>source.ref</InlineCode>, the default branch is what was
+          approved and what a later update will follow.
+        </p>
+      </DocsSection>
+
       <DocsSection id="disappearing-entries">
         <p className="mb-3 leading-relaxed">
           An installed artifact vanishing from the feed can mean an organization
@@ -471,9 +552,9 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           Compare a hash from the feed against the one you recorded at install:{" "}
           <InlineCode>approvals[].configHash</InlineCode> for MCP servers,{" "}
-          <InlineCode>contentHash</InlineCode> for skills, plugins, and agents.
-          Different means an update is available. Refetch before checking, since
-          a cached response cannot contain anything new.
+          <InlineCode>contentHash</InlineCode> for everything else. Different
+          means an update is available. Refetch before checking, since a cached
+          response cannot contain anything new.
         </p>
         <p className="mb-3 leading-relaxed">
           <InlineCode>version</InlineCode> is not an update signal. A new
@@ -501,9 +582,9 @@ export function ClientsPage() {
           Local content can change after installation. Recompute the content
           hash over the artifact directory and compare it against the hash in
           your provenance marker. Different means the local content has changed
-          since install. This applies to skills and plugins; MCP servers and
-          agents have no local content to check — an agent's card lives at its
-          source, not on disk.
+          since install. This applies to skills, plugins, and sandbox
+          extensions; MCP servers and agents have no local content to check — an
+          agent's card lives at its source, not on disk.
         </p>
         <p className="mb-3 leading-relaxed">
           Offer to restore the artifact from its source, and leave it alone
@@ -521,10 +602,11 @@ export function ClientsPage() {
 
       <DocsSection id="content-hash">
         <p className="mb-3 leading-relaxed">
-          The hash published as <InlineCode>contentHash</InlineCode> for skills
-          and plugins. Reproduce it byte for byte or comparisons are
-          meaningless. Consolidation computes it over the skill folder or the
-          plugin directory, using the same algorithm for both.
+          The hash published as <InlineCode>contentHash</InlineCode> for skills,
+          plugins, and sandbox extensions. Reproduce it byte for byte or
+          comparisons are meaningless. Consolidation computes it over the skill
+          folder, the plugin directory, or the extension directory, using the
+          same algorithm for all three.
         </p>
         <ol className="mb-3 space-y-2 text-sm list-decimal pl-5">
           <li className="leading-relaxed">
@@ -671,10 +753,11 @@ export function ClientsPage() {
             "Keep a failed fetch distinct from an empty response, and change nothing on failure",
             "Ignore fields you do not recognise rather than rejecting the document",
             "Pick an install config by date descending, organizationId ascending",
-            "Verify contentHash before installing a skill, plugin, or agent, and let the user override an explicit mismatch warning",
+            "Verify contentHash before installing anything that has one, and let the user override an explicit mismatch warning",
             "Record provenance for everything you install, and never overwrite what you did not",
             "Offer adoption when a local slot is already occupied",
             "Install plugins whole, keyed by pluginId, and load from inside the plugin root",
+            "Tell the user what a sandbox extension can do before installing it — it runs as root at build and start time",
             "Surface artifacts missing from the feed without removing them",
           ]}
         />
@@ -691,7 +774,7 @@ export function ClientsPage() {
           title="If you implement updates"
           idPrefix="updates"
           items={[
-            "Use configHash for MCP servers and contentHash for skills, plugins, and agents",
+            "Use configHash for MCP servers and contentHash for every other type",
             "Preserve user-supplied configuration across an update",
           ]}
         />

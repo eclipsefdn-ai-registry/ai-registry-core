@@ -26,7 +26,7 @@ const APPROVAL_FIELDS = [
     name: "installConfigs",
     type: "array",
     description:
-      "Tool-specific install configuration. Empty when the organization approved without configuring anything.",
+      "Tool-specific install configuration. Empty when the organization approved without configuring anything, and absent entirely on sandbox extension approvals.",
   },
   {
     name: "version",
@@ -87,8 +87,8 @@ export function ApiPage() {
                 </a>
               </td>
               <td className="py-2">
-                Every organization, tool, MCP server, skill, plugin, and A2A
-                agent, with approvals merged across all vendors.
+                Every organization, tool, MCP server, skill, plugin, A2A agent,
+                and sandbox extension, with approvals merged across all vendors.
               </td>
             </tr>
             <tr className="border-b border-border align-top">
@@ -112,7 +112,9 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Artifacts approved for one tool, with other tools' install
-                configs stripped. Example:{" "}
+                configs stripped. Carries no sandbox extensions: their approvals
+                have no install configs, so nothing scopes them to a tool.
+                Example:{" "}
                 <a
                   href={`${BASE_URL}api/v1/tools/theia-ide.json`}
                   className="text-primary hover:underline"
@@ -165,6 +167,20 @@ export function ApiPage() {
                 >
                   <InlineCode>agents.json</InlineCode>
                 </a>
+                ,{" "}
+                <a
+                  href={`${BASE_URL}api/v1/sandbox-tools.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>sandbox-tools.json</InlineCode>
+                </a>
+                ,{" "}
+                <a
+                  href={`${BASE_URL}api/v1/sandbox-features.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>sandbox-features.json</InlineCode>
+                </a>
               </td>
               <td className="py-2">
                 Every approved artifact of one type, across every tool, with
@@ -186,19 +202,22 @@ export function ApiPage() {
 
       <DocsSection id="response-shapes">
         <p className="mb-3 leading-relaxed">
-          <InlineCode>all.json</InlineCode> returns an object with all six
-          top-level keys. <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode>{" "}
-          and <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> return only the
-          four artifact-type keys (<InlineCode>mcp</InlineCode>,{" "}
+          <InlineCode>all.json</InlineCode> returns an object with all eight
+          top-level keys. <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode>{" "}
+          returns the six artifact-type keys, filtered;{" "}
+          <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> returns the four
+          that carry install configs (<InlineCode>mcp</InlineCode>,{" "}
           <InlineCode>skills</InlineCode>, <InlineCode>plugins</InlineCode>,{" "}
-          <InlineCode>agents</InlineCode>), filtered — fetch{" "}
+          <InlineCode>agents</InlineCode>) — fetch{" "}
           <InlineCode>organizations.json</InlineCode> alongside them to resolve
           organization and tool names. The per-type files (
           <InlineCode>mcp.json</InlineCode>,{" "}
           <InlineCode>skills.json</InlineCode>,{" "}
           <InlineCode>plugins.json</InlineCode>,{" "}
-          <InlineCode>agents.json</InlineCode>) return a single one of those
-          four keys.
+          <InlineCode>agents.json</InlineCode>,{" "}
+          <InlineCode>sandbox-tools.json</InlineCode>,{" "}
+          <InlineCode>sandbox-features.json</InlineCode>) return a single one of
+          those keys.
         </p>
         <CodeBlock>{`{
   "organizations": [ ... ],
@@ -206,7 +225,9 @@ export function ApiPage() {
   "mcp": [ ... ],
   "skills": [ ... ],
   "plugins": [ ... ],
-  "agents": [ ... ]
+  "agents": [ ... ],
+  "sandboxTools": [ ... ],
+  "sandboxFeatures": [ ... ]
 }`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
           These shapes are produced by consolidation and differ from the
@@ -427,6 +448,59 @@ export function ApiPage() {
           ]}
         />
 
+        <FieldTable
+          caption="sandboxTools[] and sandboxFeatures[]"
+          fields={[
+            {
+              name: "sandboxExtensionId",
+              type: "string",
+              description:
+                "Approval id plus the extension's repository path, e.g. io.github.eclipse-enclave/enclave-extensions/tools/openclaw.",
+            },
+            {
+              name: "kind",
+              type: "string",
+              description:
+                '"sandbox" for a tool extension, "mixin" for a feature extension. Taken from spec.yaml, and the reason the two lists are separate.',
+            },
+            {
+              name: "name",
+              type: "string",
+              description:
+                "displayName from the spec, falling back to the spec name.",
+            },
+            {
+              name: "extensionName",
+              type: "string",
+              description:
+                "The spec's own name, which is also its directory name. This is the identity the host CLI addresses the extension by.",
+            },
+            {
+              name: "description",
+              type: "string",
+              description: "Description from the spec.",
+            },
+            {
+              name: "source",
+              type: "object",
+              description:
+                "Git repository URL, the path to this extension's directory, and an optional git ref (tag or branch) pinning a revision instead of the default branch.",
+            },
+            {
+              name: "contentHash",
+              type: "string",
+              description:
+                "Hash of the extension directory, at the pinned ref where one is set.",
+            },
+            {
+              name: "approvals",
+              type: "array",
+              description:
+                "One entry per approving organization. These carry no installConfigs.",
+            },
+          ]}
+        />
+
         <FieldTable caption="approvals[]" fields={APPROVAL_FIELDS} />
 
         <FieldTable
@@ -494,6 +568,10 @@ export function ApiPage() {
                 "marketplace-approval.schema.json",
                 "Marketplace approval file (fans out into plugin approvals)",
               ],
+              [
+                "sandbox-extension-approval.schema.json",
+                "Sandbox extension approval file (one repository, fans out into its individual extensions)",
+              ],
             ].map(([file, description]) => (
               <tr key={file} className="border-b border-border align-top">
                 <td className="py-2 pr-3">
@@ -523,7 +601,7 @@ export function ApiPage() {
           >
             Anthropic MCP registry
           </a>{" "}
-          metadata and in skill and plugin sources.
+          metadata and in skill, plugin, and sandbox extension sources.
         </p>
         <p className="mb-3 leading-relaxed">
           The API is versioned by path. New fields and new top-level keys can

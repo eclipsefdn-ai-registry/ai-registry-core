@@ -129,6 +129,31 @@ export interface Agent {
   approvals: AgentApproval[];
 }
 
+export type SandboxKind = "sandbox" | "mixin";
+
+// No installConfigs, unlike every other approval type: nothing about
+// installing a sandbox extension is tool-specific, so an approval is the
+// organization, the date, and the hash.
+export interface SandboxExtensionApproval {
+  organizationId: string;
+  date: string;
+  configHash: string;
+  viaTrust?: string;
+}
+
+export interface SandboxExtension {
+  sandboxExtensionId: string;
+  kind: SandboxKind;
+  // display title: the spec's displayName, falling back to its name
+  name: string;
+  // the spec's own name — what `enclave add --name` matches on
+  extensionName: string;
+  description: string;
+  source: { url: string; path: string; ref?: string };
+  contentHash: string;
+  approvals: SandboxExtensionApproval[];
+}
+
 export interface RegistryData {
   organizations: Organization[];
   tools: Tool[];
@@ -136,4 +161,6 @@ export interface RegistryData {
   skills: Skill[];
   plugins: Plugin[];
   agents: Agent[];
+  sandboxTools: SandboxExtension[];
+  sandboxFeatures: SandboxExtension[];
 }
