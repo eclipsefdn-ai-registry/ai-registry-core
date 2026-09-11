@@ -2,15 +2,16 @@
 name: implement-registry-client
 description: >
   Implement an AI Registry client in an agent, IDE, or development tool.
-  Use when adding registry support for MCP servers, Agent Skills, Agent Plugins, or A2A agents,
-  or when a tool needs to browse, install, update, or verify registry-approved artifacts.
+  Use when adding registry support for MCP servers, Agent Skills, Agent Plugins, A2A agents,
+  or sandbox extensions, or when a tool needs to browse, install, update, or verify
+  registry-approved artifacts.
 ---
 
 # Implement an AI Registry client
 
 A client reads the registry, shows users which artifacts their organizations endorsed, and installs them.
 
-Implement any subset of the four artifact types.
+Implement any subset of the artifact types.
 
 ## What the registry vouches for
 
@@ -18,24 +19,25 @@ The registry records that a named organization **endorsed** an artifact on a dat
 
 It does not test, audit, sandbox, or certify anything. Endorsement is per organization, not a registry-wide certification. A client can present its per-tool list as its own and never name another organization, or it can show the endorsement chain behind each artifact. Both are valid; the second gives the user something to evaluate.
 
-Four limits shape everything below:
+Five limits shape everything below:
 
 - MCP servers are described by configuration, not by content. The registry publishes the command or URL to run. Nothing in the feed covers the server's code, and that code can change under a stable command at any time.
 - Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push. Skill sources are referenced by repository URL and path with no commit pin, so the hash is the only pin available. Plugin sources can additionally carry an optional `source.ref` (a git tag or branch) pinning a specific revision instead of tracking the default branch — check for it before cloning, and clone that ref rather than HEAD.
 - Agents carry a content hash too, but of a single fetched Agent Card JSON file, not a directory — there is no path to pin.
+- Sandbox extensions carry a content hash of their directory, and are the one type where the approval itself can name a revision: `source.ref` holds a git tag or branch when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
 - Withdrawing an endorsement removes the entry from the feed, but so does a source that was briefly unreachable when consolidation ran. Nothing in the data separates the two, so there is no revocation signal a client can act on. See [Disappearing entries](#disappearing-entries).
 
 ## The data
 
 Base URL: `https://ai.open-vsx.org/api/v1/`
 
-| Endpoint                                                 | What it gives you                                                                                                                     |
-| :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
-| `tools/<tool-id>.json`                                   | Artifacts endorsed for your tool, with other tools' install configs stripped                                                          |
-| `orgs/<org-id>.json`                                     | Artifacts endorsed by one organization, across every tool, full install configs kept                                                  |
-| `organizations.json`                                     | Organization identity: name, description, website, colour                                                                             |
-| `mcp.json`, `skills.json`, `plugins.json`, `agents.json` | Every endorsed artifact of one type, across every tool, full install configs kept — each a single-key object, e.g. `{ "mcp": [...] }` |
-| `all.json`                                               | Everything, unfiltered                                                                                                                |
+| Endpoint                                                                                                | What it gives you                                                                                                                     |
+| :------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `tools/<tool-id>.json`                                                                                  | Artifacts endorsed for your tool, with other tools' install configs stripped — no sandbox extensions, which have no install configs   |
+| `orgs/<org-id>.json`                                                                                    | Artifacts endorsed by one organization, across every tool, full install configs kept                                                  |
+| `organizations.json`                                                                                    | Organization identity: name, description, website, colour                                                                             |
+| `mcp.json`, `skills.json`, `plugins.json`, `agents.json`, `sandbox-tools.json`, `sandbox-features.json` | Every endorsed artifact of one type, across every tool, full install configs kept — each a single-key object, e.g. `{ "mcp": [...] }` |
+| `all.json`                                                                                              | Everything, unfiltered                                                                                                                |
 
 `tools/<tool-id>.json` is all you need to browse and install. Add `organizations.json` if you want to name the endorsing organizations, since the per-tool view carries `organizationId` strings and nothing else about them.
 
@@ -59,7 +61,7 @@ Every artifact type follows the same five steps.
 
 ### 1. Read the entries you handle
 
-Top-level keys are `organizations`, `tools`, `mcp`, `skills`, `plugins`, and `agents`. New keys may appear, so ignore what you do not implement.
+Top-level keys are `organizations`, `tools`, `mcp`, `skills`, `plugins`, `agents`, `sandboxTools`, and `sandboxFeatures`. New keys may appear, so ignore what you do not implement.
 
 ### 2. Resolve endorsements
 
@@ -247,6 +249,39 @@ There is no plugin-root or skill-folder equivalent to download. Install means re
 
 Endorsement attaches to the agent as a whole, the same as for plugins: there is nothing smaller inside an Agent Card to endorse independently.
 
+## Sandbox extensions
+
+A sandbox extension configures an agent sandbox: the container an agent runs inside, or a capability layered into one. Two lists carry them, separated by their install verb rather than by their shape — `sandboxTools` holds `kind: sandbox` **tool extensions** (a runnable agent, with its entrypoint, network policy and credentials) and `sandboxFeatures` holds `kind: mixin` **feature extensions** (a capability such as a CLI or a language toolchain).
+
+```json
+{
+  "sandboxExtensionId": "io.github.eclipse-enclave/enclave-extensions/tools/openclaw",
+  "kind": "sandbox",
+  "name": "OpenClaw",
+  "extensionName": "openclaw",
+  "description": "OpenClaw personal assistant.",
+  "source": {
+    "url": "https://github.com/eclipse-enclave/enclave-extensions.git",
+    "path": "tools/openclaw",
+    "ref": "v1.2.0"
+  },
+  "contentHash": "9f2c1ba7d340",
+  "approvals": [{ "organizationId": "example-org", "date": "2026-09-09" }]
+}
+```
+
+**An extension is code that runs as root at container build and start time.** It can install packages, run install and startup scripts, widen the sandbox's network allowlist, declare credentials it may hold, seed files into the user's project directory, and turn off the agent's own approval prompts. Say what it can do before installing one.
+
+The registry does not publish those capabilities today, and the description is not a substitute for them. Derive them from the extension's own `spec.yaml` once you have the directory, or defer to a host that does — the Enclave CLI prints a capability summary from the staged content before it writes anything.
+
+- `source.path` points at the extension's own directory inside the repository. Its last segment equals `extensionName`, and both equal the `name` in the spec: the registry publishes nothing where those disagree.
+- `extensionName` is the identity, the way a skill's frontmatter name is. Two extensions of the same kind with the same name collide no matter which directories they occupy.
+- `name` is a display title, taken from the spec's `displayName`. Do not address an extension by it.
+- Approvals carry no `installConfigs` — nothing about installing an extension is tool-specific — so sandbox extensions appear in `orgs/<org-id>.json` but never in `tools/<tool-id>.json`.
+- The registry publishes only extensions found at `tools/<name>/` and `features/<name>/` in a repository root. A host may accept other layouts; an endorsement here never covers one.
+
+Install means downloading `source.path` from `source.url` at `source.ref` where one is set, verifying it against `contentHash` exactly as for a skill, and placing it where your sandbox host keeps extensions. With no `source.ref`, the default branch is what was endorsed and what a later update will follow.
+
 ## Disappearing entries
 
 An installed artifact vanishing from the feed can mean an organization withdrew its endorsement. It can also mean consolidation skipped the entry because its source was briefly unreachable, or a vendor retargeted the approval, or an id was renamed. The data does not distinguish them.
@@ -271,10 +306,11 @@ Removing artifacts automatically deletes working installations whenever a source
 - [ ] Keep a failed fetch distinct from an empty response, and change nothing on failure
 - [ ] Ignore fields you do not recognise rather than rejecting the document
 - [ ] Pick an install config by `date` descending and `organizationId` ascending
-- [ ] Verify `contentHash` before installing a skill, plugin, or agent, and let the user override an explicit mismatch warning
+- [ ] Verify `contentHash` before installing anything that has one, and let the user override an explicit mismatch warning
 - [ ] Record provenance for everything you install, and never overwrite what you did not
 - [ ] Offer adoption when a local slot is already occupied
 - [ ] Install plugins whole, keyed by `pluginId`, and load from inside the plugin root
+- [ ] Tell the user what a sandbox extension can do before installing it — it runs as root at build and start time
 - [ ] Surface artifacts missing from the feed without removing them
 
 **If you show endorsing organizations**
@@ -285,7 +321,7 @@ Removing artifacts automatically deletes working installations whenever a source
 
 **If you implement updates**
 
-- [ ] Use `configHash` for MCP servers and `contentHash` for skills, plugins, and agents
+- [ ] Use `configHash` for MCP servers and `contentHash` for every other type
 - [ ] Preserve user-supplied configuration across an update
 
 **If you implement deep links**

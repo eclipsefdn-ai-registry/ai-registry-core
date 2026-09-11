@@ -12,9 +12,14 @@ import { useState } from "react";
 export function InstallFromCli({
   command,
   note,
+  label = "Install from CLI",
 }: {
   command: string;
   note?: React.ReactNode;
+  // Overridden where one named CLI owns the artifact type outright, e.g.
+  // "Install in Enclave" for sandbox extensions, so the box says which tool
+  // the command is for rather than leaving the reader to infer it.
+  label?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -30,7 +35,7 @@ export function InstallFromCli({
     <div className="mt-6">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-muted-foreground">
-          Install from CLI
+          {label}
         </span>
         <button
           className="text-xs px-2 py-0.5 border border-border rounded hover:border-primary hover:text-primary transition-colors text-muted-foreground"

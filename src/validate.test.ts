@@ -12,11 +12,13 @@ import {
   validateOrganization,
   validatePluginApproval,
   validateMarketplaceApproval,
+  validateSandboxExtensionApproval,
   readApprovalDir,
   validateSimpleApprovals,
   type SkillApprovalEntry,
   type PluginApprovalEntry,
   type AgentApprovalEntry,
+  type SandboxExtensionApprovalEntry,
   type VendorValidationResult,
   type ValidationResult,
 } from "./validate.js";
@@ -1560,6 +1562,7 @@ function freshVendorResult(): VendorValidationResult {
     pluginApprovals: [],
     agentApprovals: [],
     marketplaceApprovals: [],
+    sandboxExtensionApprovals: [],
   };
 }
 
@@ -1625,5 +1628,140 @@ describe("validateSimpleApprovals", () => {
     );
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("bad-tool")));
+  });
+});
+
+// --- Sandbox extension approval validation ---
+
+function sandboxExtensionApproval(
+  sandboxExtensionId = "io.github.acme/kits",
+): SandboxExtensionApprovalEntry {
+  return {
+    file: sandboxExtensionId.replace(/\//g, "--") + ".json",
+    data: {
+      sandboxExtensionId,
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git" },
+    },
+  };
+}
+
+describe("validateSandboxExtensionApproval", () => {
+  it("accepts an approval with just an id, date, and repository", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxExtensionApproval().data,
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts an optional ref", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git", ref: "v1.2.0" },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  // The approval names a repository, and consolidation finds the extensions
+  // inside it by convention — a path would suggest a control the schema
+  // doesn't actually offer.
+  it("rejects a source path", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: {
+        url: "https://github.com/acme/kits.git",
+        path: "tools/openclaw",
+      },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  // Nothing about installing a sandbox extension is tool-specific, so an
+  // approval that names a tool is stating something the registry can't publish.
+  it("rejects installConfigs", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git" },
+      installConfigs: [{ tool: "enclave" }],
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a missing source", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects an empty ref", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git", ref: "" },
+    });
+    assert.equal(result.valid, false);
+  });
+});
+
+describe("validateVendorData — sandbox extension approvals", () => {
+  it("collects a valid approval", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [sandboxExtensionApproval()],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.sandboxExtensionApprovals.length, 1);
+  });
+
+  it("fails on a duplicate sandboxExtensionId", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [
+        sandboxExtensionApproval(),
+        {
+          file: "io.github.acme--kits-copy.json",
+          data: {
+            sandboxExtensionId: "io.github.acme/kits",
+            date: "2026-09-10",
+            source: { url: "https://github.com/acme/other.git" },
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("sandboxExtensionId")));
+  });
+
+  it("warns when the filename doesn't match the id", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [
+        { ...sandboxExtensionApproval(), file: "kits.json" },
+      ],
+    });
+    assert.equal(result.valid, true);
+    assert.ok(
+      result.warnings.some((w) => w.includes("io.github.acme--kits.json")),
+    );
+  });
+
+  it("fails when the approval fails schema validation", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [
+        {
+          file: "bad.json",
+          data: { sandboxExtensionId: "io.github.acme/kits" } as never,
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("returns an empty list when the vendor has none", () => {
+    const result = validateVendorData(validOrg, []);
+    assert.deepEqual(result.sandboxExtensionApprovals, []);
   });
 });
