@@ -23,8 +23,9 @@ Vendors maintain their own repositories with approval files for MCP servers they
 4. **Read the approval schema** — Fetch the schema from `https://ai.open-vsx.org/schemas/mcp-approval.schema.json` to ensure you follow the current contract.
 5. **Read tool-specific config docs** — Check `ai-docs/mcp-approval.md` in the repo. If it exists, read it to understand how to construct the `config` and `installUrl` for this vendor's tools.
 6. **Read an existing approval as reference** — Look for existing files in the `mcp/` directory. If none exist, fetch the example from `https://raw.githubusercontent.com/eclipsefdn-ai-registry/ai-registry-theia/main/mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`.
-7. **Generate the approval file** — Create a JSON file in the `mcp/` directory following the schema, the tool-specific docs, and the naming convention below.
-8. **Validate** — Run `npm run validate` to check the file.
+7. **Write the generic `config`** — Unless the server's connection details are genuinely unknown, always include a root-level `config` (see "The Generic Root `config`" below). Fetch `https://ai.open-vsx.org/schemas/mcp-server-config.schema.json` for the current contract. This is separate from, and in addition to, the tool-specific configs in `installConfigs`.
+8. **Generate the approval file** — Create a JSON file in the `mcp/` directory following the schema, the tool-specific docs, and the naming convention below.
+9. **Validate** — Run `npm run validate` to check the file.
 
 ## Naming Convention
 
@@ -37,18 +38,58 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
 - **serverId** (required): Must match a server in the Anthropic MCP registry.
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
 - **version** (optional): Pinned server version (e.g., `1.0.1`). Omit to use the latest version from the MCP registry. Only set this when the vendor explicitly needs to pin a specific version (e.g., a newer version has a known issue). When a version is pinned, the install config (e.g., `args` in the config object) should reference that same version instead of `@latest`.
+- **config** (optional, but include it whenever you can): Generic, tool-agnostic connection info for the server — **not** tool-specific, and **not** wrapped in `mcpServers`/`servers`. See "The Generic Root `config`" below.
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools (approval-only without install configuration).
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
-  - **config**: Tool-specific configuration object (e.g., MCP server settings for stdio).
+  - **config**: Tool-specific configuration object (e.g., MCP server settings for stdio). Note this is a _different_ field from the root-level `config` above — this one follows the target tool's own format, described in that vendor's `ai-docs/mcp-approval.md`.
   - **instructions**: Human-readable setup instructions.
   - **installUrl**: Deep-link URL for one-click install (optional). **Omit if the tool declares `mcpInstallUrlPrefix` in `organization.json`** — consolidation generates it automatically as `prefix + serverId`. Set it explicitly only when the tool has no prefix or you need a non-standard URL.
   - **openVsxUrl**: Link to an Open VSX extension (optional).
 - **metadata** (optional): `{ "name": "...", "description": "..." }` — only relevant when the server was not found in the Anthropic MCP registry (step 2). Provides a fallback name/description so the server doesn't show up as a raw serverId with no description. Ignored once the server appears in the registry.
 - **selfPublished** (optional, boolean): Set to `true` only when the vendor filing this approval is the actual publisher/maintainer of the MCP server — never set this on behalf of a server you merely use or recommend. Do not set it just because you're supplying `metadata`. It drives a distinct "Publisher claim" badge on the website (the claiming vendor's name appears in the tooltip, not the badge text). Two different vendors self-attesting for the same server fails the shared consolidation build, so only set this when you're confident it's accurate.
 
-## Remote Servers and OAuth
+## The Generic Root `config`
 
-Some MCP servers are remote (HTTP/SSE) rather than local (stdio). A remote server is configured with a `serverUrl` instead of a `command`. Remote servers commonly protect access with OAuth 2.x. When a tool's config supports it, you can declare the OAuth parameters with an `oauth` object nested in the server entry. Always confirm the exact field support in `ai-docs/mcp-approval.md` for the target tool before adding it.
+The root-level `config` describes **one server**, tool-agnostically, with no outer `mcpServers`/`servers` wrapper. Other vendors can then set `"config": "derived"` on an `installConfigs` entry and have their tool's own config generated from yours — including vendors who approve the same server later, and tools that don't exist yet. An approval without one can only ever offer hand-written install configs, so write one whenever the connection details are known.
+
+`type` is **required** and selects the variant:
+
+| `type`                   | Other fields                                                            |
+| :----------------------- | :---------------------------------------------------------------------- |
+| `streamable-http`, `sse` | `url` (required), `headers`, `oauth`                                    |
+| `ws`                     | `url` (required), `headers` — WebSocket auth is header-only, no `oauth` |
+| `stdio`                  | `command` (required), `args`, `env`, `cwd`                              |
+
+`"http"` is **not** accepted, even though Claude Code, VS Code and other mcp.json derivatives use it for Streamable HTTP. Write `streamable-http`; translating to a tool's own spelling is the transform's job.
+
+### Placeholders: `${VAR}` vs `<name>`
+
+Which one you use depends on **who resolves the value**:
+
+- **`${VAR}` / `${VAR:-default}`** — a reference something else resolves, from the environment or by prompting the user. Use in `headers`, `env`, `oauth.clientSecret` and `cwd`. Prefer the real environment variable name the server documents (e.g. `${GITHUB_PERSONAL_ACCESS_TOKEN}`), not a description of it.
+- **`<name>`** — a value a human has to choose, with nothing to resolve it from. Use in `args` and other free strings, e.g. `"--prebuilt=<database>"`.
+
+**Never write a literal secret.** `oauth.clientSecret` rejects anything that isn't a `${VAR}` reference. `headers` and `env` can't enforce it — a header value is usually `"Bearer ${TOKEN}"`, so the reference is embedded rather than the whole value — so it's on you to get right.
+
+```json
+{
+  "serverId": "io.example/some-server",
+  "date": "2026-09-08",
+  "config": {
+    "type": "streamable-http",
+    "url": "https://mcp.example.com/mcp",
+    "headers": { "Authorization": "Bearer ${EXAMPLE_API_TOKEN}" }
+  }
+}
+```
+
+The generic `oauth` object takes `clientId`, `clientSecret`, `scopes` (string array), `authServerMetadataUrl` and `resource`. Note it is **not** identical to the tool-specific `oauth` described in the next section: the generic one spells the metadata URL `authServerMetadataUrl` (Theia, for one, calls it `authorizationServer`) and requires `${VAR}` for `clientSecret`. An empty `oauth: {}` is meaningful — it says the server expects OAuth but has nothing to pre-configure, so clients should discover everything.
+
+## Remote Servers and OAuth (tool-specific configs)
+
+This section is about the `config` inside an **`installConfigs` entry** — the target tool's own format — not the generic root `config` above.
+
+Some MCP servers are remote (HTTP/SSE) rather than local (stdio). In most tools' formats a remote server is configured with a `serverUrl` instead of a `command`. Remote servers commonly protect access with OAuth 2.x. When a tool's config supports it, you can declare the OAuth parameters with an `oauth` object nested in the server entry. Always confirm the exact field support in `ai-docs/mcp-approval.md` for the target tool before adding it — field names differ between tools.
 
 ### `oauth` fields
 

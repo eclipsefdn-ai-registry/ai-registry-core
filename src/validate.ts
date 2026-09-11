@@ -165,12 +165,40 @@ export function validateOrganization(data: unknown): ValidationResult {
   };
 }
 
+// HTTP header names are case-insensitive, so two entries in the generic
+// config's `headers` that differ only in case are one header carrying two
+// values — a config no consumer can honour. JSON Schema can't express this
+// (it has no way to compare property names to each other), and a transform
+// can only pick one and silently drop or duplicate the rest, so it's caught
+// here: once, for every tool, instead of once per transform. It also covers
+// consumers reading `genericConfig` straight off the API, which no transform
+// runs for at all.
+function checkGenericConfigHeaders(data: unknown): string[] {
+  const headers = (data as { config?: { headers?: Record<string, string> } })
+    .config?.headers;
+  if (!headers) return [];
+
+  const errors: string[] = [];
+  const firstSpelling = new Map<string, string>();
+  for (const name of Object.keys(headers)) {
+    const seen = firstSpelling.get(name.toLowerCase());
+    if (seen === undefined) {
+      firstSpelling.set(name.toLowerCase(), name);
+    } else {
+      errors.push(
+        `config.headers: "${seen}" and "${name}" are the same HTTP header (names are case-insensitive) — keep only one`,
+      );
+    }
+  }
+  return errors;
+}
+
 export function validateApproval(data: unknown): ValidationResult {
-  const valid = validateAppr(data);
-  return {
-    valid: !!valid,
-    errors: valid ? [] : formatErrors(validateAppr),
-  };
+  if (!validateAppr(data)) {
+    return { valid: false, errors: formatErrors(validateAppr) };
+  }
+  const errors = checkGenericConfigHeaders(data);
+  return { valid: errors.length === 0, errors };
 }
 
 export function validateSkillApproval(data: unknown): ValidationResult {

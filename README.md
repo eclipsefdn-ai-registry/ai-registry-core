@@ -146,6 +146,41 @@ Example: `mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`
 
 The `serverId` must reference a server in the [Anthropic MCP registry](https://registry.modelcontextprotocol.io). Server metadata (name, description) is retrieved automatically during consolidation — you only supply the ID and optionally install configurations. Approvals without `installConfigs` are valid and indicate the organization approves the server without providing tool-specific configuration.
 
+#### The generic `config` — one server, no tool wrapper
+
+Alongside `installConfigs`, an approval can carry a root-level `config`: generic, tool-agnostic connection info for the server itself. It describes **one server** and deliberately omits the outer `mcpServers`/`servers` wrapper that client config files use — adding that wrapper, and translating field names, is a per-tool transform's job (`src/mcp-config-templates/`). See the [config schema](schemas/mcp-server-config.schema.json) for the full field reference.
+
+It is worth supplying, because it is what lets other vendors set `"config": "derived"` on an `installConfigs` entry and have their tool's config generated from it — including vendors who approve the same server later, and tools that don't exist yet. An approval with no root `config` can only ever offer hand-written install configs.
+
+```json
+{
+  "serverId": "io.example/some-server",
+  "date": "2026-09-08",
+  "config": {
+    "type": "streamable-http",
+    "url": "https://mcp.example.com/mcp",
+    "headers": { "Authorization": "Bearer ${EXAMPLE_API_TOKEN}" }
+  }
+}
+```
+
+- **`type`** is **required** on every variant, and is what selects the variant: `streamable-http` or `sse` for a remote server, `ws` for WebSocket, `stdio` for a local command. Note that mcp.json-style client files (Claude Code, VS Code and derivatives) spell Streamable HTTP as `"http"` — that spelling is **not** accepted here, so the registry has exactly one canonical value per transport.
+- **Remote** (`streamable-http` / `sse`) takes `url`, optional `headers`, and optional `oauth`. **`ws`** takes `url` and `headers` only — WebSocket auth is header-only.
+- **Local** (`stdio`) takes `command`, optional `args`, `env` and `cwd`.
+
+##### Two placeholder conventions
+
+They are not interchangeable, and which one to use depends on **who resolves the value**:
+
+| Form                        | Meaning                                                                              | Used in                                       |
+| :-------------------------- | :----------------------------------------------------------------------------------- | :-------------------------------------------- |
+| `${VAR}`, `${VAR:-default}` | A reference something else resolves — from the environment, or by prompting the user | `headers`, `env`, `oauth.clientSecret`, `cwd` |
+| `<name>`                    | A value a human has to choose; nothing resolves it automatically                     | `args`, and other free strings                |
+
+Secrets **must** be written as `${VAR}` references, never as literals. `oauth.clientSecret` enforces this with a pattern; `headers` and `env` cannot enforce it (a header value is typically `"Bearer ${TOKEN}"`, so the reference is embedded rather than the whole value) and rely on review.
+
+A tool that has no `${VAR}` expansion of its own gets these rewritten by its transform — Theia's, for instance, turns `${TOKEN}` into a `<TOKEN>` placeholder for the user to fill in.
+
 #### Vendor-supplied metadata for servers not in the Anthropic registry
 
 Not every MCP server a vendor wants to approve is registered with Anthropic yet. For these, an approval can optionally include `metadata` and `selfPublished`:
