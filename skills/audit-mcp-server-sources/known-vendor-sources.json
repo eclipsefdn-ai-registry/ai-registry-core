@@ -1,0 +1,106 @@
+{
+  "theia": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "anthropic": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "openai": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "aws": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "google": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "eclipsesource": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "mosaico": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "jetbrains": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "atlassian": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "gitlab": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "github": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "docker": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  },
+  "nvidia": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "mcpServers": []
+    },
+    "rejected": []
+  }
+}
