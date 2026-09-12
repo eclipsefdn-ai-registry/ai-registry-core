@@ -1,0 +1,106 @@
+{
+  "theia": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "anthropic": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "openai": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "aws": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "google": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "eclipsesource": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "mosaico": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "jetbrains": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "atlassian": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "gitlab": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "github": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "docker": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  },
+  "nvidia": {
+    "githubOrgs": [],
+    "lastChecked": null,
+    "knownSources": {
+      "skills": []
+    },
+    "rejected": []
+  }
+}
