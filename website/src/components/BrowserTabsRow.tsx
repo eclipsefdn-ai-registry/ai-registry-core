@@ -3,6 +3,7 @@ import {
   type BrowserTab,
   type BrowserTabMeta,
 } from "../browserTabs";
+import { TabButtons } from "./TabButtons";
 
 /**
  * The registry browser's navigation: one row of tabs, divided into labelled
@@ -41,22 +42,16 @@ export function BrowserTabsRow({
           <span className="px-2 pb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70 whitespace-nowrap">
             {group.label}
           </span>
-          <div className="flex items-end flex-wrap xl:flex-nowrap">
-            {group.tabs.map((key) => (
-              <button
-                key={key}
-                onClick={() => onSelect(key)}
-                aria-current={active === key ? "page" : undefined}
-                className={`h-11 px-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  active === key
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tabs[key].label} ({tabs[key].count})
-              </button>
-            ))}
-          </div>
+          <TabButtons
+            className="xl:flex-nowrap"
+            tabs={group.tabs.map((key) => ({
+              key,
+              label: tabs[key].label,
+              count: tabs[key].count,
+            }))}
+            active={active}
+            onSelect={onSelect}
+          />
         </div>
       ))}
     </div>

@@ -256,6 +256,61 @@ describe("discoverSandboxExtensions", () => {
     }
   });
 
+  // A spec one level deeper starts with a published prefix but is published by
+  // nothing, so a prefix test would let it through — it reproduces the exact
+  // duplicate-name hazard the warning exists to catch.
+  it("warns about a spec nested below a published prefix", () => {
+    const dir = makeKitRepo([
+      { path: "tools/openclaw", spec: spec("sandbox", "openclaw") },
+      { path: "tools/kit/openclaw", spec: spec("sandbox", "openclaw") },
+    ]);
+    try {
+      const { discovered, warnings } = discoverSandboxExtensions(dir);
+      assert.deepEqual(
+        discovered.map((d) => d.path),
+        ["tools/openclaw"],
+      );
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /tools\/kit\/openclaw\/spec\.yaml/);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  it("warns about a spec at the repository root", () => {
+    const dir = makeKitRepo([
+      { path: "tools/openclaw", spec: spec("sandbox", "openclaw") },
+      { path: ".", spec: spec("sandbox", "root") },
+    ]);
+    try {
+      const { warnings } = discoverSandboxExtensions(dir);
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /spec\.yaml/);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  // Discovery skips it, so nothing publishes it — but `enclave add` still
+  // sees it, which is what the warning is for.
+  it("warns about a spec in a hidden directory under a prefix", () => {
+    const dir = makeKitRepo([
+      { path: "tools/visible", spec: spec("sandbox", "visible") },
+      { path: "tools/.staging", spec: spec("sandbox", ".staging") },
+    ]);
+    try {
+      const { discovered, warnings } = discoverSandboxExtensions(dir);
+      assert.deepEqual(
+        discovered.map((d) => d.path),
+        ["tools/visible"],
+      );
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /tools\/\.staging\/spec\.yaml/);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
   it("does not warn when every spec sits under a published prefix", () => {
     const dir = makeKitRepo([
       { path: "tools/openclaw", spec: spec("sandbox", "openclaw") },

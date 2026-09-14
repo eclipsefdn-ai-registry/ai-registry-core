@@ -109,6 +109,31 @@ describe("enclaveCommand", () => {
     );
   });
 
+  it("accepts a trailing slash after a .git suffix", () => {
+    assert.equal(
+      enclaveCommand(
+        extension({
+          source: { url: "https://github.com/acme/kits.git/", path: "tools/a" },
+        }),
+      ),
+      "enclave tools add acme/kits --name openclaw",
+    );
+  });
+
+  // Enclave accepts an scp-style remote as a source, but not as the shorthand
+  // this box prints — and `source.url` is a uri in the schema, so it should
+  // not arrive here in the first place.
+  it("builds nothing for an ssh-style remote", () => {
+    assert.equal(
+      enclaveCommand(
+        extension({
+          source: { url: "git@github.com:acme/kits.git", path: "tools/a" },
+        }),
+      ),
+      undefined,
+    );
+  });
+
   // The shorthand is exactly two segments, so a nested-group path can't be
   // expressed by it at all.
   it("builds nothing for a URL with more than two path segments", () => {

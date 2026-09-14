@@ -1,13 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { resolve, join, dirname, sep } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   discoverSkillPaths,
   parseSkillFrontmatter,
   computeContentHash,
 } from "./skill-source.js";
+import { authenticatedRepoUrl, resolveInsideRepo } from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -161,10 +162,7 @@ function clonePluginRepo(
   // exactly the right content checked out. Mirrors skill-source.ts's
   // cloneSkillFolder guard.
   if (!existsSync(cloneDir)) {
-    const token = process.env.GH_TOKEN;
-    const repoUrl = token
-      ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
-      : sourceUrl;
+    const repoUrl = authenticatedRepoUrl(sourceUrl);
 
     try {
       const cloneArgs = [
@@ -219,25 +217,11 @@ function clonePluginRepo(
     }
   }
 
-  // Defense-in-depth on top of the schema's traversal check: resolve()
-  // normalizes "."/".." per POSIX rules, so a pluginPath that somehow still
-  // resolves outside cloneDir (e.g. into a sibling vendor's clone directory
-  // under the same tmp parent) must not be silently followed. Resolve
-  // cloneDir too before comparing — resolve(cloneDir, pluginPath) is always
-  // absolute, but cloneDir itself (built from the caller's tmpDir) isn't
-  // guaranteed to be, so comparing against it directly would be unreliable.
-  const resolvedCloneDir = resolve(cloneDir);
-  const pluginDir = pluginPath
-    ? resolve(cloneDir, pluginPath)
-    : resolvedCloneDir;
-  if (
-    pluginDir !== resolvedCloneDir &&
-    !pluginDir.startsWith(resolvedCloneDir + sep)
-  ) {
-    throw new Error(
-      `Plugin path "${pluginPath}" escapes the cloned repository`,
-    );
-  }
+  const pluginDir = resolveInsideRepo(
+    cloneDir,
+    pluginPath ?? ".",
+    "Plugin path",
+  );
 
   return { repoRoot: cloneDir, pluginDir };
 }

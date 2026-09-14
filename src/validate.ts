@@ -13,6 +13,9 @@ import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
 import { isGlobPattern, resolveSkillPaths } from "./skill-source.js";
 import { fetchAgentCard } from "./agent-source.js";
+// Type-only, so it is erased at runtime and creates no import cycle with
+// consolidate.ts (which imports this module).
+import type { SandboxExtensionEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -937,21 +940,44 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
     console.log("\nPhase 7: Sandbox extension source verification");
     const { enrichSandboxExtensions } = await import("./sandbox-source.js");
 
-    for (const { file, data } of result.sandboxExtensionApprovals) {
-      // Reuses the consolidation path rather than a bespoke verification loop:
-      // what a vendor wants to check before merging is exactly which entries
-      // their approval will publish, and that is what expansion decides. Its
-      // own warnings (unreachable source, bad spec, stray spec files) print as
-      // they happen.
-      const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions([
-        {
+    // Reuses the consolidation path rather than a bespoke verification loop:
+    // what a vendor wants to check before merging is exactly which entries
+    // their approval will publish, and that is what expansion decides. Its own
+    // warnings (unreachable source, bad spec, stray spec files) print as they
+    // happen.
+    //
+    // One call for the whole phase, not one per approval: the clone cache is
+    // keyed on url+ref and lives for the length of a call, so two approvals
+    // naming the same repository share a checkout only if they are expanded
+    // together — which is also how phases 3, 4 and 6 share their tmpDir.
+    let resolved: SandboxExtensionEntry[] = [];
+    try {
+      const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions(
+        result.sandboxExtensionApprovals.map(({ data }) => ({
           sandboxExtensionId: data.sandboxExtensionId,
           source: data.source,
           approvals: [],
-        },
-      ]);
+        })),
+      );
+      resolved = [...sandboxTools, ...sandboxFeatures];
+    } catch (err) {
+      // Anything expansion doesn't already handle itself — an unwritable temp
+      // directory, a missing git — must not take down validation of every
+      // other approval type in the repo. Phases 2-7 warn, they don't block.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `  WARNING: could not verify sandbox extension sources: ${message}`,
+      );
+    }
 
-      const found = [...sandboxTools, ...sandboxFeatures];
+    for (const { file, data } of result.sandboxExtensionApprovals) {
+      // Expansion prefixes every id it publishes with the approval's own id,
+      // which is what attributes an entry back to the file that approved it.
+      const found = resolved.filter(
+        (e) =>
+          e.sandboxExtensionId === data.sandboxExtensionId ||
+          e.sandboxExtensionId.startsWith(`${data.sandboxExtensionId}/`),
+      );
       if (found.length === 0) {
         console.warn(
           `  WARNING: ${file} — no sandbox extensions could be resolved from ${data.source.url}`,

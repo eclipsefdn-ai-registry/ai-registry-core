@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { resolve, join, dirname, sep } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { computeContentHash } from "./skill-source.js";
+import { authenticatedRepoUrl, resolveInsideRepo } from "./git-source.js";
 import type {
   SandboxExtensionEntry,
   PendingSandboxExtension,
@@ -112,10 +113,7 @@ function cloneSandboxRepo(
   const cloneDir = join(tmpDir, `sandbox-${sandboxCloneKey(sourceUrl, ref)}`);
   if (existsSync(cloneDir)) return cloneDir;
 
-  const token = process.env.GH_TOKEN;
-  const repoUrl = token
-    ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
-    : sourceUrl;
+  const repoUrl = authenticatedRepoUrl(sourceUrl);
 
   const cloneArgs = ["clone", "--depth", "1", "--filter=blob:none", "--sparse"];
   // --branch accepts a tag or branch name, not an arbitrary commit sha. The
@@ -195,10 +193,16 @@ export function discoverSandboxExtensions(cloneDir: string): {
   // publish is still one `enclave add --name` can match — and two directories
   // declaring the same name are a hard error there, naming both. Say so rather
   // than publishing a command that fails on someone else's machine.
+  //
+  // "Stray" is defined against what was actually discovered above, not against
+  // the two prefixes: a spec nested deeper (`tools/kit/openclaw/spec.yaml`) or
+  // in a hidden directory starts with a published prefix yet is published by
+  // nothing, and is exactly the case this warning exists to catch.
+  const discoveredDirs = new Set(discovered.map((d) => d.path));
   const strays = lsTree(cloneDir, ["-r", "--name-only", "HEAD"]).filter(
     (p) =>
       SPEC_FILENAMES.includes(p.split("/").pop()!) &&
-      !Object.keys(KIND_DIRS).some((d) => p.startsWith(`${d}/`)),
+      !discoveredDirs.has(p.split("/").slice(0, -1).join("/")),
   );
   if (strays.length > 0) {
     warnings.push(
@@ -215,8 +219,9 @@ export function discoverSandboxExtensions(cloneDir: string): {
 // --- Per-extension metadata ---
 
 /**
- * Read one discovered extension: materialize its directory, parse the spec,
- * check it against the two rules the registry enforces, and hash the contents.
+ * Read one discovered extension: parse its spec, check it against the two
+ * rules the registry enforces, and hash the contents. The directory must
+ * already be materialized — see materializeExtensions.
  *
  * Throws (caller skips the entry with a warning) when the spec is unreadable,
  * declares an unknown kind, contradicts its prefix, or names something other
@@ -227,31 +232,10 @@ export function fetchSandboxExtensionMetadata(
   cloneDir: string,
   extension: DiscoveredExtension,
 ): SandboxExtensionMetadata {
-  // extension.path comes from ls-tree output rather than an approval file,
-  // but it still names a directory in someone else's repository. Check that it
-  // resolves inside the clone before handing it to git at all, and pass it as
-  // its own argv entry (execFileSync, no shell) — the same defense
+  // extension.path comes from ls-tree output rather than an approval file, but
+  // it still names a directory in someone else's repository — the same defense
   // plugin-source.ts applies to its vendor-supplied path.
-  const resolvedCloneDir = resolve(cloneDir);
-  const extensionDir = resolve(cloneDir, extension.path);
-  if (!extensionDir.startsWith(resolvedCloneDir + sep)) {
-    throw new Error(`Path "${extension.path}" escapes the cloned repository`);
-  }
-
-  // Widening the cone is what materializes file content on the blobless
-  // sparse clone enrichment creates. A failure here isn't fatal on its own —
-  // a full (non-sparse) checkout already has the files, and git refuses the
-  // command outright on one — so let the spec-file check below decide whether
-  // the content actually arrived.
-  try {
-    execFileSync(
-      "git",
-      ["-C", cloneDir, "sparse-checkout", "add", extension.path],
-      { stdio: "pipe" },
-    );
-  } catch {
-    // fall through to the existence check
-  }
+  const extensionDir = resolveInsideRepo(cloneDir, extension.path);
 
   const specPath = join(extensionDir, extension.specFile);
   if (!existsSync(specPath)) {
@@ -300,6 +284,31 @@ export function fetchSandboxExtensionMetadata(
   };
 }
 
+/**
+ * Widen the sparse-checkout cone to cover every discovered extension in one
+ * call, which is what materializes file content on the blobless sparse clone
+ * `cloneSandboxRepo` creates.
+ *
+ * One combined call rather than one per extension: a repository with N
+ * extensions would otherwise pay N sequential git round trips against the same
+ * clone, so its enrichment time would grow with its extension count instead of
+ * staying near constant.
+ *
+ * A failure isn't fatal on its own — a full (non-sparse) checkout already has
+ * the files, and git refuses the command outright on one — so the caller's
+ * per-extension spec-file check decides whether the content actually arrived.
+ */
+export function materializeExtensions(cloneDir: string, paths: string[]): void {
+  if (paths.length === 0) return;
+  try {
+    execFileSync("git", ["-C", cloneDir, "sparse-checkout", "add", ...paths], {
+      stdio: "pipe",
+    });
+  } catch {
+    // Left to the spec-file check in fetchSandboxExtensionMetadata.
+  }
+}
+
 // --- Enrichment (called by consolidate.ts) ---
 
 function entryFor(
@@ -341,9 +350,12 @@ export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
 
   console.log("Enriching sandbox extensions with source metadata...\n");
 
-  const tmpDir = resolve(ROOT, ".tmp-sandbox-extensions");
-  if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
-  mkdirSync(tmpDir, { recursive: true });
+  // A unique directory per call, not a fixed path: `validate-vendor` against
+  // two checkouts at once, or one overlapping a `consolidate` run, would
+  // otherwise have each call's setup delete the directory the other is
+  // mid-clone on — surfacing as "Failed to clone" warnings that have nothing
+  // to do with whether the source is reachable.
+  const tmpDir = mkdtempSync(resolve(ROOT, ".tmp-sandbox-extensions-"));
 
   try {
     for (const entry of pending) {
@@ -367,6 +379,19 @@ export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
         );
         continue;
       }
+
+      // Paths come from ls-tree on this clone, but check them before handing
+      // the batch to git rather than trusting the source of the list.
+      const safePaths: string[] = [];
+      for (const extension of discovered) {
+        try {
+          resolveInsideRepo(cloneDir, extension.path);
+          safePaths.push(extension.path);
+        } catch {
+          // Reported per extension by the loop below.
+        }
+      }
+      materializeExtensions(cloneDir, safePaths);
 
       for (const extension of discovered) {
         try {

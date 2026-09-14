@@ -6,6 +6,7 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
+import { repoWebUrl } from "../cliSource";
 import { enclaveCommand } from "../enclaveCommand";
 import { InstallFromCli } from "./InstallFromCli";
 
@@ -28,7 +29,7 @@ export function SandboxExtensionDetail({
   onBack: () => void;
 }) {
   const sourceRef = extension.source.ref ?? "HEAD";
-  const sourceUrl = `${extension.source.url.replace(/\.git$/, "")}/tree/${sourceRef}/${extension.source.path}`;
+  const sourceUrl = `${repoWebUrl(extension.source.url)}/tree/${sourceRef}/${extension.source.path}`;
   const installCommand = enclaveCommand(extension);
 
   return (

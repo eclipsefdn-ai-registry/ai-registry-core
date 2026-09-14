@@ -1,4 +1,11 @@
 import type { SandboxExtension } from "./types";
+import { cliSource } from "./cliSource";
+
+// Enclave's `owner/repo` shorthand: exactly two segments, and no scheme or
+// host left in it. cliSource strips the github.com prefix and normalizes the
+// suffix, so anything still failing this is a host it can't address —
+// a GitLab URL keeps its scheme, and a nested group keeps a third segment.
+const OWNER_REPO = /^[^/:]+\/[^/:]+$/;
 
 /**
  * Builds the `enclave` command that installs one sandbox extension.
@@ -16,10 +23,10 @@ import type { SandboxExtension } from "./types";
 export function enclaveCommand(
   extension: SandboxExtension,
 ): string | undefined {
-  const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(
-    extension.source.url,
-  );
-  if (!match) return undefined;
+  // Reuses the same normalization the skills and plugins install boxes use, so
+  // a fix there — an SSH form, a new .git edge case — reaches this too.
+  const shorthand = cliSource(extension.source.url);
+  if (!OWNER_REPO.test(shorthand)) return undefined;
 
   // The verb carries the kind — `enclave tools add` looks only for
   // kind: sandbox, `enclave features add` only for kind: mixin.
@@ -29,5 +36,5 @@ export function enclaveCommand(
   // extension whose spec name disagrees with its directory is never published.
   const ref = extension.source.ref ? ` --ref ${extension.source.ref}` : "";
 
-  return `enclave ${verb} add ${match[1]}/${match[2]} --name ${extension.extensionName}${ref}`;
+  return `enclave ${verb} add ${shorthand} --name ${extension.extensionName}${ref}`;
 }

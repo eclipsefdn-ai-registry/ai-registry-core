@@ -12,6 +12,7 @@ import { AgentList } from "../components/AgentList";
 import { AgentDetail } from "../components/AgentDetail";
 import { SandboxExtensionList } from "../components/SandboxExtensionList";
 import { SandboxExtensionDetail } from "../components/SandboxExtensionDetail";
+import { TabButtons } from "../components/TabButtons";
 import { NotFoundPage } from "./NotFoundPage";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { filterByNameDescId } from "../filterArtifacts";
@@ -270,24 +271,17 @@ export function OrgPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-end mb-8 border-b border-border">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => {
-              setTab(t.key);
-              setSearch("");
-            }}
-            className={`h-11 px-4 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label} ({t.count})
-          </button>
-        ))}
+      {/* Tabs. Six of them since sandbox extensions were added, which is more
+          than fits a phone-width row — TabButtons wraps rather than clipping. */}
+      <div className="mb-8 border-b border-border">
+        <TabButtons
+          tabs={tabs}
+          active={tab}
+          onSelect={(key) => {
+            setTab(key);
+            setSearch("");
+          }}
+        />
       </div>
 
       {/* Tab content */}

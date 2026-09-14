@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
+import { authenticatedRepoUrl } from "./git-source.js";
 import type { SkillEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -86,10 +87,7 @@ function cloneSkillFolder(
 
   if (!existsSync(cloneDir)) {
     // Sparse checkout: clone only repo metadata, then fetch specific path
-    const token = process.env.GH_TOKEN;
-    const repoUrl = token
-      ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
-      : sourceUrl;
+    const repoUrl = authenticatedRepoUrl(sourceUrl);
 
     try {
       execSync(

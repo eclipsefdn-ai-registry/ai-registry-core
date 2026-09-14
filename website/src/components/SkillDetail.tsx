@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import type { Skill, Organization, Tool, SkillApproval } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
-import { cliSource } from "../cliSource";
+import { cliSource, repoWebUrl } from "../cliSource";
 import { InstallFromCli } from "./InstallFromCli";
 
 export function SkillDetail({
@@ -16,9 +16,10 @@ export function SkillDetail({
   getTool: (id: string) => Tool | undefined;
   onBack: () => void;
 }) {
+  const repoUrl = repoWebUrl(skill.source.url);
   const sourceUrl = skill.source.path
-    ? `${skill.source.url.replace(/\.git$/, "")}/tree/main/${skill.source.path}`
-    : skill.source.url.replace(/\.git$/, "");
+    ? `${repoUrl}/tree/main/${skill.source.path}`
+    : repoUrl;
   // A repository holding several skills needs --skill to pick this one; when
   // the skill is the repository root there is nothing to disambiguate. The
   // flag matches on the SKILL.md frontmatter name, which is what `name` is.

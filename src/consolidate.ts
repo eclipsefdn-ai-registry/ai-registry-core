@@ -23,6 +23,7 @@ import {
   derivePluginIdFromSource,
 } from "./marketplace-source.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
+import { authenticatedRepoUrl } from "./git-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -1204,10 +1205,7 @@ function cloneOrUseLocal(vendor: VendorEntry, tmpDir: string): string {
   }
 
   const dest = join(tmpDir, vendor.id);
-  const token = process.env.GH_TOKEN;
-  const repoUrl = token
-    ? vendor.repo.replace("https://", `https://x-access-token:${token}@`)
-    : vendor.repo;
+  const repoUrl = authenticatedRepoUrl(vendor.repo);
   console.log(`  Cloning ${vendor.repo}...`);
   try {
     execSync(`git clone --depth 1 ${repoUrl} ${dest}`, { stdio: "pipe" });
