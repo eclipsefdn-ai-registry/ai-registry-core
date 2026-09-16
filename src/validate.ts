@@ -13,6 +13,9 @@ import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
 import { isGlobPattern, resolveSkillPaths } from "./skill-source.js";
 import { fetchAgentCard } from "./agent-source.js";
+// Type-only, so it is erased at runtime and creates no import cycle with
+// consolidate.ts (which imports this module).
+import type { SandboxExtensionEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -39,6 +42,9 @@ const validatePluginAppr = ajv.compile(
 const validateAgentAppr = ajv.compile(loadSchema("agent-approval.schema.json"));
 const validateMarketplaceAppr = ajv.compile(
   loadSchema("marketplace-approval.schema.json"),
+);
+const validateSandboxExtensionAppr = ajv.compile(
+  loadSchema("sandbox-extension-approval.schema.json"),
 );
 
 // --- Types ---
@@ -116,6 +122,17 @@ export interface MarketplaceApprovalEntry {
   data: MarketplaceApprovalData;
 }
 
+export interface SandboxExtensionApprovalData {
+  sandboxExtensionId: string;
+  date: string;
+  source: { url: string; ref?: string };
+}
+
+export interface SandboxExtensionApprovalEntry {
+  file: string;
+  data: SandboxExtensionApprovalData;
+}
+
 export interface VendorValidationResult {
   valid: boolean;
   errors: string[];
@@ -130,12 +147,13 @@ export interface VendorValidationResult {
   pluginApprovals: PluginApprovalEntry[];
   agentApprovals: AgentApprovalEntry[];
   marketplaceApprovals: MarketplaceApprovalEntry[];
+  sandboxExtensionApprovals: SandboxExtensionApprovalEntry[];
 }
 
 // A VendorValidationResult with no organization and no collected approvals —
 // every early-return failure case in validateVendorFiles is exactly this
 // shape plus its own `errors` array, so building it in one place means a
-// fifth approval type never means a sixth copy of this literal.
+// sixth approval type never means a seventh copy of this literal.
 export function emptyResult(errors: string[]): VendorValidationResult {
   return {
     valid: false,
@@ -146,6 +164,7 @@ export function emptyResult(errors: string[]): VendorValidationResult {
     pluginApprovals: [],
     agentApprovals: [],
     marketplaceApprovals: [],
+    sandboxExtensionApprovals: [],
   };
 }
 
@@ -230,6 +249,16 @@ export function validateMarketplaceApproval(data: unknown): ValidationResult {
   return {
     valid: !!valid,
     errors: valid ? [] : formatErrors(validateMarketplaceAppr),
+  };
+}
+
+export function validateSandboxExtensionApproval(
+  data: unknown,
+): ValidationResult {
+  const valid = validateSandboxExtensionAppr(data);
+  return {
+    valid: !!valid,
+    errors: valid ? [] : formatErrors(validateSandboxExtensionAppr),
   };
 }
 
@@ -333,6 +362,7 @@ export interface ValidateVendorDataOptions {
   pluginApprovals?: PluginApprovalEntry[];
   agentApprovals?: AgentApprovalEntry[];
   marketplaceApprovals?: MarketplaceApprovalEntry[];
+  sandboxExtensionApprovals?: SandboxExtensionApprovalEntry[];
 }
 
 /**
@@ -350,6 +380,7 @@ export function validateVendorData(
     pluginApprovals = [],
     agentApprovals = [],
     marketplaceApprovals = [],
+    sandboxExtensionApprovals = [],
   } = options;
   const result: VendorValidationResult = {
     valid: true,
@@ -360,6 +391,7 @@ export function validateVendorData(
     pluginApprovals: [],
     agentApprovals: [],
     marketplaceApprovals: [],
+    sandboxExtensionApprovals: [],
   };
 
   const orgResult = validateOrganization(orgData);
@@ -510,6 +542,22 @@ export function validateVendorData(
     result,
   );
 
+  // Sandbox extension approvals. These fit validateSimpleApprovals even
+  // though they carry no installConfigs — checkToolIds is a no-op on an
+  // approval without them, and the id dedupe and filename check are exactly
+  // what's wanted. The id names a repository rather than one artifact, so the
+  // dedupe means "one approval per repository per vendor".
+  result.sandboxExtensionApprovals = validateSimpleApprovals(
+    sandboxExtensionApprovals,
+    {
+      validate: validateSandboxExtensionApproval,
+      getId: (d: SandboxExtensionApprovalData) => d.sandboxExtensionId,
+      idLabel: "sandboxExtensionId",
+    },
+    toolIds,
+    result,
+  );
+
   // Marketplace approvals — no id/installConfigs, so this doesn't fit
   // validateSimpleApprovals' shape (which dedupes by id and checks tool
   // references); a bespoke loop mirrors what skill approvals already do for
@@ -601,12 +649,19 @@ export function validateVendorFiles(
   if ("error" in marketplacesResult)
     return emptyResult([marketplacesResult.error]);
 
+  const sandboxResult = readApprovalDir<SandboxExtensionApprovalData>(
+    repoDir,
+    "sandbox-extensions",
+  );
+  if ("error" in sandboxResult) return emptyResult([sandboxResult.error]);
+
   return validateVendorData(orgRaw, mcpResult.entries, {
     expectedVendorId,
     skillApprovals: skillsResult.entries,
     pluginApprovals: pluginsResult.entries,
     agentApprovals: agentsResult.entries,
     marketplaceApprovals: marketplacesResult.entries,
+    sandboxExtensionApprovals: sandboxResult.entries,
   });
 }
 
@@ -878,6 +933,64 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
       }
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  if (result.sandboxExtensionApprovals.length > 0) {
+    console.log("\nPhase 7: Sandbox extension source verification");
+    const { enrichSandboxExtensions } = await import("./sandbox-source.js");
+
+    // Reuses the consolidation path rather than a bespoke verification loop:
+    // what a vendor wants to check before merging is exactly which entries
+    // their approval will publish, and that is what expansion decides. Its own
+    // warnings (unreachable source, bad spec, stray spec files) print as they
+    // happen.
+    //
+    // One call for the whole phase, not one per approval: the clone cache is
+    // keyed on url+ref and lives for the length of a call, so two approvals
+    // naming the same repository share a checkout only if they are expanded
+    // together — which is also how phases 3, 4 and 6 share their tmpDir.
+    let resolved: SandboxExtensionEntry[] = [];
+    try {
+      const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions(
+        result.sandboxExtensionApprovals.map(({ data }) => ({
+          sandboxExtensionId: data.sandboxExtensionId,
+          source: data.source,
+          approvals: [],
+        })),
+      );
+      resolved = [...sandboxTools, ...sandboxFeatures];
+    } catch (err) {
+      // Anything expansion doesn't already handle itself — an unwritable temp
+      // directory, a missing git — must not take down validation of every
+      // other approval type in the repo. Phases 2-7 warn, they don't block.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `  WARNING: could not verify sandbox extension sources: ${message}`,
+      );
+    }
+
+    for (const { file, data } of result.sandboxExtensionApprovals) {
+      // Expansion prefixes every id it publishes with the approval's own id,
+      // which is what attributes an entry back to the file that approved it.
+      const found = resolved.filter(
+        (e) =>
+          e.sandboxExtensionId === data.sandboxExtensionId ||
+          e.sandboxExtensionId.startsWith(`${data.sandboxExtensionId}/`),
+      );
+      if (found.length === 0) {
+        console.warn(
+          `  WARNING: ${file} — no sandbox extensions could be resolved from ${data.source.url}`,
+        );
+        continue;
+      }
+      console.log(`  PASS: ${file} — ${found.length} extension(s) resolved`);
+      for (const entry of found) {
+        const verb = entry.kind === "sandbox" ? "tools" : "features";
+        console.log(`    ${entry.sandboxExtensionId} (enclave ${verb})`);
+        console.log(`      Name: ${entry.name}`);
+        console.log(`      Description: ${entry.description}`);
+      }
     }
   }
 

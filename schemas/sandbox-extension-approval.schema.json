@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sandbox Extension Approval",
+  "description": "Vendor approval for the sandbox extensions in a git repository. One approval covers a whole repository: consolidation publishes every extension under tools/ (kind: sandbox) and features/ (kind: mixin) as its own entry.",
+  "type": "object",
+  "required": ["sandboxExtensionId", "date", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "sandboxExtensionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier prefix for the repository, in reverse-domain notation (e.g., io.github.eclipse-enclave/enclave-extensions). Each published extension appends its repository path, giving ids like io.github.eclipse-enclave/enclave-extensions/tools/openclaw. Use a prefix that names the repository, not just the owner, so two kit repositories from one owner can't collide."
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date of approval (YYYY-MM-DD)"
+    },
+    "source": {
+      "type": "object",
+      "required": ["url"],
+      "additionalProperties": false,
+      "description": "The git repository holding the sandbox extensions. There is no path: extensions are found by convention at tools/* and features/*.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Git repository URL containing the sandbox extensions"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Git tag or branch to read and hash instead of the default branch. Omit to follow the default branch, which is also what `enclave add` does when given no --ref."
+        }
+      }
+    }
+  }
+}

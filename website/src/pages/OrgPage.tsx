@@ -10,18 +10,29 @@ import { PluginList } from "../components/PluginList";
 import { PluginDetail } from "../components/PluginDetail";
 import { AgentList } from "../components/AgentList";
 import { AgentDetail } from "../components/AgentDetail";
+import { SandboxExtensionList } from "../components/SandboxExtensionList";
+import { SandboxExtensionDetail } from "../components/SandboxExtensionDetail";
+import { TabButtons } from "../components/TabButtons";
 import { NotFoundPage } from "./NotFoundPage";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { filterByNameDescId } from "../filterArtifacts";
 import { INFERRED_DISCLAIMER } from "../orgBadge";
 
-type Tab = "servers" | "skills" | "plugins" | "agents";
+type Tab =
+  | "servers"
+  | "skills"
+  | "plugins"
+  | "agents"
+  | "sandbox-tools"
+  | "sandbox-features";
 
 const SEARCH_LABELS: Record<Tab, string> = {
   servers: "MCP servers",
   skills: "skills",
   plugins: "plugins",
   agents: "agents",
+  "sandbox-tools": "sandbox tool extensions",
+  "sandbox-features": "sandbox feature extensions",
 };
 
 export function OrgPage() {
@@ -34,6 +45,9 @@ export function OrgPage() {
   const selectedSkillId = searchParams.get("skill") ?? undefined;
   const selectedPluginId = searchParams.get("plugin") ?? undefined;
   const selectedAgentId = searchParams.get("agent") ?? undefined;
+  const selectedSandboxToolId = searchParams.get("sandboxTool") ?? undefined;
+  const selectedSandboxFeatureId =
+    searchParams.get("sandboxFeature") ?? undefined;
 
   const filteredServers = useMemo(() => {
     if (!data) return [];
@@ -53,6 +67,24 @@ export function OrgPage() {
   const filteredAgents = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(data.agents ?? [], search, (a) => a.agentId);
+  }, [data, search]);
+
+  const filteredSandboxTools = useMemo(() => {
+    if (!data) return [];
+    return filterByNameDescId(
+      data.sandboxTools ?? [],
+      search,
+      (e) => e.sandboxExtensionId,
+    );
+  }, [data, search]);
+
+  const filteredSandboxFeatures = useMemo(() => {
+    if (!data) return [];
+    return filterByNameDescId(
+      data.sandboxFeatures ?? [],
+      search,
+      (e) => e.sandboxExtensionId,
+    );
   }, [data, search]);
 
   if (notFound) return <NotFoundPage />;
@@ -88,6 +120,16 @@ export function OrgPage() {
   const selectedAgent = selectedAgentId
     ? (data.agents ?? []).find((a) => a.agentId === selectedAgentId)
     : undefined;
+
+  const selectedSandboxExtension = selectedSandboxToolId
+    ? (data.sandboxTools ?? []).find(
+        (e) => e.sandboxExtensionId === selectedSandboxToolId,
+      )
+    : selectedSandboxFeatureId
+      ? (data.sandboxFeatures ?? []).find(
+          (e) => e.sandboxExtensionId === selectedSandboxFeatureId,
+        )
+      : undefined;
 
   if (selectedServer) {
     return (
@@ -141,11 +183,33 @@ export function OrgPage() {
     );
   }
 
+  if (selectedSandboxExtension) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <SandboxExtensionDetail
+          extension={selectedSandboxExtension}
+          getOrg={getOrg}
+          onBack={() => setSearchParams({})}
+        />
+      </div>
+    );
+  }
+
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "servers", label: "MCP Servers", count: filteredServers.length },
     { key: "skills", label: "Skills", count: filteredSkills.length },
     { key: "plugins", label: "Plugins", count: filteredPlugins.length },
     { key: "agents", label: "Agents", count: filteredAgents.length },
+    {
+      key: "sandbox-tools",
+      label: "Sandbox Tools",
+      count: filteredSandboxTools.length,
+    },
+    {
+      key: "sandbox-features",
+      label: "Sandbox Features",
+      count: filteredSandboxFeatures.length,
+    },
   ];
 
   return (
@@ -207,24 +271,17 @@ export function OrgPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-end mb-8 border-b border-border">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => {
-              setTab(t.key);
-              setSearch("");
-            }}
-            className={`h-11 px-4 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label} ({t.count})
-          </button>
-        ))}
+      {/* Tabs. Six of them since sandbox extensions were added, which is more
+          than fits a phone-width row — TabButtons wraps rather than clipping. */}
+      <div className="mb-8 border-b border-border">
+        <TabButtons
+          tabs={tabs}
+          active={tab}
+          onSelect={(key) => {
+            setTab(key);
+            setSearch("");
+          }}
+        />
       </div>
 
       {/* Tab content */}
@@ -257,6 +314,24 @@ export function OrgPage() {
           agents={filteredAgents}
           getOrg={getOrg}
           onSelect={(id) => setSearchParams({ agent: id })}
+        />
+      )}
+
+      {tab === "sandbox-tools" && (
+        <SandboxExtensionList
+          extensions={filteredSandboxTools}
+          emptyLabel="No sandbox tool extensions found."
+          getOrg={getOrg}
+          onSelect={(id) => setSearchParams({ sandboxTool: id })}
+        />
+      )}
+
+      {tab === "sandbox-features" && (
+        <SandboxExtensionList
+          extensions={filteredSandboxFeatures}
+          emptyLabel="No sandbox feature extensions found."
+          getOrg={getOrg}
+          onSelect={(id) => setSearchParams({ sandboxFeature: id })}
         />
       )}
     </div>

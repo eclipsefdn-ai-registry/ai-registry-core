@@ -8,7 +8,7 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
-import { cliSource } from "../cliSource";
+import { cliSource, repoWebUrl } from "../cliSource";
 import { InstallFromCli } from "./InstallFromCli";
 
 export function PluginDetail({
@@ -23,9 +23,10 @@ export function PluginDetail({
   onBack: () => void;
 }) {
   const sourceRef = plugin.source.ref ?? "main";
+  const repoUrl = repoWebUrl(plugin.source.url);
   const sourceUrl = plugin.source.path
-    ? `${plugin.source.url.replace(/\.git$/, "")}/tree/${sourceRef}/${plugin.source.path}`
-    : `${plugin.source.url.replace(/\.git$/, "")}/tree/${sourceRef}`;
+    ? `${repoUrl}/tree/${sourceRef}/${plugin.source.path}`
+    : `${repoUrl}/tree/${sourceRef}`;
   // The plugins CLI takes a source and nothing else, so a plugin stored in a
   // subdirectory resolves by discovery rather than by path. The CLI also has
   // no flag to pin a ref/tag — it always installs from the default branch,
