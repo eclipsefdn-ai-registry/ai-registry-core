@@ -22,11 +22,22 @@ git remote add origin git@github.com:eclipsefdn-ai-registry/ai-registry-<id>.git
 
 ## `organization.json`
 
-Always include `id`, `name`, `description`, `website`. `color` is optional and cosmetic — a quick
-source is the vendor homepage's `theme-color` meta tag
-(`curl -s https://vendor.com | grep -io 'theme-color[^>]*content="[^"]*"'`); omit if nothing turns
-up quickly. Only include `tools` if the organization provides an installable tool itself — most
-vendors don't; they just publish artifacts that other tools install.
+Always include `id`, `name`, `description`, `website`, and `color` — never omit `color` for a new
+vendor, even when it takes a little more digging. Try, in order, stopping at the first hit:
+
+1. The vendor homepage's `theme-color` meta tag:
+   `curl -s https://vendor.com | grep -io 'theme-color[^>]*content="[^"]*"'`.
+2. A primary/accent brand color pulled from the vendor's own site CSS if step 1 turns up nothing
+   (e.g. a `--color-primary`-style custom property, or the color used for primary buttons/links) —
+   `curl -s https://vendor.com/path/to/style.css | grep -i primary` is a reasonable starting point;
+   for a vendor whose site is built from a known repo, reading the source CSS directly is faster
+   than reverse-engineering it from a compiled bundle.
+3. If neither turns up anything quickly, pick a hex that visibly matches the vendor's actual brand
+   (e.g. a color sampled from their logo) rather than a generic default — a wrong-but-plausible
+   guess is worse than spending one more minute looking, but the field must never end up omitted.
+
+Only include `tools` if the organization provides an installable tool itself — most vendors don't;
+they just publish artifacts that other tools install.
 
 The two modes differ only in `description` and the `inferred` flag:
 
