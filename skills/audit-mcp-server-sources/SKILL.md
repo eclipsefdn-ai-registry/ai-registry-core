@@ -62,6 +62,25 @@ registry-listed-vs-self-published distinction this audit leans on.
        closed-source server (nothing on GitHub at all) has to be found via the web/docs route
        above instead — there's no code-search equivalent for that case, so don't report "nothing
        found" without having tried the web route too.
+     - Check for a vendor-published "supported products"/"managed servers" catalog page (one
+       WebFetch) — this can be a single high-yield source enumerating dozens of servers at once
+       (see `docs.cloud.google.com/mcp/supported-products`, which alone surfaced 41 servers on
+       2026-09-18); don't undercount this path's potential yield just because it's nominally
+       "secondary" to the registry search. For a self-published server family sharing one apex API
+       domain, mint serverIds as `<reverse-domain-of-apex>/<product-slug>` (e.g.
+       `com.googleapis/bigquery` for `bigquery.googleapis.com`), analogous to the
+       `com.gitlab.<group>/<name>` plugin-id convention for non-GitHub hosts.
+     - A repo literally named `<vendor>-registry`/`<vendor>-catalog`/`mcp-registry` (e.g.
+       `docker/mcp-registry`) needs the same open-submission check marketplace files get in the
+       plugin audit — read its README before treating any listed entry as vendor-authored; an
+       aggregator that accepts community PRs for third-party servers isn't a single self-published
+       vendor server and doesn't fit the marketplace schema either.
+     - Exclude a candidate that is a **framework/SDK building block** for embedding MCP-server
+       capability into a downstream product, rather than a standalone artifact with a fixed,
+       connectable config (no fixed command/serverUrl — availability is per-deployment). Example:
+       `@theia/ai-mcp-server` lets *other* Theia-based applications expose an MCP endpoint at a
+       deployment-specific port; it isn't itself an installable server. Same exclusion class as
+       `.claude-plugin/`-style tool-specific manifests for plugins/skills.
    - **Drop anything already approved** (registry-listed `serverId` match, or a self-published
      entry whose `config`/`metadata` clearly describes the same server already in `mcp/*.json`) or
      already in the cache's `rejected` list.
@@ -71,6 +90,10 @@ registry-listed-vs-self-published distinction this audit leans on.
      entries — same principle as `audit-skill-sources`' equivalent rule for a plugin's
      `containedSkills`. Cross-check candidates against this vendor's `plugins/*.json` (and any
      fanned-out marketplace entries) before treating a plugin-bundled MCP server as a new finding.
+     This applies even when the containing plugin isn't agent-plugins.org-approvable — a
+     Claude Code-native plugin bundle's `.mcp.json` (a `.claude-plugin/plugin.json` sibling) is
+     still tool-packaging detail, not a standalone self-published server, for the same reason a
+     Claude Code-native plugin's `SKILL.md` files aren't standalone skills.
    - **Verify every remaining candidate** against `vendor-audit-conventions.md`'s checklist, plus:
      only treat a self-published candidate as the vendor's own if the vendor is the actual
      publisher/maintainer (confirmed via the checklist), never merely a recommended or bundled

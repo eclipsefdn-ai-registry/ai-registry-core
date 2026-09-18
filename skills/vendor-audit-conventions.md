@@ -122,6 +122,32 @@ rather than treating the vendor as unreachable. Record `"unsupportedHost"` in th
 if WebSearch also turned up nothing this run, so an empty result reads as "checked via web search,
 found nothing" rather than silently meaning "not checked."
 
+**GitLab-hosted vendors have a working `gh api search/code` substitute — use it as the primary
+method, not WebSearch.** The GitLab REST API is usable unauthenticated for public groups (proven
+2026-09-18 against `gitlab.eclipse.org/eclipse-research-labs/mosaico-project`):
+1. `GET /api/v4/groups/<url-encoded-group-path>/projects?per_page=100&include_subgroups=true`
+   enumerates every repo in a vendor's group/org, including subgroups.
+2. `GET /api/v4/projects/<url-encoded-path>/repository/tree?recursive=true&per_page=100`
+   (paginate via `&page=N`) lists every file path in a given repo — grep the returned paths for
+   `plugin.json`, `marketplace.json`, `SKILL.md`, `mcp.json`.
+3. Group/project-level **content** (blob) search (`/api/v4/groups/.../search?scope=blobs`) returns
+   `401 Unauthorized` anonymously — don't rely on it; filename/path enumeration via (1)+(2) is the
+   working approach instead.
+
+Demote WebSearch to a supplement for these vendors, mirroring how `gh api search/code` is used for
+GitHub vendors — it's much sparser for a small/niche vendor than a full repo-tree scan.
+
+## `gh api search/code` operational notes
+
+- Pass `-X GET` explicitly — omitting it has intermittently produced spurious 404s.
+- The `search` endpoint's rate limit (30/min) is far tighter than `core` (5000/hr) and appears
+  shared across concurrently-running agents; a burst of 403 "rate limit exceeded" mid-run typically
+  self-resolves within ~20s. Don't mistake a transient shared-limit 403 for "no results" and
+  under-search — retry after a short wait instead.
+- For a repo you already know hosts a small, bounded directory (e.g. a vendor's dedicated
+  plugins/skills catalog repo), `gh api repos/<owner>/<repo>/contents/<dir>` (core API, cheap) is a
+  faster way to check "has anything been added since last time" than re-running a full code search.
+
 ## Self-update, every run — this step is not optional
 
 Before finishing, explicitly check whether this run taught you anything that would make the _next_

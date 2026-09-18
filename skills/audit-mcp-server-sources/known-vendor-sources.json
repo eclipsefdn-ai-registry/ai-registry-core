@@ -1,41 +1,121 @@
 {
   "theia": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["eclipse-theia"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "mcpServers": []
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "org:eclipse-theia",
+        "type": "mcpServer",
+        "reason": "MCP registry search for eclipse-theia namespace returns 0 servers; gh code search for mcpServers org:eclipse-theia (67 hits) is all Theia's own MCP-client implementation code, not a published server.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://www.npmjs.com/package/@theia/ai-mcp-server",
+        "type": "mcpServer",
+        "reason": "Library/SDK package letting downstream Theia-based applications expose an MCP server capability (e.g. HTTP endpoint at a deployment-specific port) — not a standalone artifact with a fixed, connectable config; doesn't fit selfPublished approval model.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
   },
   "anthropic": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["anthropics"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "mcpServers": []
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "org:modelcontextprotocol",
+        "type": "mcpServer",
+        "reason": "Verified GitHub org but blog=modelcontextprotocol.io, not anthropic.com; MCP protocol/SDKs formally donated to Linux Foundation/Agentic AI Foundation in 2026 — same-org-family, not Anthropic's own org. Also SDKs, not installable servers.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "anthropics knowledge-work-plugins/*/.mcp.json",
+        "type": "mcpServer",
+        "reason": "bundled inside non-approvable Claude-Code-native plugins, not standalone self-published servers.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
   },
   "openai": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["openai"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": ["com.openai/docs-mcp"]
     },
     "rejected": []
   },
   "aws": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["aws", "awslabs"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": [
+        "aws.api.us-east-1.ecs-mcp/server",
+        "aws.api.us-east-1.eks-mcp/server",
+        "io.github.awslabs/mcp-server-for-oscal",
+        "com.amazon.aws/aws-mcp",
+        "io.github.aws/aws-mcp (confirmed-covered alias of com.amazon.aws/aws-mcp)",
+        "io.github.aws/mcp-proxy-for-aws (confirmed-covered alias of com.amazon.aws/aws-mcp)"
+      ]
     },
     "rejected": []
   },
   "google": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["google", "googleapis", "googlemaps"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": [
+        "com.googleapis/agent-registry",
+        "com.googleapis/alloydb",
+        "com.googleapis/android-management",
+        "com.googleapis/apigee-api-hub",
+        "com.googleapis/app-lifecycle-manager",
+        "com.googleapis/audit-manager",
+        "com.googleapis/backup-and-dr",
+        "com.googleapis/bigquery-data-transfer",
+        "com.googleapis/bigquery",
+        "com.googleapis/bigtable",
+        "com.googleapis/calendar",
+        "com.googleapis/chat",
+        "com.googleapis/cloud-asset-inventory",
+        "com.googleapis/cloud-billing",
+        "com.googleapis/cloud-logging",
+        "com.googleapis/cloud-monitoring",
+        "com.googleapis/cloud-quotas",
+        "com.googleapis/cloud-run",
+        "com.googleapis/cloud-sql",
+        "com.googleapis/cloud-storage",
+        "com.googleapis/cloud-support",
+        "com.googleapis/cloud-trace",
+        "com.googleapis/compute-engine",
+        "com.googleapis/dataform",
+        "com.googleapis/datastream",
+        "com.googleapis/design",
+        "com.googleapis/developer-knowledge",
+        "com.googleapis/drive",
+        "com.googleapis/firestore",
+        "com.googleapis/gke",
+        "com.googleapis/gmail",
+        "com.googleapis/home-developer",
+        "com.googleapis/iam",
+        "com.googleapis/maps-grounding-lite",
+        "com.googleapis/memorystore",
+        "com.googleapis/pay-and-wallet",
+        "com.googleapis/people",
+        "com.googleapis/pubsub",
+        "com.googleapis/resource-manager",
+        "com.googleapis/secops-chronicle",
+        "com.googleapis/spanner",
+        "com.googleapis/stitch",
+        "io.github.google/clasp-mcp",
+        "goog.workspace-developer/developer-tools",
+        "io.github.googleapis/mcp-toolbox",
+        "io.github.googlemaps/platform-ai"
+      ]
     },
     "rejected": []
   },
@@ -49,58 +129,91 @@
   },
   "mosaico": {
     "githubOrgs": [],
-    "lastChecked": null,
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "mcpServers": []
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "eclipse-research-labs/mosaico-project",
+        "type": "mcpServer",
+        "reason": "MCP registry search for 'mosaico' returned 0 results; npm search found no mosaico-scoped MCP package; recursive GitLab repo-tree scan found no mcp.json/mcpServers references; WebSearch/WebFetch of mosaico-project.eu found nothing.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
   },
   "jetbrains": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["JetBrains", "Kotlin"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "mcpServers": []
     },
     "rejected": []
   },
   "atlassian": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["atlassian"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": ["com.atlassian/atlassian-mcp-server", "com.atlassian/trello-mcp-server"]
     },
     "rejected": []
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": null,
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": ["com.gitlab/mcp"]
     },
     "rejected": []
   },
   "github": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["github"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": ["io.github.github/github-mcp-server"]
     },
     "rejected": []
   },
   "docker": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["docker"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": ["com.docker/hub-mcp"]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "io.github.dockersamples/mcp-docker-release-information",
+        "type": "mcpServer",
+        "reason": "Same-org-family: dockersamples is not the verified docker org (is_verified: false, no blog) — same-org-family rule applies, no independent index lists it as Docker's own.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/docker/mcp-registry.git",
+        "type": "mcpServer",
+        "reason": "Official Docker MCP Registry catalog — open-submission per its own README (community PRs accepted for both Docker-built and self-provided images); an aggregator of mostly third-party servers, not a single self-published Docker server, and doesn't fit the marketplace schema either.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
   },
   "nvidia": {
-    "githubOrgs": [],
-    "lastChecked": null,
+    "githubOrgs": ["NVIDIA"],
+    "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": ["com.nvidia.ngc.nsight.copilot.api/cuda-docs", "io.github.NVIDIA/elements"]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "io.github.Yarmoluk (registry hits)",
+        "type": "mcpServer",
+        "reason": "not vendor's own org.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "io.github.david-eve-za (registry hits)",
+        "type": "mcpServer",
+        "reason": "not vendor's own org.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
   }
 }
