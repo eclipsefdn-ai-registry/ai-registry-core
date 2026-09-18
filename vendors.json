@@ -50,5 +50,9 @@
   {
     "id": "nvidia",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-nvidia.git"
+  },
+  {
+    "id": "ai-registry",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-ai-registry.git"
   }
 ]
