@@ -62,6 +62,25 @@ registry-listed-vs-self-published distinction this audit leans on.
        closed-source server (nothing on GitHub at all) has to be found via the web/docs route
        above instead — there's no code-search equivalent for that case, so don't report "nothing
        found" without having tried the web route too.
+     - Check for a vendor-published "supported products"/"managed servers" catalog page (one
+       WebFetch) — this can be a single high-yield source enumerating dozens of servers at once
+       (see `docs.cloud.google.com/mcp/supported-products`, which alone surfaced 41 servers on
+       2026-09-18); don't undercount this path's potential yield just because it's nominally
+       "secondary" to the registry search. For a self-published server family sharing one apex API
+       domain, mint serverIds as `<reverse-domain-of-apex>/<product-slug>` (e.g.
+       `com.googleapis/bigquery` for `bigquery.googleapis.com`), analogous to the
+       `com.gitlab.<group>/<name>` plugin-id convention for non-GitHub hosts.
+     - A repo literally named `<vendor>-registry`/`<vendor>-catalog`/`mcp-registry` (e.g.
+       `docker/mcp-registry`) needs the same open-submission check marketplace files get in the
+       plugin audit — read its README before treating any listed entry as vendor-authored; an
+       aggregator that accepts community PRs for third-party servers isn't a single self-published
+       vendor server and doesn't fit the marketplace schema either.
+     - Exclude a candidate that is a **framework/SDK building block** for embedding MCP-server
+       capability into a downstream product, rather than a standalone artifact with a fixed,
+       connectable config (no fixed command/serverUrl — availability is per-deployment). Example:
+       `@theia/ai-mcp-server` lets *other* Theia-based applications expose an MCP endpoint at a
+       deployment-specific port; it isn't itself an installable server. Same exclusion class as
+       `.claude-plugin/`-style tool-specific manifests for plugins/skills.
    - **Drop anything already approved** (registry-listed `serverId` match, or a self-published
      entry whose `config`/`metadata` clearly describes the same server already in `mcp/*.json`) or
      already in the cache's `rejected` list.
@@ -71,6 +90,10 @@ registry-listed-vs-self-published distinction this audit leans on.
      entries — same principle as `audit-skill-sources`' equivalent rule for a plugin's
      `containedSkills`. Cross-check candidates against this vendor's `plugins/*.json` (and any
      fanned-out marketplace entries) before treating a plugin-bundled MCP server as a new finding.
+     This applies even when the containing plugin isn't agent-plugins.org-approvable — a
+     Claude Code-native plugin bundle's `.mcp.json` (a `.claude-plugin/plugin.json` sibling) is
+     still tool-packaging detail, not a standalone self-published server, for the same reason a
+     Claude Code-native plugin's `SKILL.md` files aren't standalone skills.
    - **Verify every remaining candidate** against `vendor-audit-conventions.md`'s checklist, plus:
      only treat a self-published candidate as the vendor's own if the vendor is the actual
      publisher/maintainer (confirmed via the checklist), never merely a recommended or bundled
@@ -78,15 +101,62 @@ registry-listed-vs-self-published distinction this audit leans on.
      exactly the field that makes that claim. Anything that doesn't clearly clear the bar goes to
      the reject pile with a one-line reason; it does not become an approval, and does not get
      asked about.
+   - **A GitHub-hosted server's repo being archived is a separate check from ownership/authorship
+     and the checklist above doesn't cover it** — `gh api repos/<owner>/<repo>` and check
+     `"archived"`. A server can still be genuinely vendor-owned, registry-listed, and even
+     technically installable while its source repo is archived (i.e. the vendor themselves marked
+     it deprecated/unmaintained); treat that as a reject, not a pass, even though it clears every
+     other bar (caught 2026-09-18 on `awslabs/mcp-server-for-oscal` — registry-listed at v0.4.0,
+     ownership and authorship both clean, but archived since 2026-06-23).
    - **Stage genuine findings** — for a registry-listed server, write `mcp/<serverId>.json` with
-     just `serverId` + `date` (no `metadata`/`config` needed). For a self-published server, write
-     `mcp/<serverId>.json` with `metadata: { name, description }`, a `config` (`GenericMcpConfig`)
-     built from the vendor's own published connection instructions, and `selfPublished: true` —
-     see `com.jetbrains/mcp-server` in `ai-registry-jetbrains/mcp/` for a worked example. Create
-     the `mcp/` directory first if the vendor repo has no prior MCP approvals. Branch, commit,
-     and validate per `vendor-audit-conventions.md`. A registry-not-found WARNING during
-     validation is expected and fine for a still-propagating registry entry; any ERROR is not —
-     drop and reject on ERROR.
+     just `serverId` + `date` (no `metadata`/`config` needed) — consolidation enriches
+     name/description/version from the registry, and the registry lookup (`lookupServer` in
+     `src/anthropic-registry.ts`) never pulls connection info (`packages`/`remotes`), so a bare
+     registry-listed entry genuinely has no connection instructions surfaced anywhere by default.
+     For a self-published server, write `mcp/<serverId>.json` with `metadata: { name, description
+     }`, a `config` (`GenericMcpConfig`) built from the vendor's own published connection
+     instructions, and `selfPublished: true` — see `com.jetbrains/mcp-server` in
+     `ai-registry-jetbrains/mcp/` for a worked example. **Before marking a candidate
+     `selfPublished` instead of registry-listed, confirm it's actually absent from the registry**
+     with a direct check (`curl
+     "https://registry.modelcontextprotocol.io/v0.1/servers/<url-encoded-serverId>/versions"` — a
+     404 confirms it; don't just assume from an earlier search not surfacing it). Create the `mcp/`
+     directory first if the vendor repo has no prior MCP approvals. Branch, commit, and validate
+     per `vendor-audit-conventions.md`. A registry-not-found WARNING during validation is expected
+     and fine for a still-propagating registry entry; any ERROR is not — drop and reject on ERROR.
+   - **Check the vendor's own maturity label (GA / Preview / Beta / Developer Preview / etc.) when
+     their docs distinguish one** — the schema has no field to carry that distinction through to
+     the website, so an early-access entry shows up looking identical to a GA one. Not
+     automatically a reject (it's still genuinely vendor-published), but flag mixed-maturity
+     batches in the report explicitly rather than silently approving everything at the same
+     confidence level — e.g. Google's official MCP catalog page separates a "Google Workspace MCP
+     Servers (Developer Preview)" table from its GA/Preview Cloud tables; approved 2026-09-18
+     without distinguishing the two in the commit message, caught on review 2026-09-21.
+   - **If you do add a `config` (or `installConfigs`) to a registry-listed entry to fill that
+     connection-info gap, don't build it from the registry's own `packages`/`packageArguments`
+     data alone — cross-check the vendor's own current getting-started/setup docs page.** The
+     registry submission can be stale or incomplete relative to what the vendor actually
+     documents: AWS's registry entries for `aws.api.us-east-1.ecs-mcp/server` and
+     `aws.api.us-east-1.eks-mcp/server` list only a bare `uvx mcp-proxy-for-aws <url>` positional
+     invocation, but AWS's own getting-started pages (`docs.aws.amazon.com/.../ecs-mcp-getting-started.html`,
+     `.../eks-mcp-getting-started.html`) show every example additionally requires a `--service
+     <name>` flag with no default — omitted, the config silently doesn't work. Caught 2026-09-20/21
+     only by fetching the vendor's live docs, not from the registry data.
+   - **A region embedded in a `serverId` (e.g. `aws.api.us-east-1.ecs-mcp/server`) does not by
+     itself mean the region should be hardcoded in the config.** Check whether the vendor's own
+     docs present it as a fixed value or a `{region}`/`<region>`-style placeholder the user is
+     instructed to replace — AWS's docs do the latter for these entries even though the one
+     registered `serverId` happens to say `us-east-1`, because the underlying service spans
+     multiple regions and only one region's entry has been registered so far.
+   - **The generic root `config` (`GenericMcpConfig`) currently has no field to explain what a
+     `<placeholder>` means** (tracked as ai-registry-core#122; `GenericConfigView` on the website
+     only renders one fixed, generic caveat, never anything placeholder-specific). Until that's
+     resolved, when a connection command has a non-obvious placeholder (region, profile, endpoint,
+     etc.) that a reader needs explained, prefer a tool-specific `installConfigs` entry with an
+     `instructions` string over the bare root `config` — see the `kiro` entries added to
+     `aws.api.us-east-1.ecs-mcp--server.json`/`eks-mcp--server.json` for a worked example. If the
+     placeholder is genuinely self-evident (a bare URL, an npm/PyPI package name with no
+     variables), the plain root `config` is still fine.
    - **Update the vendor's cache entry** — confirmed `githubOrgs`, `lastChecked` = today, newly
      approved sources appended to `knownSources.mcpServers`, new rejections appended with reason
      and date.

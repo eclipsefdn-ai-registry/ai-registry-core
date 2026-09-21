@@ -40,8 +40,20 @@ does a GitHub org literally named after the vendor id exist, and is it verified?
   `main`, named `<type>-audit-<YYYY-MM-DD>` (e.g. `plugin-audit-2026-09-11`,
   `skill-audit-2026-09-11`, `mcp-audit-2026-09-11` — distinct prefixes so the three audits can run
   the same week without colliding on one branch name in the same vendor repo).
-- Commit locally with a plain, factual message (no AI attribution, matching that vendor repo's
-  existing commit history). **Never push.**
+- **Exactly one commit per vendor per run, even after later fixes/reverts during the same
+  session** — amend (or `reset --soft` + recommit) rather than stacking follow-up commits, so the
+  branch always ends in a single clean commit before anyone pushes. Never `git commit --amend` or
+  `reset` on a commit that's already been pushed (these branches never are, so this is safe here,
+  but don't carry the habit elsewhere).
+- The commit message must be **plain and factual (no AI attribution)**, matching that vendor
+  repo's existing commit history, **and must justify each artifact concisely but traceably**: for
+  every plugin/skill/MCP server added, name it, say briefly why it cleared the bar, and how origin
+  was verified (e.g. "verified org, not a fork/archived", "matches vendor's own docs page
+  verbatim", "confirmed absent from the MCP registry via direct lookup"). This is what lets a
+  human reviewer (or a future audit) trust the approval without re-doing the verification from
+  scratch. See `ai-registry-google`'s `vendor-audit-2026-09-18` commit
+  ("Approve Google self-published MCP servers and two new skill categories") for a worked example.
+  **Never push.**
 - Validate with `npm run validate-vendor -- ../ai-registry-<id>` from `ai-registry-core`. Any file
   that doesn't PASS gets dropped from the branch and moved to the reject pile with the validation
   error as the reason, not silently retried.
@@ -122,6 +134,32 @@ rather than treating the vendor as unreachable. Record `"unsupportedHost"` in th
 if WebSearch also turned up nothing this run, so an empty result reads as "checked via web search,
 found nothing" rather than silently meaning "not checked."
 
+**GitLab-hosted vendors have a working `gh api search/code` substitute — use it as the primary
+method, not WebSearch.** The GitLab REST API is usable unauthenticated for public groups (proven
+2026-09-18 against `gitlab.eclipse.org/eclipse-research-labs/mosaico-project`):
+1. `GET /api/v4/groups/<url-encoded-group-path>/projects?per_page=100&include_subgroups=true`
+   enumerates every repo in a vendor's group/org, including subgroups.
+2. `GET /api/v4/projects/<url-encoded-path>/repository/tree?recursive=true&per_page=100`
+   (paginate via `&page=N`) lists every file path in a given repo — grep the returned paths for
+   `plugin.json`, `marketplace.json`, `SKILL.md`, `mcp.json`.
+3. Group/project-level **content** (blob) search (`/api/v4/groups/.../search?scope=blobs`) returns
+   `401 Unauthorized` anonymously — don't rely on it; filename/path enumeration via (1)+(2) is the
+   working approach instead.
+
+Demote WebSearch to a supplement for these vendors, mirroring how `gh api search/code` is used for
+GitHub vendors — it's much sparser for a small/niche vendor than a full repo-tree scan.
+
+## `gh api search/code` operational notes
+
+- Pass `-X GET` explicitly — omitting it has intermittently produced spurious 404s.
+- The `search` endpoint's rate limit (30/min) is far tighter than `core` (5000/hr) and appears
+  shared across concurrently-running agents; a burst of 403 "rate limit exceeded" mid-run typically
+  self-resolves within ~20s. Don't mistake a transient shared-limit 403 for "no results" and
+  under-search — retry after a short wait instead.
+- For a repo you already know hosts a small, bounded directory (e.g. a vendor's dedicated
+  plugins/skills catalog repo), `gh api repos/<owner>/<repo>/contents/<dir>` (core API, cheap) is a
+  faster way to check "has anything been added since last time" than re-running a full code search.
+
 ## Self-update, every run — this step is not optional
 
 Before finishing, explicitly check whether this run taught you anything that would make the _next_
@@ -145,3 +183,15 @@ run faster or more accurate, and act on it now, not "if it comes up":
   on, don't stash or discard someone else's in-progress work.
 - Bounded per vendor: a handful of searches, not a crawl. Missing something this week is fine;
   inventing a false positive is not.
+- **Always default to conservative.** An entry is approvable only when it's *both* clearly
+  user/customer-facing *and* its source is 100% confirmed (ownership verified, and — for skills —
+  the actual body read, not inferred from frontmatter or a folder name). When a batch (a glob, an
+  array, a marketplace, a catalog page) is a mix, **narrow the approval to only the individually
+  confirmed subset** — via an explicit path array, not the original glob — rather than
+  all-or-nothing accepting or rejecting the batch, and rather than approving on a partial sample
+  of it. If narrowing down would take more verification effort than is available this run, exclude
+  the unclassified remainder entirely and say so in the cache/report; don't guess. This is the
+  default posture for every run, not a special case to be asked for — see the 2026-09-21 NVIDIA
+  skill review (`Megatron-LM`, `NemoClaw`, `TensorRT-LLM` each narrowed from a wholesale glob down
+  to only the skills actually read and confirmed customer-facing; `cudf` dropped entirely) for a
+  worked example of what this looks like across a batch of vendors in one sitting.
