@@ -22,9 +22,9 @@ It does not test, audit, sandbox, or certify anything. Endorsement is per organi
 Five limits shape everything below:
 
 - MCP servers are described by configuration, not by content. The registry publishes the command or URL to run. Nothing in the feed covers the server's code, and that code can change under a stable command at any time.
-- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push. Skill sources are referenced by repository URL and path with no commit pin, so the hash is the only pin available. Plugin sources can additionally carry an optional `source.ref` (a git tag or branch) pinning a specific revision instead of tracking the default branch — check for it before cloning, and clone that ref rather than HEAD.
+- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push. Both source types can carry an optional `source.ref` (a git tag, branch, or full commit SHA) pinning a specific revision instead of tracking the default branch — check for it before cloning, and clone that ref rather than HEAD. With no `source.ref`, the hash is the only pin available.
 - Agents carry a content hash too, but of a single fetched Agent Card JSON file, not a directory — there is no path to pin.
-- Sandbox extensions carry a content hash of their directory, and are the one type where the approval itself can name a revision: `source.ref` holds a git tag or branch when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
+- Sandbox extensions carry a content hash of their directory, and can also name a revision the same way: `source.ref` holds a git tag or branch when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
 - Withdrawing an endorsement removes the entry from the feed, but so does a source that was briefly unreachable when consolidation ran. Nothing in the data separates the two, so there is no revocation signal a client can act on. See [Disappearing entries](#disappearing-entries).
 
 ## The data
@@ -136,7 +136,7 @@ The registry publishes configuration. Install means writing that configuration w
 
 ## Agent Skills
 
-The registry points at a skill's source; it does not host it. Install means downloading `source.path` from `source.url` into wherever your tool keeps skills.
+The registry points at a skill's source; it does not host it. Install means downloading `source.path` from `source.url` at `source.ref` where one is set into wherever your tool keeps skills. With no `source.ref`, the default branch is what was endorsed and what a later update will follow.
 
 ```json
 {
@@ -160,7 +160,7 @@ The registry points at a skill's source; it does not host it. Install means down
 
 **Verify what you downloaded against `contentHash` before installing.** Recompute the hash over the downloaded tree using the algorithm in [`references/content-hash.md`](references/content-hash.md) and compare.
 
-On a mismatch, tell the user the source has changed since the organization endorsed it, name the organization and the date, and let them install anyway with an explicit choice. For a skill, or a plugin with no `source.ref`, a mismatch is expected for up to a day after any upstream commit, because consolidation runs daily and the source has no commit pin — this transient case doesn't apply to a plugin with a pinned `ref`, where a mismatch means the pinned revision's content itself changed (a force-push, or the tag was moved) and won't resolve on its own. Either way it's also what a compromised source looks like, and the user is the one who gets to weigh that.
+On a mismatch, tell the user the source has changed since the organization endorsed it, name the organization and the date, and let them install anyway with an explicit choice. For a skill or plugin with no `source.ref`, a mismatch is expected for up to a day after any upstream commit, because consolidation runs daily and the source has no commit pin — this transient case doesn't apply to a skill or plugin with a pinned `ref`, where a mismatch means the pinned revision's content itself changed (a force-push, or the tag was moved) and won't resolve on its own. Either way it's also what a compromised source looks like, and the user is the one who gets to weigh that.
 
 Record the hash you computed, not the one from the feed. The recorded hash is the baseline for drift detection, and a baseline the local content never matched detects nothing.
 

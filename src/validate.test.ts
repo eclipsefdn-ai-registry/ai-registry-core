@@ -10,6 +10,7 @@ import {
   validateVendorFiles,
   validateApproval,
   validateOrganization,
+  validateSkillApproval,
   validatePluginApproval,
   validateMarketplaceApproval,
   validateSandboxExtensionApproval,
@@ -583,6 +584,65 @@ describe("validateVendorData — skill approvals", () => {
   });
 });
 
+describe("validateSkillApproval — source.ref", () => {
+  function skillApprovalData(ref?: string) {
+    return {
+      skillId: "io.example/my-skill",
+      date: "2026-06-01",
+      source: {
+        url: "https://github.com/example/skills.git",
+        path: "skills/my-skill",
+        ...(ref !== undefined ? { ref } : {}),
+      },
+    };
+  }
+
+  it("accepts an approval with no ref", () => {
+    const result = validateSkillApproval(skillApprovalData());
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a branch name as ref", () => {
+    const result = validateSkillApproval(skillApprovalData("main"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a tag as ref", () => {
+    const result = validateSkillApproval(skillApprovalData("v1.2.0"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a full commit SHA as ref", () => {
+    const result = validateSkillApproval(skillApprovalData("a".repeat(40)));
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects an empty ref", () => {
+    const result = validateSkillApproval(skillApprovalData(""));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a shell command separator", () => {
+    const result = validateSkillApproval(skillApprovalData("main;rm -rf ~"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a space", () => {
+    const result = validateSkillApproval(skillApprovalData("my ref"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a backtick", () => {
+    const result = validateSkillApproval(skillApprovalData("`touch /tmp/x`"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref starting with a hyphen", () => {
+    const result = validateSkillApproval(skillApprovalData("-x"));
+    assert.equal(result.valid, false);
+  });
+});
+
 // --- Plugin approval validation ---
 
 function pluginApproval(
@@ -685,6 +745,60 @@ describe("validatePluginApproval — source.path pattern", () => {
   it("accepts a literal name that merely starts with two dots", () => {
     const result = validatePluginApproval(pluginApprovalData("..hidden"));
     assert.equal(result.valid, true);
+  });
+});
+
+describe("validatePluginApproval — source.ref pattern", () => {
+  function pluginApprovalDataWithRef(ref: string) {
+    return {
+      pluginId: "io.example/my-plugin",
+      date: "2026-08-01",
+      source: {
+        url: "https://github.com/example/plugins.git",
+        ref,
+      },
+    };
+  }
+
+  it("accepts a branch name as ref", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("main"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a tag as ref", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("v1.2.0"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a full commit SHA as ref", () => {
+    const result = validatePluginApproval(
+      pluginApprovalDataWithRef("a".repeat(40)),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a ref with a shell command separator", () => {
+    const result = validatePluginApproval(
+      pluginApprovalDataWithRef("main;rm -rf ~"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a space", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("my ref"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a backtick", () => {
+    const result = validatePluginApproval(
+      pluginApprovalDataWithRef("`touch /tmp/x`"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref starting with a hyphen", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("-x"));
+    assert.equal(result.valid, false);
   });
 });
 

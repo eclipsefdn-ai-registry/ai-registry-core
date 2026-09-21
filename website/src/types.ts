@@ -58,7 +58,7 @@ export interface Skill {
   skillId: string;
   name: string;
   description: string;
-  source: { url: string; path?: string };
+  source: { url: string; path?: string; ref?: string };
   contentHash: string;
   approvals: SkillApproval[];
 }

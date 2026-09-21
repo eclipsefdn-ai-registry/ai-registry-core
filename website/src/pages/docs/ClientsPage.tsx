@@ -95,19 +95,19 @@ export function ClientsPage() {
           </li>
           <li className="leading-relaxed">
             Skills and plugins carry a content hash of their source as of the
-            last consolidation run. Skill sources are referenced by repository
-            URL and path with no commit pin, so the hash is the only pin
-            available. Plugin sources can additionally carry an optional{" "}
-            <InlineCode>source.ref</InlineCode> (a git tag or branch) pinning a
-            specific revision instead of tracking the default branch.
+            last consolidation run. Both source types can carry an optional{" "}
+            <InlineCode>source.ref</InlineCode> (a git tag, branch, or full
+            commit SHA) pinning a specific revision instead of tracking the
+            default branch. With no <InlineCode>source.ref</InlineCode>, the
+            hash is the only pin available.
           </li>
           <li className="leading-relaxed">
             Agents carry a content hash too, but of a single fetched Agent Card
             JSON file, not a directory — there is no path to pin.
           </li>
           <li className="leading-relaxed">
-            Sandbox extensions carry a content hash of their directory, and are
-            the one type where an approval can name a specific revision:{" "}
+            Sandbox extensions carry a content hash of their directory, and can
+            also name a specific revision the same way:{" "}
             <InlineCode>source.ref</InlineCode> holds a git tag or branch when
             the organization approved one. A branch is still a moving target, so
             read the ref rather than treating its presence as a pin.
@@ -298,8 +298,11 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           The registry points at a skill's source; it does not host it. Install
           means downloading <InlineCode>source.path</InlineCode> from{" "}
-          <InlineCode>source.url</InlineCode> into wherever your tool keeps
-          skills.
+          <InlineCode>source.url</InlineCode> at{" "}
+          <InlineCode>source.ref</InlineCode> where one is set into wherever
+          your tool keeps skills. With no <InlineCode>source.ref</InlineCode>,
+          the default branch is what was approved and what a later update will
+          follow.
         </p>
         <InfoCallout>
           <strong>
@@ -311,14 +314,14 @@ export function ClientsPage() {
         <p className="mt-3 mb-3 leading-relaxed">
           On a mismatch, tell the user the source has changed since the
           organization approved it, name the organization and the date, and let
-          them install anyway with an explicit choice. For a skill, or a plugin
+          them install anyway with an explicit choice. For a skill or plugin
           with no <InlineCode>source.ref</InlineCode>, a mismatch is expected
           for up to a day after any upstream commit, because consolidation runs
           daily and the source has no commit pin — this transient case doesn't
-          apply to a plugin with a pinned ref, where a mismatch means the pinned
-          revision's own content changed and won't resolve on its own. Either
-          way it's also what a compromised source looks like, and the user is
-          the one who gets to weigh that.
+          apply to a skill or plugin with a pinned ref, where a mismatch means
+          the pinned revision's own content changed and won't resolve on its
+          own. Either way it's also what a compromised source looks like, and
+          the user is the one who gets to weigh that.
         </p>
         <p className="mb-3 leading-relaxed">
           Record the hash you computed, not the one from the feed. The recorded

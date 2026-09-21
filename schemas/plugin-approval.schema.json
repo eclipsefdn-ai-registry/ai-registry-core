@@ -37,7 +37,8 @@
         "ref": {
           "type": "string",
           "minLength": 1,
-          "description": "Git ref (tag, branch name, or full commit SHA) to check out instead of the repository's default branch. Omit to always track the default branch."
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "description": "Git ref (tag, branch name, or full commit SHA) to check out instead of the repository's default branch. Omit to always track the default branch. Restricted to safe git ref characters (no whitespace or shell metacharacters, since this value is passed to a git command during consolidation and can appear in a copy-paste install command on the website)."
         }
       }
     },
