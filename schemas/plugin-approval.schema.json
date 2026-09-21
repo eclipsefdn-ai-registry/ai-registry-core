@@ -37,7 +37,7 @@
         "ref": {
           "type": "string",
           "minLength": 1,
-          "description": "Git ref (tag or branch name) to check out instead of the repository's default branch. Does not support arbitrary commit SHAs. Omit to always track the default branch."
+          "description": "Git ref (tag, branch name, or full commit SHA) to check out instead of the repository's default branch. Omit to always track the default branch."
         }
       }
     },

@@ -8,7 +8,7 @@ import {
   parseSkillFrontmatter,
   computeContentHash,
 } from "./skill-source.js";
-import { authenticatedRepoUrl, resolveInsideRepo } from "./git-source.js";
+import { resolveInsideRepo, cloneAtRef } from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -162,29 +162,7 @@ function clonePluginRepo(
   // exactly the right content checked out. Mirrors skill-source.ts's
   // cloneSkillFolder guard.
   if (!existsSync(cloneDir)) {
-    const repoUrl = authenticatedRepoUrl(sourceUrl);
-
-    try {
-      const cloneArgs = [
-        "clone",
-        "--depth",
-        "1",
-        "--filter=blob:none",
-        "--sparse",
-      ];
-      // --branch accepts a tag or branch name, not an arbitrary commit sha —
-      // callers are responsible for only ever passing a ref of that kind
-      // (see marketplace-source.ts, which skips sha-only entries entirely).
-      if (ref) {
-        cloneArgs.push("--branch", ref);
-      }
-      cloneArgs.push(repoUrl, cloneDir);
-      execFileSync("git", cloneArgs, { stdio: "pipe" });
-    } catch {
-      throw new Error(
-        `Failed to clone ${sourceUrl}${ref ? ` at ref "${ref}"` : ""}`,
-      );
-    }
+    cloneAtRef(sourceUrl, cloneDir, ref);
 
     // Unlike a skill source (a single SKILL.md file at the target path), a
     // plugin needs its whole directory subtree (skills/**, mcp.json)

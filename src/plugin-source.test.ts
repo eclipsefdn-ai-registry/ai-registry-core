@@ -277,4 +277,56 @@ describe("fetchPluginManifest with ref", () => {
       rmSync(sourceDir, { recursive: true, force: true });
     }
   });
+
+  it("checks out a full commit SHA", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-sha-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "plugin-sha-src-"));
+    try {
+      execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      writeFileSync(
+        join(sourceDir, "plugin.json"),
+        JSON.stringify({ name: "pinned-commit", version: "1.0.0" }),
+      );
+      execSync("git add -A && git commit -m pinned", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      const sha = execSync("git rev-parse HEAD", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      })
+        .toString()
+        .trim();
+
+      writeFileSync(
+        join(sourceDir, "plugin.json"),
+        JSON.stringify({ name: "on-main", version: "2.0.0" }),
+      );
+      execSync("git add -A && git commit -m main", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      const metadata = fetchPluginManifest(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+        sha,
+      );
+      assert.equal(metadata.name, "pinned-commit");
+      assert.equal(metadata.version, "1.0.0");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
 });

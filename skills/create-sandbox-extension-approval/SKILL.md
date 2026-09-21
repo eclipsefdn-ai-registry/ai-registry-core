@@ -87,9 +87,9 @@ Example: `io.github.eclipse-enclave/enclave-extensions` becomes
   repository path.
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
 - **source** (required): Object with `url` (git repo URL) and optionally `ref`.
-  - **ref**: A git tag or branch to read and hash instead of the default branch. A commit SHA
-    is not supported — the clone uses `--branch`, which takes a tag or branch only. Omit `ref`
-    to follow the default branch, which is also what `enclave add` does with no `--ref`.
+  - **ref**: A git tag, branch, or full commit SHA to read and hash instead of the default
+    branch. Omit `ref` to follow the default branch, which is also what `enclave add` does
+    with no `--ref`.
   - There is **no** `path`. The two directory prefixes are the convention.
 - **installConfigs**: not part of this schema. Nothing about installing a sandbox extension is
   tool-specific, so an approval is the organization, the date, and the hash. The website builds

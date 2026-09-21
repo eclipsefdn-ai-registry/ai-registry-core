@@ -5,7 +5,7 @@ import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { computeContentHash } from "./skill-source.js";
-import { authenticatedRepoUrl, resolveInsideRepo } from "./git-source.js";
+import { resolveInsideRepo, cloneAtRef } from "./git-source.js";
 import type {
   SandboxExtensionEntry,
   PendingSandboxExtension,
@@ -113,23 +113,7 @@ function cloneSandboxRepo(
   const cloneDir = join(tmpDir, `sandbox-${sandboxCloneKey(sourceUrl, ref)}`);
   if (existsSync(cloneDir)) return cloneDir;
 
-  const repoUrl = authenticatedRepoUrl(sourceUrl);
-
-  const cloneArgs = ["clone", "--depth", "1", "--filter=blob:none", "--sparse"];
-  // --branch accepts a tag or branch name, not an arbitrary commit sha. The
-  // schema can't tell those apart, so a commit-only ref fails the clone and
-  // the whole approval is skipped with the message below — the same outcome as
-  // any other unreachable source, and visible rather than silently ignored.
-  if (ref) cloneArgs.push("--branch", ref);
-  cloneArgs.push(repoUrl, cloneDir);
-
-  try {
-    execFileSync("git", cloneArgs, { stdio: "pipe" });
-  } catch {
-    throw new Error(
-      `Failed to clone ${sourceUrl}${ref ? ` at ref "${ref}"` : ""}`,
-    );
-  }
+  cloneAtRef(sourceUrl, cloneDir, ref);
 
   return cloneDir;
 }
