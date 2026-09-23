@@ -860,6 +860,7 @@ describe("fetchSkillMetadata with ref", () => {
       );
       assert.equal(metadata.name, "pinned-commit");
       assert.equal(metadata.description, "Pinned.");
+      assert.equal(metadata.commit, sha);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
       rmSync(sourceDir, { recursive: true, force: true });
@@ -897,6 +898,117 @@ describe("fetchSkillMetadata with ref", () => {
       const onV1 = fetchSkillMetadata(url, undefined, tmpDir, "v1.0.0");
       assert.equal(onMain.name, "on-main");
       assert.equal(onV1.name, "on-v1");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- fetchSkillMetadata commit ---
+
+describe("fetchSkillMetadata commit", () => {
+  function initSourceRepo(sourceDir: string): void {
+    execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+    execSync('git config user.email "test@test.com"', {
+      cwd: sourceDir,
+      stdio: "pipe",
+    });
+    execSync('git config user.name "Test"', {
+      cwd: sourceDir,
+      stdio: "pipe",
+    });
+  }
+
+  function commitAll(sourceDir: string, message: string): string {
+    execSync(`git add -A && git commit -m ${message}`, {
+      cwd: sourceDir,
+      stdio: "pipe",
+    });
+    return execSync("git rev-parse HEAD", { cwd: sourceDir, stdio: "pipe" })
+      .toString()
+      .trim();
+  }
+
+  function writeSkill(sourceDir: string, path: string, name: string): void {
+    mkdirSync(join(sourceDir, path), { recursive: true });
+    writeFileSync(
+      join(sourceDir, path, "SKILL.md"),
+      `---\nname: ${name}\ndescription: ${name}.\n---\n`,
+    );
+  }
+
+  it("reports the default branch's commit when no ref is set", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-commit-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-commit-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "tracked");
+      const head = commitAll(sourceDir, "main");
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+      );
+      assert.equal(metadata.commit, head);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports the tagged commit for an annotated tag, not the tag object", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-commit-tag-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-commit-tag-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "tagged");
+      const tagged = commitAll(sourceDir, "tagged");
+      execSync('git tag -a v1.0.0 -m "v1.0.0"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      writeSkill(sourceDir, ".", "later");
+      commitAll(sourceDir, "later");
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+        "v1.0.0",
+      );
+      assert.equal(metadata.name, "tagged");
+      assert.equal(metadata.commit, tagged);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // Several paths read from one clone all carry the commit that clone was
+  // taken at, even if the source moves on between reads. That is correct:
+  // each path was hashed at that commit. Resolving the commit per entry
+  // against the remote would publish a commit the hash wasn't computed at.
+  it("gives every path read from one clone the clone's commit", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-commit-shared-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-commit-shared-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, "skills/a", "a");
+      writeSkill(sourceDir, "skills/b", "b");
+      const cloned = commitAll(sourceDir, "both");
+
+      const url = `file://${sourceDir}`;
+      const a = fetchSkillMetadata(url, "skills/a", tmpDir);
+
+      writeSkill(sourceDir, "skills/b", "b-moved");
+      commitAll(sourceDir, "moved");
+
+      const b = fetchSkillMetadata(url, "skills/b", tmpDir);
+      assert.equal(a.commit, cloned);
+      assert.equal(b.commit, cloned);
+      assert.equal(b.name, "b");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
       rmSync(sourceDir, { recursive: true, force: true });

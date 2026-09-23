@@ -64,12 +64,14 @@ const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
  * naming the ref, distinct from a generic clone failure, since a host that
  * doesn't serve bare SHAs (no uploadpack.allowReachableSHA1InWant) fails
  * there, not at the clone above.
+ *
+ * Returns the commit that ended up checked out, whatever `ref` named.
  */
 export function cloneAtRef(
   sourceUrl: string,
   cloneDir: string,
   ref?: string,
-): void {
+): string {
   const repoUrl = authenticatedRepoUrl(sourceUrl);
   const isCommitSha = ref !== undefined && COMMIT_SHA_PATTERN.test(ref);
 
@@ -99,4 +101,19 @@ export function cloneAtRef(
       throw new Error(`Failed to check out ref "${ref}" in ${sourceUrl}`);
     }
   }
+
+  return checkedOutCommit(cloneDir);
+}
+
+/**
+ * The full SHA of the commit checked out in `cloneDir`. Callers that reuse an
+ * existing clone call this directly rather than keeping cloneAtRef's return
+ * value, so every entry read from one clone reports the same commit.
+ */
+export function checkedOutCommit(cloneDir: string): string {
+  return execFileSync("git", ["-C", cloneDir, "rev-parse", "HEAD"], {
+    stdio: "pipe",
+  })
+    .toString()
+    .trim();
 }

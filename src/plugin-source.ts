@@ -8,7 +8,11 @@ import {
   parseSkillFrontmatter,
   computeContentHash,
 } from "./skill-source.js";
-import { resolveInsideRepo, cloneAtRef } from "./git-source.js";
+import {
+  resolveInsideRepo,
+  cloneAtRef,
+  checkedOutCommit,
+} from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -40,6 +44,7 @@ export interface PluginMetadata extends PluginManifestFields {
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
   contentHash: string;
+  commit: string;
 }
 
 // --- plugin.json parsing ---
@@ -148,7 +153,7 @@ function clonePluginRepo(
   pluginPath: string | undefined,
   tmpDir: string,
   ref?: string,
-): { repoRoot: string; pluginDir: string } {
+): { repoRoot: string; pluginDir: string; commit: string } {
   const cloneDir = join(
     tmpDir,
     `plugin-${pluginCloneKey(sourceUrl, pluginPath, ref)}`,
@@ -161,8 +166,11 @@ function clonePluginRepo(
   // re-cloning if it's already there; the key guarantees it already has
   // exactly the right content checked out. Mirrors skill-source.ts's
   // cloneSkillFolder guard.
-  if (!existsSync(cloneDir)) {
-    cloneAtRef(sourceUrl, cloneDir, ref);
+  let commit: string;
+  if (existsSync(cloneDir)) {
+    commit = checkedOutCommit(cloneDir);
+  } else {
+    commit = cloneAtRef(sourceUrl, cloneDir, ref);
 
     // Unlike a skill source (a single SKILL.md file at the target path), a
     // plugin needs its whole directory subtree (skills/**, mcp.json)
@@ -201,7 +209,7 @@ function clonePluginRepo(
     "Plugin path",
   );
 
-  return { repoRoot: cloneDir, pluginDir };
+  return { repoRoot: cloneDir, pluginDir, commit };
 }
 
 export function fetchPluginManifest(
@@ -216,7 +224,7 @@ export function fetchPluginManifest(
     mkdirSync(dir, { recursive: true });
   }
 
-  const { repoRoot, pluginDir } = clonePluginRepo(
+  const { repoRoot, pluginDir, commit } = clonePluginRepo(
     sourceUrl,
     sourcePath,
     dir,
@@ -254,7 +262,13 @@ export function fetchPluginManifest(
 
   const contentHash = computeContentHash(pluginDir);
 
-  return { ...manifest, containedSkills, containedMcpServers, contentHash };
+  return {
+    ...manifest,
+    containedSkills,
+    containedMcpServers,
+    contentHash,
+    commit,
+  };
 }
 
 // --- Enrichment (called by consolidate.ts) ---
@@ -286,6 +300,7 @@ export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
         entry.homepage = metadata.homepage;
         entry.keywords = metadata.keywords;
         entry.contentHash = metadata.contentHash;
+        entry.source = { ...entry.source, commit: metadata.commit };
         entry.containedSkills = metadata.containedSkills;
         entry.containedMcpServers = metadata.containedMcpServers;
         console.log(`  Enriched: ${entry.pluginId}`);

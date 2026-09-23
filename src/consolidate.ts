@@ -180,7 +180,15 @@ export interface SkillEntry {
   skillId: string;
   name: string;
   description: string;
-  source: { url: string; path?: string | string[]; ref?: string };
+  // commit is output only, set at enrichment: the commit contentHash was
+  // computed at, whether or not ref pinned one. Same on PluginEntry and
+  // SandboxExtensionEntry.
+  source: {
+    url: string;
+    path?: string | string[];
+    ref?: string;
+    commit?: string;
+  };
   contentHash: string;
   approvals: SkillApproval[];
 }
@@ -222,7 +230,7 @@ export interface PluginEntry {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string; ref?: string };
+  source: { url: string; path?: string; ref?: string; commit?: string };
   contentHash: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
@@ -311,7 +319,7 @@ export interface SandboxExtensionEntry {
   // and what `enclave add --name` matches on
   extensionName: string;
   description: string;
-  source: { url: string; path: string; ref?: string };
+  source: { url: string; path: string; ref?: string; commit?: string };
   contentHash: string;
   approvals: SandboxExtensionApproval[];
 }
