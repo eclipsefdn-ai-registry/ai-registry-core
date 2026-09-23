@@ -5,7 +5,11 @@ import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { computeContentHash } from "./skill-source.js";
-import { resolveInsideRepo, cloneAtRef } from "./git-source.js";
+import {
+  resolveInsideRepo,
+  cloneAtRef,
+  checkedOutCommit,
+} from "./git-source.js";
 import type {
   SandboxExtensionEntry,
   PendingSandboxExtension,
@@ -109,13 +113,13 @@ function cloneSandboxRepo(
   sourceUrl: string,
   tmpDir: string,
   ref?: string,
-): string {
+): { cloneDir: string; commit: string } {
   const cloneDir = join(tmpDir, `sandbox-${sandboxCloneKey(sourceUrl, ref)}`);
-  if (existsSync(cloneDir)) return cloneDir;
+  if (existsSync(cloneDir)) {
+    return { cloneDir, commit: checkedOutCommit(cloneDir) };
+  }
 
-  cloneAtRef(sourceUrl, cloneDir, ref);
-
-  return cloneDir;
+  return { cloneDir, commit: cloneAtRef(sourceUrl, cloneDir, ref) };
 }
 
 // --- Discovery ---
@@ -299,12 +303,14 @@ function entryFor(
   pending: PendingSandboxExtension,
   extension: DiscoveredExtension,
   metadata: SandboxExtensionMetadata,
+  commit: string,
 ): SandboxExtensionEntry {
   const source: SandboxExtensionEntry["source"] = {
     url: pending.source.url,
     path: extension.path,
   };
   if (pending.source.ref !== undefined) source.ref = pending.source.ref;
+  source.commit = commit;
 
   return {
     sandboxExtensionId: `${pending.sandboxExtensionId}/${extension.path}`,
@@ -344,8 +350,13 @@ export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
   try {
     for (const entry of pending) {
       let cloneDir: string;
+      let commit: string;
       try {
-        cloneDir = cloneSandboxRepo(entry.source.url, tmpDir, entry.source.ref);
+        ({ cloneDir, commit } = cloneSandboxRepo(
+          entry.source.url,
+          tmpDir,
+          entry.source.ref,
+        ));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.warn(`  WARNING: ${entry.sandboxExtensionId} — skipped`);
@@ -380,7 +391,7 @@ export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
       for (const extension of discovered) {
         try {
           const metadata = fetchSandboxExtensionMetadata(cloneDir, extension);
-          const enriched = entryFor(entry, extension, metadata);
+          const enriched = entryFor(entry, extension, metadata, commit);
           (metadata.kind === "sandbox" ? sandboxTools : sandboxFeatures).push(
             enriched,
           );

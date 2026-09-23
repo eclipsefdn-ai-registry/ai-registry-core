@@ -324,6 +324,7 @@ describe("fetchPluginManifest with ref", () => {
       );
       assert.equal(metadata.name, "pinned-commit");
       assert.equal(metadata.version, "1.0.0");
+      assert.equal(metadata.commit, sha);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
       rmSync(sourceDir, { recursive: true, force: true });

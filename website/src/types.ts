@@ -58,7 +58,7 @@ export interface Skill {
   skillId: string;
   name: string;
   description: string;
-  source: { url: string; path?: string; ref?: string };
+  source: { url: string; path?: string; ref?: string; commit?: string };
   contentHash: string;
   approvals: SkillApproval[];
 }
@@ -98,7 +98,7 @@ export interface Plugin {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string; ref?: string };
+  source: { url: string; path?: string; ref?: string; commit?: string };
   contentHash: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
@@ -149,7 +149,7 @@ export interface SandboxExtension {
   // the spec's own name — what `enclave add --name` matches on
   extensionName: string;
   description: string;
-  source: { url: string; path: string; ref?: string };
+  source: { url: string; path: string; ref?: string; commit?: string };
   contentHash: string;
   approvals: SandboxExtensionApproval[];
 }

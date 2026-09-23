@@ -333,13 +333,13 @@ export function ApiPage() {
               name: "source",
               type: "object",
               description:
-                "Git repository URL and optional path to the skill folder. No commit pin.",
+                "Git repository URL, optional path to the skill folder, an optional git ref (tag, branch, or commit SHA) to pin instead of the default branch, and commit: the commit contentHash was computed at.",
             },
             {
               name: "contentHash",
               type: "string",
               description:
-                "Hash of the skill folder as of the last consolidation run.",
+                "Hash of the skill folder as of the last consolidation run, at source.commit.",
             },
             {
               name: "approvals",
@@ -387,12 +387,13 @@ export function ApiPage() {
               name: "source",
               type: "object",
               description:
-                "Git repository URL and optional path to the directory holding plugin.json, plus an optional git ref (tag or branch) to pin instead of the default branch.",
+                "Git repository URL and optional path to the directory holding plugin.json, an optional git ref (tag, branch, or commit SHA) to pin instead of the default branch, and commit: the commit contentHash was computed at.",
             },
             {
               name: "contentHash",
               type: "string",
-              description: "Hash of the whole plugin directory.",
+              description:
+                "Hash of the whole plugin directory, at source.commit.",
             },
             {
               name: "containedSkills",
@@ -484,13 +485,12 @@ export function ApiPage() {
               name: "source",
               type: "object",
               description:
-                "Git repository URL, the path to this extension's directory, and an optional git ref (tag or branch) pinning a revision instead of the default branch.",
+                "Git repository URL, the path to this extension's directory, an optional git ref (tag or branch) pinning a revision instead of the default branch, and commit: the commit contentHash was computed at.",
             },
             {
               name: "contentHash",
               type: "string",
-              description:
-                "Hash of the extension directory, at the pinned ref where one is set.",
+              description: "Hash of the extension directory, at source.commit.",
             },
             {
               name: "approvals",

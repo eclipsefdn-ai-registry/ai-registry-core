@@ -2,7 +2,7 @@
 
 The hash the registry publishes as `contentHash` for skills and plugins. Reproduce it byte for byte or comparisons are meaningless.
 
-Consolidation computes it over the skill folder or the plugin directory. Both use the same algorithm.
+Consolidation computes it over the skill folder or the plugin directory, checked out at the commit published next to it as `source.commit`. Both use the same algorithm. Hash a tree fetched at any other commit and a mismatch tells you nothing.
 
 Agents also carry a `contentHash`, but it is not this algorithm: it is a SHA-256 of the fetched Agent Card JSON text, first 12 hex characters, with no directory walk. See [Agents](../SKILL.md#agents) in the main skill file.
 

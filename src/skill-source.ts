@@ -11,7 +11,11 @@ import { createHash } from "node:crypto";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
-import { cloneAtRef, resolveInsideRepo } from "./git-source.js";
+import {
+  checkedOutCommit,
+  cloneAtRef,
+  resolveInsideRepo,
+} from "./git-source.js";
 import type { SkillEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +27,7 @@ export interface SkillMetadata {
   name: string;
   description: string;
   contentHash: string;
+  commit: string;
 }
 
 // --- Frontmatter parsing ---
@@ -95,11 +100,12 @@ function cloneSkillFolder(
   sourcePath: string | undefined,
   tmpDir: string,
   ref?: string,
-): string {
+): { dir: string; commit: string } {
   const cloneDir = join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
 
+  let commit: string;
   if (!existsSync(cloneDir)) {
-    cloneAtRef(sourceUrl, cloneDir, ref);
+    commit = cloneAtRef(sourceUrl, cloneDir, ref);
 
     if (sourcePath) {
       // sourcePath is a real repository path, but still vendor-supplied —
@@ -118,24 +124,30 @@ function cloneSkillFolder(
         );
       }
     }
-  } else if (sourcePath) {
-    // Repo already cloned — add this path to sparse checkout
-    try {
-      execFileSync(
-        "git",
-        ["-C", cloneDir, "sparse-checkout", "add", sourcePath],
-        { stdio: "pipe" },
-      );
-    } catch {
-      throw new Error(
-        `Failed to sparse-checkout path "${sourcePath}" in ${sourceUrl}`,
-      );
+  } else {
+    // Every path read from this clone reports the commit it was cloned at.
+    // That's correct, not a shortcut: those paths were hashed at that commit.
+    commit = checkedOutCommit(cloneDir);
+    if (sourcePath) {
+      // Repo already cloned — add this path to sparse checkout
+      try {
+        execFileSync(
+          "git",
+          ["-C", cloneDir, "sparse-checkout", "add", sourcePath],
+          { stdio: "pipe" },
+        );
+      } catch {
+        throw new Error(
+          `Failed to sparse-checkout path "${sourcePath}" in ${sourceUrl}`,
+        );
+      }
     }
   }
 
-  return sourcePath
+  const dir = sourcePath
     ? resolveInsideRepo(cloneDir, sourcePath, "Skill path")
     : cloneDir;
+  return { dir, commit };
 }
 
 export function fetchSkillMetadata(
@@ -149,7 +161,12 @@ export function fetchSkillMetadata(
     mkdirSync(dir, { recursive: true });
   }
 
-  const skillDir = cloneSkillFolder(sourceUrl, sourcePath, dir, ref);
+  const { dir: skillDir, commit } = cloneSkillFolder(
+    sourceUrl,
+    sourcePath,
+    dir,
+    ref,
+  );
   const skillMdPath = join(skillDir, "SKILL.md");
 
   if (!existsSync(skillMdPath)) {
@@ -167,6 +184,7 @@ export function fetchSkillMetadata(
     name: name || sourcePath?.split("/").pop() || "",
     description,
     contentHash,
+    commit,
   };
 }
 
@@ -361,6 +379,7 @@ export function enrichSkillMetadata(skills: SkillEntry[]): SkillEntry[] {
         entry.name = metadata.name;
         entry.description = metadata.description;
         entry.contentHash = metadata.contentHash;
+        entry.source = { ...entry.source, commit: metadata.commit };
         console.log(`  Enriched: ${entry.skillId}`);
         console.log(`    Name: ${metadata.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
