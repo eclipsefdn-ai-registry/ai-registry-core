@@ -161,7 +161,7 @@ export interface SkillInstallConfig {
 export interface SkillApprovalData {
   skillId: string;
   date: string;
-  source: { url: string; path?: string | string[] };
+  source: { url: string; path?: string | string[]; ref?: string };
   installConfigs?: SkillInstallConfig[];
 }
 
@@ -180,7 +180,15 @@ export interface SkillEntry {
   skillId: string;
   name: string;
   description: string;
-  source: { url: string; path?: string | string[] };
+  // commit is output only, set at enrichment: the commit contentHash was
+  // computed at, whether or not ref pinned one. Same on PluginEntry and
+  // SandboxExtensionEntry.
+  source: {
+    url: string;
+    path?: string | string[];
+    ref?: string;
+    commit?: string;
+  };
   contentHash: string;
   approvals: SkillApproval[];
 }
@@ -222,7 +230,7 @@ export interface PluginEntry {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string; ref?: string };
+  source: { url: string; path?: string; ref?: string; commit?: string };
   contentHash: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
@@ -311,7 +319,7 @@ export interface SandboxExtensionEntry {
   // and what `enclave add --name` matches on
   extensionName: string;
   description: string;
-  source: { url: string; path: string; ref?: string };
+  source: { url: string; path: string; ref?: string; commit?: string };
   contentHash: string;
   approvals: SandboxExtensionApproval[];
 }
@@ -662,7 +670,7 @@ export function addSkillApproval(
   organizationId: string,
   output: ConsolidatedOutput,
 ): void {
-  const { entry: skillEntry } = findOrCreate(
+  const { entry: skillEntry, created } = findOrCreate(
     output.skills,
     (s) => s.skillId === approvalData.skillId,
     () => ({
@@ -674,6 +682,22 @@ export function addSkillApproval(
       approvals: [],
     }),
   );
+
+  // First-collected vendor's source wins, matching addPluginApproval. path
+  // is compared via JSON.stringify rather than !== because it can be a
+  // string, an array, or undefined — a bare !== would spuriously flag two
+  // approvals whose arrays hold the same paths but aren't the same object.
+  if (
+    !created &&
+    (skillEntry.source.url !== approvalData.source.url ||
+      JSON.stringify(skillEntry.source.path) !==
+        JSON.stringify(approvalData.source.path) ||
+      skillEntry.source.ref !== approvalData.source.ref)
+  ) {
+    console.warn(
+      `  WARNING: skill "${approvalData.skillId}" approved with a different source by "${organizationId}" — using "${skillEntry.approvals[0]?.organizationId}"'s (first collected)`,
+    );
+  }
 
   const configHash = configHashOf(approvalData);
 

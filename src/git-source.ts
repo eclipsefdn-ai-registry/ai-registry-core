@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { resolve, sep } from "node:path";
 
 /**
@@ -45,4 +46,74 @@ export function resolveInsideRepo(
     throw new Error(`${label} "${relativePath}" escapes the cloned repository`);
   }
   return target;
+}
+
+const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
+
+/**
+ * Clones a repository with a blobless, sparse filter, checked out at `ref`
+ * (branch, tag, or full commit SHA) — or at the default branch when `ref`
+ * is omitted. `cloneDir` must not exist yet; callers own the
+ * already-cloned guard, since the key they clone into (and whether to skip
+ * re-cloning) is caller-specific, and so is the sparse-checkout narrowing
+ * that follows this call.
+ *
+ * `--branch` only accepts a tag or branch name, not a commit SHA, so a
+ * 40-character hex ref clones the default branch first and then fetches and
+ * checks out the SHA as its own step — whose failure gets its own error
+ * naming the ref, distinct from a generic clone failure, since a host that
+ * doesn't serve bare SHAs (no uploadpack.allowReachableSHA1InWant) fails
+ * there, not at the clone above.
+ *
+ * Returns the commit that ended up checked out, whatever `ref` named.
+ */
+export function cloneAtRef(
+  sourceUrl: string,
+  cloneDir: string,
+  ref?: string,
+): string {
+  const repoUrl = authenticatedRepoUrl(sourceUrl);
+  const isCommitSha = ref !== undefined && COMMIT_SHA_PATTERN.test(ref);
+
+  const cloneArgs = ["clone", "--depth", "1", "--filter=blob:none", "--sparse"];
+  if (ref !== undefined && !isCommitSha) cloneArgs.push("--branch", ref);
+  cloneArgs.push(repoUrl, cloneDir);
+
+  try {
+    execFileSync("git", cloneArgs, { stdio: "pipe" });
+  } catch {
+    throw new Error(
+      `Failed to clone ${sourceUrl}${ref !== undefined && !isCommitSha ? ` at ref "${ref}"` : ""}`,
+    );
+  }
+
+  if (ref !== undefined && isCommitSha) {
+    try {
+      execFileSync(
+        "git",
+        ["-C", cloneDir, "fetch", "--depth", "1", "origin", ref],
+        { stdio: "pipe" },
+      );
+      execFileSync("git", ["-C", cloneDir, "checkout", "FETCH_HEAD"], {
+        stdio: "pipe",
+      });
+    } catch {
+      throw new Error(`Failed to check out ref "${ref}" in ${sourceUrl}`);
+    }
+  }
+
+  return checkedOutCommit(cloneDir);
+}
+
+/**
+ * The full SHA of the commit checked out in `cloneDir`. Callers that reuse an
+ * existing clone call this directly rather than keeping cloneAtRef's return
+ * value, so every entry read from one clone reports the same commit.
+ */
+export function checkedOutCommit(cloneDir: string): string {
+  return execFileSync("git", ["-C", cloneDir, "rev-parse", "HEAD"], {
+    stdio: "pipe",
+  })
+    .toString()
+    .trim();
 }

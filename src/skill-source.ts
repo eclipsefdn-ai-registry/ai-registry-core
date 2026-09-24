@@ -1,4 +1,4 @@
-import { execSync, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import {
   readFileSync,
   readdirSync,
@@ -11,7 +11,11 @@ import { createHash } from "node:crypto";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
-import { authenticatedRepoUrl } from "./git-source.js";
+import {
+  checkedOutCommit,
+  cloneAtRef,
+  resolveInsideRepo,
+} from "./git-source.js";
 import type { SkillEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +27,7 @@ export interface SkillMetadata {
   name: string;
   description: string;
   contentHash: string;
+  commit: string;
 }
 
 // --- Frontmatter parsing ---
@@ -74,68 +79,94 @@ export function computeContentHash(skillDir: string): string {
 
 // --- Skill source fetching ---
 
+// Keyed on url + ref, not url + path like plugins: every skill approval
+// pointing at the same repo shares one clone directory, with successive
+// approvals' paths added to its sparse-checkout cone one at a time (the
+// `sparse-checkout add` branch below) rather than each approval getting its
+// own independent checkout the way clonePluginRepo does. Keying on path too
+// would break that sharing — a repo with many skill paths would get a
+// separate clone per path instead of one clone with a wide cone. Ref still
+// needs to be part of the key, though: two approvals of the same repo at
+// different refs must not land in the same directory.
+export function skillCloneKey(sourceUrl: string, ref?: string): string {
+  return createHash("sha256")
+    .update(`${sourceUrl}|${ref ?? ""}`)
+    .digest("hex")
+    .slice(0, 8);
+}
+
 function cloneSkillFolder(
   sourceUrl: string,
   sourcePath: string | undefined,
   tmpDir: string,
-): string {
-  const repoHash = createHash("sha256")
-    .update(sourceUrl)
-    .digest("hex")
-    .slice(0, 8);
-  const cloneDir = join(tmpDir, `skill-${repoHash}`);
+  ref?: string,
+): { dir: string; commit: string } {
+  const cloneDir = join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
 
+  let commit: string;
   if (!existsSync(cloneDir)) {
-    // Sparse checkout: clone only repo metadata, then fetch specific path
-    const repoUrl = authenticatedRepoUrl(sourceUrl);
-
-    try {
-      execSync(
-        `git clone --depth 1 --filter=blob:none --sparse ${repoUrl} ${cloneDir}`,
-        { stdio: "pipe" },
-      );
-    } catch {
-      throw new Error(`Failed to clone ${sourceUrl}`);
-    }
+    commit = cloneAtRef(sourceUrl, cloneDir, ref);
 
     if (sourcePath) {
+      // sourcePath is a real repository path, but still vendor-supplied —
+      // pass it as its own argv entry (execFileSync, no shell) rather than
+      // interpolating into a shell string, so a path like "a; rm -rf /"
+      // can't execute anything. Mirrors plugin-source.ts's clonePluginRepo.
       try {
-        execSync(`git -C ${cloneDir} sparse-checkout set ${sourcePath}`, {
-          stdio: "pipe",
-        });
+        execFileSync(
+          "git",
+          ["-C", cloneDir, "sparse-checkout", "set", sourcePath],
+          { stdio: "pipe" },
+        );
       } catch {
         throw new Error(
           `Failed to sparse-checkout path "${sourcePath}" in ${sourceUrl}`,
         );
       }
     }
-  } else if (sourcePath) {
-    // Repo already cloned — add this path to sparse checkout
-    try {
-      execSync(`git -C ${cloneDir} sparse-checkout add ${sourcePath}`, {
-        stdio: "pipe",
-      });
-    } catch {
-      throw new Error(
-        `Failed to sparse-checkout path "${sourcePath}" in ${sourceUrl}`,
-      );
+  } else {
+    // Every path read from this clone reports the commit it was cloned at.
+    // That's correct, not a shortcut: those paths were hashed at that commit.
+    commit = checkedOutCommit(cloneDir);
+    if (sourcePath) {
+      // Repo already cloned — add this path to sparse checkout
+      try {
+        execFileSync(
+          "git",
+          ["-C", cloneDir, "sparse-checkout", "add", sourcePath],
+          { stdio: "pipe" },
+        );
+      } catch {
+        throw new Error(
+          `Failed to sparse-checkout path "${sourcePath}" in ${sourceUrl}`,
+        );
+      }
     }
   }
 
-  return sourcePath ? resolve(cloneDir, sourcePath) : cloneDir;
+  const dir = sourcePath
+    ? resolveInsideRepo(cloneDir, sourcePath, "Skill path")
+    : cloneDir;
+  return { dir, commit };
 }
 
 export function fetchSkillMetadata(
   sourceUrl: string,
   sourcePath?: string,
   tmpDir?: string,
+  ref?: string,
 ): SkillMetadata {
   const dir = tmpDir ?? join(ROOT, ".tmp-skills");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
 
-  const skillDir = cloneSkillFolder(sourceUrl, sourcePath, dir);
+  const { dir: skillDir, commit } = cloneSkillFolder(
+    sourceUrl,
+    sourcePath,
+    dir,
+    ref,
+  );
   const skillMdPath = join(skillDir, "SKILL.md");
 
   if (!existsSync(skillMdPath)) {
@@ -153,6 +184,7 @@ export function fetchSkillMetadata(
     name: name || sourcePath?.split("/").pop() || "",
     description,
     contentHash,
+    commit,
   };
 }
 
@@ -164,12 +196,8 @@ export function isGlobPattern(path: string): boolean {
   return path === "*" || path.endsWith("/*");
 }
 
-function getCloneDir(sourceUrl: string, tmpDir: string): string {
-  const repoHash = createHash("sha256")
-    .update(sourceUrl)
-    .digest("hex")
-    .slice(0, 8);
-  return join(tmpDir, `skill-${repoHash}`);
+function getCloneDir(sourceUrl: string, tmpDir: string, ref?: string): string {
+  return join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
 }
 
 export function discoverSkillPaths(
@@ -228,11 +256,13 @@ export function discoverSkillPaths(
 
 function expandedEntry(template: SkillEntry, path: string): SkillEntry {
   const pathSuffix = path.split("/").pop()!;
+  const source: SkillEntry["source"] = { url: template.source.url, path };
+  if (template.source.ref !== undefined) source.ref = template.source.ref;
   return {
     skillId: `${template.skillId}/${pathSuffix}`,
     name: "",
     description: "",
-    source: { url: template.source.url, path },
+    source,
     contentHash: "",
     approvals: template.approvals.map((a) => ({ ...a })),
   };
@@ -247,6 +277,7 @@ export function resolveSkillPaths(
   sourceUrl: string,
   path: string | string[],
   tmpDir: string,
+  ref?: string,
 ): { resolved: string[]; warnings: string[] } {
   const rawPaths = typeof path === "string" ? [path] : path;
   const warnings: string[] = [];
@@ -256,9 +287,11 @@ export function resolveSkillPaths(
     return { resolved: [...rawPaths], warnings };
   }
 
-  // Clone repo (without sparse-checkout) for glob discovery
-  const cloneDir = getCloneDir(sourceUrl, tmpDir);
-  cloneSkillFolder(sourceUrl, undefined, tmpDir);
+  // Clone repo (without sparse-checkout) for glob discovery, at the
+  // requested ref — so a glob expands against the folders that exist there,
+  // not against whatever the default branch happens to have.
+  const cloneDir = getCloneDir(sourceUrl, tmpDir, ref);
+  cloneSkillFolder(sourceUrl, undefined, tmpDir, ref);
 
   const allPaths: string[] = [];
   for (const p of rawPaths) {
@@ -297,6 +330,7 @@ export function expandSkillEntry(
     source.url,
     source.path,
     tmpDir,
+    source.ref,
   );
   for (const w of warnings) {
     console.warn(`  WARNING: ${skillId} — ${w}`);
@@ -336,10 +370,16 @@ export function enrichSkillMetadata(skills: SkillEntry[]): SkillEntry[] {
       try {
         const path =
           typeof entry.source.path === "string" ? entry.source.path : undefined;
-        const metadata = fetchSkillMetadata(entry.source.url, path, tmpDir);
+        const metadata = fetchSkillMetadata(
+          entry.source.url,
+          path,
+          tmpDir,
+          entry.source.ref,
+        );
         entry.name = metadata.name;
         entry.description = metadata.description;
         entry.contentHash = metadata.contentHash;
+        entry.source = { ...entry.source, commit: metadata.commit };
         console.log(`  Enriched: ${entry.skillId}`);
         console.log(`    Name: ${metadata.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);

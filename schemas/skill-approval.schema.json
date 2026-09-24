@@ -40,6 +40,12 @@
             }
           ],
           "description": "Path(s) within the repository to skill folder(s). A single string for one skill, an array for multiple explicit paths, or a glob pattern ending with /* (e.g. \"skills/*\") to discover all skill folders containing SKILL.md under a prefix. Omit if the skill is at the repository root."
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "description": "Git ref (tag, branch name, or full commit SHA) to check out instead of the repository's default branch. Omit to always track the default branch. Restricted to safe git ref characters (no whitespace or shell metacharacters, since this value is passed to a git command during consolidation and can appear in a copy-paste install command on the website)."
         }
       }
     },

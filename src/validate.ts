@@ -69,7 +69,7 @@ export interface ApprovalEntry {
 export interface SkillApprovalData {
   skillId: string;
   date: string;
-  source: { url: string; path?: string | string[] };
+  source: { url: string; path?: string | string[]; ref?: string };
   installConfigs?: { tool: string; installUrl?: string }[];
 }
 
@@ -792,6 +792,7 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
             data.source.url,
             path,
             tmpDir,
+            data.source.ref,
           );
           for (const w of warnings) {
             console.warn(`  WARNING: ${file} — ${w}`);
@@ -805,6 +806,7 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
               data.source.url,
               singlePath,
               tmpDir,
+              data.source.ref,
             );
             const label = singlePath ? `${file} (${singlePath})` : file;
             console.log(`  PASS: ${label}`);

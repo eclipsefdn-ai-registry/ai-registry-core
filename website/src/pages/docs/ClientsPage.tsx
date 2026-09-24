@@ -95,22 +95,28 @@ export function ClientsPage() {
           </li>
           <li className="leading-relaxed">
             Skills and plugins carry a content hash of their source as of the
-            last consolidation run. Skill sources are referenced by repository
-            URL and path with no commit pin, so the hash is the only pin
-            available. Plugin sources can additionally carry an optional{" "}
-            <InlineCode>source.ref</InlineCode> (a git tag or branch) pinning a
-            specific revision instead of tracking the default branch.
+            last consolidation run, and <InlineCode>source.commit</InlineCode>,
+            the commit that run checked out and hashed. Both can also carry an
+            optional <InlineCode>source.ref</InlineCode> (a git tag, branch, or
+            full commit SHA) naming the revision the organization approved
+            instead of the default branch. The ref says what was approved and
+            the commit says what was hashed, so fetch{" "}
+            <InlineCode>source.commit</InlineCode> to verify the hash. With no{" "}
+            <InlineCode>source.ref</InlineCode>, the approval follows the
+            default branch and <InlineCode>source.commit</InlineCode> moves with
+            it on every run.
           </li>
           <li className="leading-relaxed">
             Agents carry a content hash too, but of a single fetched Agent Card
             JSON file, not a directory — there is no path to pin.
           </li>
           <li className="leading-relaxed">
-            Sandbox extensions carry a content hash of their directory, and are
-            the one type where an approval can name a specific revision:{" "}
-            <InlineCode>source.ref</InlineCode> holds a git tag or branch when
-            the organization approved one. A branch is still a moving target, so
-            read the ref rather than treating its presence as a pin.
+            Sandbox extensions carry a content hash of their directory and a{" "}
+            <InlineCode>source.commit</InlineCode> the same way, and can also
+            name a specific revision: <InlineCode>source.ref</InlineCode> holds
+            a git tag or branch when the organization approved one. A branch is
+            still a moving target, so read the ref rather than treating its
+            presence as a pin.
           </li>
           <li className="leading-relaxed">
             Withdrawing an approval removes the entry from the feed, but so does
@@ -298,8 +304,12 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           The registry points at a skill's source; it does not host it. Install
           means downloading <InlineCode>source.path</InlineCode> from{" "}
-          <InlineCode>source.url</InlineCode> into wherever your tool keeps
-          skills.
+          <InlineCode>source.url</InlineCode> at{" "}
+          <InlineCode>source.commit</InlineCode> into wherever your tool keeps
+          skills. <InlineCode>source.ref</InlineCode>, where set, is the
+          revision the organization approved. With no{" "}
+          <InlineCode>source.ref</InlineCode>, the default branch is what was
+          approved and what a later update will follow.
         </p>
         <InfoCallout>
           <strong>
@@ -309,16 +319,24 @@ export function ClientsPage() {
           Recompute the hash over the downloaded tree and compare.
         </InfoCallout>
         <p className="mt-3 mb-3 leading-relaxed">
-          On a mismatch, tell the user the source has changed since the
-          organization approved it, name the organization and the date, and let
-          them install anyway with an explicit choice. For a skill, or a plugin
-          with no <InlineCode>source.ref</InlineCode>, a mismatch is expected
-          for up to a day after any upstream commit, because consolidation runs
-          daily and the source has no commit pin — this transient case doesn't
-          apply to a plugin with a pinned ref, where a mismatch means the pinned
-          revision's own content changed and won't resolve on its own. Either
-          way it's also what a compromised source looks like, and the user is
-          the one who gets to weigh that.
+          Fetch at <InlineCode>source.commit</InlineCode>, not at the branch or
+          tag it came from. It is published on every skill and plugin, pinned or
+          not, and a tree fetched there should match{" "}
+          <InlineCode>contentHash</InlineCode> exactly, so a mismatch at that
+          commit is never upstream drift: the source is serving something other
+          than what was hashed, or your hash implementation disagrees with the
+          reference. If the commit can't be fetched, because history was
+          rewritten or the host won't serve a bare SHA, fall back to{" "}
+          <InlineCode>source.ref</InlineCode> or the default branch, where a
+          mismatch is expected for up to a day after an upstream commit on a
+          branch, since consolidation runs daily.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          On a mismatch you can't explain that way, tell the user the source has
+          changed since the organization approved it, name the organization and
+          the date, and let them install anyway with an explicit choice. It's
+          also what a compromised source looks like, and the user is the one who
+          gets to weigh that.
         </p>
         <p className="mb-3 leading-relaxed">
           Record the hash you computed, not the one from the feed. The recorded
@@ -353,10 +371,12 @@ export function ClientsPage() {
         </p>
         <InfoCallout>
           <strong>Install the plugin whole.</strong> Download the plugin
-          directory into a root of your choosing, keyed by <code>pluginId</code>
-          , and load its skills and MCP servers from inside that root. Do not
-          extract components into your shared skills directory or merge its
-          servers into your global MCP configuration.
+          directory at <code>source.commit</code>, verify it against{" "}
+          <code>contentHash</code> as for a skill, and place it in a root of
+          your choosing, keyed by <code>pluginId</code>, and load its skills and
+          MCP servers from inside that root. Do not extract components into your
+          shared skills directory or merge its servers into your global MCP
+          configuration.
         </InfoCallout>
         <p className="mt-3 mb-3 leading-relaxed">
           The plugin root is a boundary that agent-plugins.org builds on: files
@@ -515,11 +535,13 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           Install means downloading <InlineCode>source.path</InlineCode> from{" "}
           <InlineCode>source.url</InlineCode> at{" "}
-          <InlineCode>source.ref</InlineCode> where one is set, verifying it
-          against <InlineCode>contentHash</InlineCode> as you would a skill, and
-          placing it where your sandbox host keeps extensions. With no{" "}
-          <InlineCode>source.ref</InlineCode>, the default branch is what was
-          approved and what a later update will follow.
+          <InlineCode>source.commit</InlineCode>, verifying it against{" "}
+          <InlineCode>contentHash</InlineCode> as you would a skill, and placing
+          it where your sandbox host keeps extensions.{" "}
+          <InlineCode>source.ref</InlineCode>, where set, is the revision the
+          organization approved. With no <InlineCode>source.ref</InlineCode>,
+          the default branch is what was approved and what a later update will
+          follow.
         </p>
       </DocsSection>
 
@@ -605,8 +627,11 @@ export function ClientsPage() {
           The hash published as <InlineCode>contentHash</InlineCode> for skills,
           plugins, and sandbox extensions. Reproduce it byte for byte or
           comparisons are meaningless. Consolidation computes it over the skill
-          folder, the plugin directory, or the extension directory, using the
-          same algorithm for all three.
+          folder, the plugin directory, or the extension directory, checked out
+          at the commit published next to it as{" "}
+          <InlineCode>source.commit</InlineCode>, using the same algorithm for
+          all three. Hash a tree fetched at any other commit and a mismatch
+          tells you nothing.
         </p>
         <ol className="mb-3 space-y-2 text-sm list-decimal pl-5">
           <li className="leading-relaxed">
@@ -754,6 +779,7 @@ export function ClientsPage() {
             "Ignore fields you do not recognise rather than rejecting the document",
             "Pick an install config by date descending, organizationId ascending",
             "Verify contentHash before installing anything that has one, and let the user override an explicit mismatch warning",
+            "Download skills, plugins, and sandbox extensions at source.commit, so a hash mismatch means changed content rather than a newer commit",
             "Record provenance for everything you install, and never overwrite what you did not",
             "Offer adoption when a local slot is already occupied",
             "Install plugins whole, keyed by pluginId, and load from inside the plugin root",

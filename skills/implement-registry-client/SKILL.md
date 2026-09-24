@@ -22,9 +22,9 @@ It does not test, audit, sandbox, or certify anything. Endorsement is per organi
 Five limits shape everything below:
 
 - MCP servers are described by configuration, not by content. The registry publishes the command or URL to run. Nothing in the feed covers the server's code, and that code can change under a stable command at any time.
-- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push. Skill sources are referenced by repository URL and path with no commit pin, so the hash is the only pin available. Plugin sources can additionally carry an optional `source.ref` (a git tag or branch) pinning a specific revision instead of tracking the default branch — check for it before cloning, and clone that ref rather than HEAD.
+- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push, and `source.commit`, the commit that run checked out and hashed. Both can also carry an optional `source.ref` (a git tag, branch, or full commit SHA) naming the revision the organization endorsed instead of the default branch. The ref says what was endorsed and the commit says what was hashed, so fetch `source.commit` to verify the hash. With no `source.ref`, the endorsement follows the default branch and `source.commit` moves with it on every run.
 - Agents carry a content hash too, but of a single fetched Agent Card JSON file, not a directory — there is no path to pin.
-- Sandbox extensions carry a content hash of their directory, and are the one type where the approval itself can name a revision: `source.ref` holds a git tag or branch when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
+- Sandbox extensions carry a content hash of their directory and a `source.commit` the same way, and can also name a revision: `source.ref` holds a git tag or branch when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
 - Withdrawing an endorsement removes the entry from the feed, but so does a source that was briefly unreachable when consolidation ran. Nothing in the data separates the two, so there is no revocation signal a client can act on. See [Disappearing entries](#disappearing-entries).
 
 ## The data
@@ -136,7 +136,7 @@ The registry publishes configuration. Install means writing that configuration w
 
 ## Agent Skills
 
-The registry points at a skill's source; it does not host it. Install means downloading `source.path` from `source.url` into wherever your tool keeps skills.
+The registry points at a skill's source; it does not host it. Install means downloading `source.path` from `source.url` at `source.commit` into wherever your tool keeps skills. `source.ref`, where set, is the revision the organization endorsed. With no `source.ref`, the default branch is what was endorsed and what a later update will follow.
 
 ```json
 {
@@ -145,7 +145,8 @@ The registry points at a skill's source; it does not host it. Install means down
   "description": "Review code changes for correctness.",
   "source": {
     "url": "https://github.com/anthropics/skills.git",
-    "path": "skills/code-review"
+    "path": "skills/code-review",
+    "commit": "3f9a1c07d2b84e6a5c1f0e9d8b7a6c5d4e3f2a1b"
   },
   "contentHash": "7c1e4b9d02af",
   "approvals": [
@@ -160,7 +161,9 @@ The registry points at a skill's source; it does not host it. Install means down
 
 **Verify what you downloaded against `contentHash` before installing.** Recompute the hash over the downloaded tree using the algorithm in [`references/content-hash.md`](references/content-hash.md) and compare.
 
-On a mismatch, tell the user the source has changed since the organization endorsed it, name the organization and the date, and let them install anyway with an explicit choice. For a skill, or a plugin with no `source.ref`, a mismatch is expected for up to a day after any upstream commit, because consolidation runs daily and the source has no commit pin — this transient case doesn't apply to a plugin with a pinned `ref`, where a mismatch means the pinned revision's content itself changed (a force-push, or the tag was moved) and won't resolve on its own. Either way it's also what a compromised source looks like, and the user is the one who gets to weigh that.
+Fetch at `source.commit`, not at the branch or tag it came from. It is published on every skill and plugin, pinned or not, and a tree fetched there should match `contentHash` exactly, so a mismatch at that commit is never upstream drift: the source is serving something other than what was hashed, or your hash implementation disagrees with the reference. If the commit can't be fetched, because history was rewritten or the host won't serve a bare SHA, fall back to `source.ref` or the default branch, where a mismatch is expected for up to a day after an upstream commit on a branch, since consolidation runs daily.
+
+On a mismatch you can't explain that way, tell the user the source has changed since the organization endorsed it, name the organization and the date, and let them install anyway with an explicit choice. It's also what a compromised source looks like, and the user is the one who gets to weigh that.
 
 Record the hash you computed, not the one from the feed. The recorded hash is the baseline for drift detection, and a baseline the local content never matched detects nothing.
 
@@ -176,7 +179,8 @@ An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.js
   "name": "BigQuery Data Analytics",
   "version": "1.2.0",
   "source": {
-    "url": "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git"
+    "url": "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+    "commit": "8c2e4f6a0b1d3c5e7f9a2b4c6d8e0f1a3b5c7d9e"
   },
   "contentHash": "5b8ad3f0e174",
   "containedSkills": [
@@ -205,7 +209,7 @@ The plugin root is a boundary that agent-plugins.org builds on. Files must resol
 
 Keeping plugins whole also means plugins and standalone artifacts coexist. The same skill can appear twice in a client, once on its own and once inside a plugin, with different endorsements and different content. That is not a duplicate to merge, and merging them would assert an equivalence the registry never published.
 
-Verify `contentHash` over the downloaded plugin directory exactly as for skills, using the same algorithm.
+Download at `source.commit` and verify `contentHash` over the plugin directory exactly as for skills, using the same algorithm.
 
 ### Where the registry stops
 
@@ -263,7 +267,8 @@ A sandbox extension configures an agent sandbox: the container an agent runs ins
   "source": {
     "url": "https://github.com/eclipse-enclave/enclave-extensions.git",
     "path": "tools/openclaw",
-    "ref": "v1.2.0"
+    "ref": "v1.2.0",
+    "commit": "b7d9f1a3c5e7092b4d6f8a0c2e4f6a8b0d2c4e6f"
   },
   "contentHash": "9f2c1ba7d340",
   "approvals": [{ "organizationId": "example-org", "date": "2026-09-09" }]
@@ -280,7 +285,7 @@ The registry does not publish those capabilities today, and the description is n
 - Approvals carry no `installConfigs` — nothing about installing an extension is tool-specific — so sandbox extensions appear in `orgs/<org-id>.json` but never in `tools/<tool-id>.json`.
 - The registry publishes only extensions found at `tools/<name>/` and `features/<name>/` in a repository root. A host may accept other layouts; an endorsement here never covers one.
 
-Install means downloading `source.path` from `source.url` at `source.ref` where one is set, verifying it against `contentHash` exactly as for a skill, and placing it where your sandbox host keeps extensions. With no `source.ref`, the default branch is what was endorsed and what a later update will follow.
+Install means downloading `source.path` from `source.url` at `source.commit`, verifying it against `contentHash` exactly as for a skill, and placing it where your sandbox host keeps extensions. `source.ref`, where set, is the revision the organization endorsed. With no `source.ref`, the default branch is what was endorsed and what a later update will follow.
 
 ## Disappearing entries
 
@@ -307,6 +312,7 @@ Removing artifacts automatically deletes working installations whenever a source
 - [ ] Ignore fields you do not recognise rather than rejecting the document
 - [ ] Pick an install config by `date` descending and `organizationId` ascending
 - [ ] Verify `contentHash` before installing anything that has one, and let the user override an explicit mismatch warning
+- [ ] Download skills, plugins, and sandbox extensions at `source.commit`, so a hash mismatch means changed content rather than a newer commit
 - [ ] Record provenance for everything you install, and never overwrite what you did not
 - [ ] Offer adoption when a local slot is already occupied
 - [ ] Install plugins whole, keyed by `pluginId`, and load from inside the plugin root
