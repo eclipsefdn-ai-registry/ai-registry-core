@@ -160,7 +160,10 @@
     "githubOrgs": ["atlassian"],
     "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": ["com.atlassian/atlassian-mcp-server", "com.atlassian/trello-mcp-server"]
+      "mcpServers": [
+        "com.atlassian/atlassian-mcp-server",
+        "com.atlassian/trello-mcp-server"
+      ]
     },
     "rejected": []
   },
@@ -205,7 +208,10 @@
     "githubOrgs": ["NVIDIA"],
     "lastChecked": "2026-09-18",
     "knownSources": {
-      "mcpServers": ["com.nvidia.ngc.nsight.copilot.api/cuda-docs", "io.github.NVIDIA/elements"]
+      "mcpServers": [
+        "com.nvidia.ngc.nsight.copilot.api/cuda-docs",
+        "io.github.NVIDIA/elements"
+      ]
     },
     "rejected": [
       {

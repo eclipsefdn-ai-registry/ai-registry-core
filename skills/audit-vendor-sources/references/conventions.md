@@ -1,12 +1,12 @@
 # Vendor Audit — Shared Conventions
 
-Shared scaffolding for the recurring weekly discovery audits — one per artifact-type family:
-`audit-agent-plugin-sources` (Agent Plugins + marketplaces), `audit-skill-sources` (Agent Skills),
-`audit-mcp-server-sources` (MCP servers). Each of those SKILL.md files covers only what's
-type-specific (what to search for, how to filter false positives, what approval file to write);
-everything else lives here so the three don't drift independently. Each skill's own directory
-still keeps its own `known-vendor-sources.json` — they are not shared, since a rejection in one
-audit says nothing about approvability in another.
+Shared scaffolding for the three research passes `SKILL.md` dispatches — plugin/marketplace
+(`plugin-audit.md`), skill (`skill-audit.md`), MCP server (`mcp-audit.md`). Each of those files
+covers only what's type-specific (what to search for, how to filter false positives, what approval
+file to write); everything else lives here so the three don't drift independently. Each research
+pass still keeps its own cache file under `cache/` (`cache/plugin-sources.json`,
+`cache/skill-sources.json`, `cache/mcp-sources.json`) — they are not shared, since a rejection in
+one pass says nothing about approvability in another.
 
 ## Repo hygiene
 
@@ -27,9 +27,9 @@ makes that explicit ask possible, not a replacement for it.
 
 ## Determining GitHub search targets (plugins, skills)
 
-For the two audits whose primary discovery method is a `gh api search/code` pass over known orgs
-(plugins, skills — MCP's _primary_ path is registry search instead, though it still runs a
-supplementary, narrower GitHub code search): the set of GitHub orgs to search is the union of the
+For the two research passes whose primary discovery method is a `gh api search/code` pass over
+known orgs (plugins, skills — MCP's _primary_ path is registry search instead, though it still runs
+a supplementary, narrower GitHub code search): the set of GitHub orgs to search is the union of the
 cache's `githubOrgs` for this vendor, orgs implied by this vendor's existing approvals'
 `source.url`, and — only if the cache has nothing yet for this vendor — one round of discovery:
 does a GitHub org literally named after the vendor id exist, and is it verified?
@@ -38,8 +38,9 @@ does a GitHub org literally named after the vendor id exist, and is it verified?
 
 - Stage findings on a new branch, only if there's at least one finding for that vendor: branch off
   `main`, named `<type>-audit-<YYYY-MM-DD>` (e.g. `plugin-audit-2026-09-11`,
-  `skill-audit-2026-09-11`, `mcp-audit-2026-09-11` — distinct prefixes so the three audits can run
-  the same week without colliding on one branch name in the same vendor repo).
+  `skill-audit-2026-09-11`, `mcp-audit-2026-09-11` — distinct prefixes so a scoped run doesn't
+  collide with a full run's branch name in the same vendor repo the same week; a full-scope run
+  uses `vendor-audit-<date>` per `SKILL.md`'s own convention).
 - **Exactly one commit per vendor per run, even after later fixes/reverts during the same
   session** — amend (or `reset --soft` + recommit) rather than stacking follow-up commits, so the
   branch always ends in a single clean commit before anyone pushes. Never `git commit --amend` or
@@ -58,7 +59,7 @@ does a GitHub org literally named after the vendor id exist, and is it verified?
   that doesn't PASS gets dropped from the branch and moved to the reject pile with the validation
   error as the reason, not silently retried.
 
-## `known-vendor-sources.json` shape
+## Cache file shape (`cache/plugin-sources.json`, `cache/skill-sources.json`, `cache/mcp-sources.json`)
 
 ```json
 {
@@ -84,8 +85,9 @@ does a GitHub org literally named after the vendor id exist, and is it verified?
 ```
 
 Keys match `vendors.json` ids. A vendor with no entry yet has never been researched by that
-particular audit — treat that as "discover from scratch," not an error. `unsupportedHost` is only
-meaningful for git-hosted artifact types (plugins, skills) — see the non-GitHub gap note below.
+particular research pass — treat that as "discover from scratch," not an error. `unsupportedHost`
+is only meaningful for git-hosted artifact types (plugins, skills) — see the non-GitHub gap note
+below.
 
 **`knownSources` is authoritative for dedup, not just what's literally on `main`.** A previous
 run's findings can be sitting on an unmerged, unpushed-or-pushed-but-not-yet-reviewed feature
@@ -137,6 +139,7 @@ found nothing" rather than silently meaning "not checked."
 **GitLab-hosted vendors have a working `gh api search/code` substitute — use it as the primary
 method, not WebSearch.** The GitLab REST API is usable unauthenticated for public groups (proven
 2026-09-18 against `gitlab.eclipse.org/eclipse-research-labs/mosaico-project`):
+
 1. `GET /api/v4/groups/<url-encoded-group-path>/projects?per_page=100&include_subgroups=true`
    enumerates every repo in a vendor's group/org, including subgroups.
 2. `GET /api/v4/projects/<url-encoded-path>/repository/tree?recursive=true&per_page=100`
@@ -166,11 +169,12 @@ Before finishing, explicitly check whether this run taught you anything that wou
 run faster or more accurate, and act on it now, not "if it comes up":
 
 - Routine per-vendor learnings (a confirmed org, a rejected source, a host quirk) always go into
-  that skill's `known-vendor-sources.json` — already mandatory as part of the per-vendor loop.
-- Process-level learnings go into that skill's own `SKILL.md` (not this shared file, unless the
-  learning is generic across all three audits): a search phrasing that reliably surfaced real hits
-  this run, a new false-positive class worth excluding by default, a new format worth naming, or a
-  faster way to recognize an already-covered candidate.
+  that pass's own cache file under `cache/` — already mandatory as part of the per-vendor loop.
+- Process-level learnings go into the relevant reference file (`plugin-audit.md`, `skill-audit.md`,
+  or `mcp-audit.md`) — not this shared file, unless the learning is generic across all covered
+  scopes: a search phrasing that reliably surfaced real hits this run, a new false-positive class
+  worth excluding by default, a new format worth naming, or a faster way to recognize an
+  already-covered candidate.
 - If this run genuinely surfaced nothing that generalizes beyond the vendors involved, say so
   explicitly in the report ("no process update this run") rather than silently skipping the check
   — the check itself must happen every time, even when it concludes "nothing to change."
@@ -183,8 +187,8 @@ run faster or more accurate, and act on it now, not "if it comes up":
   on, don't stash or discard someone else's in-progress work.
 - Bounded per vendor: a handful of searches, not a crawl. Missing something this week is fine;
   inventing a false positive is not.
-- **Always default to conservative.** An entry is approvable only when it's *both* clearly
-  user/customer-facing *and* its source is 100% confirmed (ownership verified, and — for skills —
+- **Always default to conservative.** An entry is approvable only when it's _both_ clearly
+  user/customer-facing _and_ its source is 100% confirmed (ownership verified, and — for skills —
   the actual body read, not inferred from frontmatter or a folder name). When a batch (a glob, an
   array, a marketplace, a catalog page) is a mix, **narrow the approval to only the individually
   confirmed subset** — via an explicit path array, not the original glob — rather than

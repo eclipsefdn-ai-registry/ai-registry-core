@@ -1,43 +1,29 @@
----
-name: audit-mcp-server-sources
-description: >
-  Weekly discovery sweep across every AI Registry vendor for newly published MCP servers (both
-  registry-listed and self-published) that aren't approved yet, verified as genuinely
-  vendor-published, staged as a local feature branch per vendor repo (never pushed). Use when
-  running the recurring MCP server audit, or when asked to check registry vendors for new MCP
-  servers to approve.
----
+# MCP Server Research Pass
 
-# AI Registry — MCP Server Source Audit
-
-Recurring (intended: weekly) research pass over every vendor already in the registry, looking for
-MCP servers the vendor has published since the last run. This is discovery, not onboarding — it
-only touches vendors already listed in `vendors.json`; use `create-inferred-vendor` to add a
-brand-new vendor.
+Research pass looking for MCP servers (both registry-listed and self-published) a vendor has
+published since the last run, verified as genuinely vendor-published, staged as a local feature
+branch per vendor repo (never pushed). Read `conventions.md` first — it covers repo hygiene,
+branching/commit/validate, the cache file shape, the verification checklist, and the self-update
+rule, shared across all three research passes (its non-GitHub-host gap note does not apply here —
+see below for the MCP-specific equivalent). This file only covers what's specific to MCP servers.
+Also read `create-mcp-approval` for the approval file format this pass produces, and
+`create-inferred-vendor`'s "MCP servers — check both paths" section for the
+registry-listed-vs-self-published distinction this pass leans on.
 
 Unlike plugins and skills, MCP servers aren't discovered by scanning git repos for a manifest
 filename — there is no fixed `mcp.json`/`SKILL.md`-style file convention to code-search for. The
 canonical discovery path is the **official MCP registry** first, WebSearch second, for servers the
 vendor publishes without ever registering.
 
-**REQUIRED BACKGROUND:** Read `skills/vendor-audit-conventions.md` in this repo first — it covers
-repo hygiene, branching/commit/validate, the cache file shape, the verification checklist, and the
-self-update rule, shared across all three vendor-audit skills (its non-GitHub-host gap note does
-not apply here — see below for the MCP-specific equivalent). This file only covers what's specific
-to MCP servers. Also read `create-mcp-approval` for the approval file format this skill produces,
-and `create-inferred-vendor`'s "MCP servers — check both paths" section for the
-registry-listed-vs-self-published distinction this audit leans on.
-
 ## Workflow
 
-1. **Load the cache** — read `known-vendor-sources.json` in this skill's directory. For each
-   vendor: known GitHub orgs (for the self-published-search fallback), sources already approved
-   (skip these), and previously rejected candidates (skip re-verifying unless `lastChecked` is
-   more than ~90 days old).
+1. **Load the cache** — read `cache/mcp-sources.json`. For each vendor: known GitHub orgs (for the
+   self-published-search fallback), sources already approved (skip these), and previously rejected
+   candidates (skip re-verifying unless `lastChecked` is more than ~90 days old).
 2. **For each vendor in `vendors.json`** (parallelizable — dispatch one subagent per vendor for
    the research step, since vendors are fully independent; keep branch/commit work in the
    dispatching thread so git state stays predictable), do the following:
-   - **Get a clean local repo and read current state** — per `vendor-audit-conventions.md`. Read
+   - **Get a clean local repo and read current state** — per `conventions.md`. Read
      `organization.json` and every `mcp/*.json`. Build the set of already-approved `serverId`s
      (registry-listed) and self-published server identities (by `config`/`metadata`, since a
      self-published entry has no `serverId` to key off of the same way) so you never re-suggest
@@ -72,13 +58,13 @@ registry-listed-vs-self-published distinction this audit leans on.
        `com.gitlab.<group>/<name>` plugin-id convention for non-GitHub hosts.
      - A repo literally named `<vendor>-registry`/`<vendor>-catalog`/`mcp-registry` (e.g.
        `docker/mcp-registry`) needs the same open-submission check marketplace files get in the
-       plugin audit — read its README before treating any listed entry as vendor-authored; an
+       plugin pass — read its README before treating any listed entry as vendor-authored; an
        aggregator that accepts community PRs for third-party servers isn't a single self-published
        vendor server and doesn't fit the marketplace schema either.
      - Exclude a candidate that is a **framework/SDK building block** for embedding MCP-server
        capability into a downstream product, rather than a standalone artifact with a fixed,
        connectable config (no fixed command/serverUrl — availability is per-deployment). Example:
-       `@theia/ai-mcp-server` lets *other* Theia-based applications expose an MCP endpoint at a
+       `@theia/ai-mcp-server` lets _other_ Theia-based applications expose an MCP endpoint at a
        deployment-specific port; it isn't itself an installable server. Same exclusion class as
        `.claude-plugin/`-style tool-specific manifests for plugins/skills.
    - **Drop anything already approved** (registry-listed `serverId` match, or a self-published
@@ -87,20 +73,19 @@ registry-listed-vs-self-published distinction this audit leans on.
    - **Drop anything already covered by an approved (or marketplace-fanned-out) Agent Plugin's
      `mcp.json`.** Per `AGENTS.md`, a plugin's bundled MCP servers are surfaced as read-only
      `containedMcpServers` metadata through the plugin approval, not as separate standalone MCP
-     entries — same principle as `audit-skill-sources`' equivalent rule for a plugin's
+     entries — same principle as the skill research pass's equivalent rule for a plugin's
      `containedSkills`. Cross-check candidates against this vendor's `plugins/*.json` (and any
      fanned-out marketplace entries) before treating a plugin-bundled MCP server as a new finding.
      This applies even when the containing plugin isn't agent-plugins.org-approvable — a
      Claude Code-native plugin bundle's `.mcp.json` (a `.claude-plugin/plugin.json` sibling) is
      still tool-packaging detail, not a standalone self-published server, for the same reason a
      Claude Code-native plugin's `SKILL.md` files aren't standalone skills.
-   - **Verify every remaining candidate** against `vendor-audit-conventions.md`'s checklist, plus:
-     only treat a self-published candidate as the vendor's own if the vendor is the actual
-     publisher/maintainer (confirmed via the checklist), never merely a recommended or bundled
-     third-party server — this maps directly to `selfPublished: true` in the approval, which is
-     exactly the field that makes that claim. Anything that doesn't clearly clear the bar goes to
-     the reject pile with a one-line reason; it does not become an approval, and does not get
-     asked about.
+   - **Verify every remaining candidate** against `conventions.md`'s checklist, plus: only treat a
+     self-published candidate as the vendor's own if the vendor is the actual publisher/maintainer
+     (confirmed via the checklist), never merely a recommended or bundled third-party server —
+     this maps directly to `selfPublished: true` in the approval, which is exactly the field that
+     makes that claim. Anything that doesn't clearly clear the bar goes to the reject pile with a
+     one-line reason; it does not become an approval, and does not get asked about.
    - **A GitHub-hosted server's repo being archived is a separate check from ownership/authorship
      and the checklist above doesn't cover it** — `gh api repos/<owner>/<repo>` and check
      `"archived"`. A server can still be genuinely vendor-owned, registry-listed, and even
@@ -114,16 +99,16 @@ registry-listed-vs-self-published distinction this audit leans on.
      `src/anthropic-registry.ts`) never pulls connection info (`packages`/`remotes`), so a bare
      registry-listed entry genuinely has no connection instructions surfaced anywhere by default.
      For a self-published server, write `mcp/<serverId>.json` with `metadata: { name, description
-     }`, a `config` (`GenericMcpConfig`) built from the vendor's own published connection
+}`, a `config` (`GenericMcpConfig`) built from the vendor's own published connection
      instructions, and `selfPublished: true` — see `com.jetbrains/mcp-server` in
      `ai-registry-jetbrains/mcp/` for a worked example. **Before marking a candidate
      `selfPublished` instead of registry-listed, confirm it's actually absent from the registry**
      with a direct check (`curl
-     "https://registry.modelcontextprotocol.io/v0.1/servers/<url-encoded-serverId>/versions"` — a
+"https://registry.modelcontextprotocol.io/v0.1/servers/<url-encoded-serverId>/versions"` — a
      404 confirms it; don't just assume from an earlier search not surfacing it). Create the `mcp/`
      directory first if the vendor repo has no prior MCP approvals. Branch, commit, and validate
-     per `vendor-audit-conventions.md`. A registry-not-found WARNING during validation is expected
-     and fine for a still-propagating registry entry; any ERROR is not — drop and reject on ERROR.
+     per `conventions.md`. A registry-not-found WARNING during validation is expected and fine for
+     a still-propagating registry entry; any ERROR is not — drop and reject on ERROR.
    - **Check the vendor's own maturity label (GA / Preview / Beta / Developer Preview / etc.) when
      their docs distinguish one** — the schema has no field to carry that distinction through to
      the website, so an early-access entry shows up looking identical to a GA one. Not
@@ -140,7 +125,7 @@ registry-listed-vs-self-published distinction this audit leans on.
      `aws.api.us-east-1.eks-mcp/server` list only a bare `uvx mcp-proxy-for-aws <url>` positional
      invocation, but AWS's own getting-started pages (`docs.aws.amazon.com/.../ecs-mcp-getting-started.html`,
      `.../eks-mcp-getting-started.html`) show every example additionally requires a `--service
-     <name>` flag with no default — omitted, the config silently doesn't work. Caught 2026-09-20/21
+<name>` flag with no default — omitted, the config silently doesn't work. Caught 2026-09-20/21
      only by fetching the vendor's live docs, not from the registry data.
    - **A region embedded in a `serverId` (e.g. `aws.api.us-east-1.ecs-mcp/server`) does not by
      itself mean the region should be hardcoded in the config.** Check whether the vendor's own
@@ -160,11 +145,11 @@ registry-listed-vs-self-published distinction this audit leans on.
    - **Update the vendor's cache entry** — confirmed `githubOrgs`, `lastChecked` = today, newly
      approved sources appended to `knownSources.mcpServers`, new rejections appended with reason
      and date.
-3. **Write back `known-vendor-sources.json`** with all vendor updates from the previous step.
+3. **Write back `cache/mcp-sources.json`** with all vendor updates from the previous step.
 4. **Report a summary**: per vendor — branch created (if any) and files added, candidates
    rejected and why, or "nothing new" / "skipped: dirty working tree". This is a staged proposal;
    pushing and opening PRs is a separate, human decision.
-5. **Self-update** — per `vendor-audit-conventions.md`'s rule, every run, no exceptions.
+5. **Self-update** — per `conventions.md`'s rule, every run, no exceptions.
 
 ## MCP-specific gap: unreachable self-published servers
 

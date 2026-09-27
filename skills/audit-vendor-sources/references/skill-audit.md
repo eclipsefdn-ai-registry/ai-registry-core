@@ -1,47 +1,34 @@
----
-name: audit-skill-sources
-description: >
-  Weekly discovery sweep across every AI Registry vendor for newly published Agent Skills
-  (agentskills.io SKILL.md folders) that aren't approved yet, verified as genuinely
-  vendor-published, staged as a local feature branch per vendor repo (never pushed). Use when
-  running the recurring skill audit, or when asked to check registry vendors for new skills to
-  approve.
----
+# Agent Skill Research Pass
 
-# AI Registry — Agent Skill Source Audit
-
-Recurring (intended: weekly) research pass over every vendor already in the registry, looking for
-Agent Skills the vendor has published since the last run. This is discovery, not onboarding — it
-only touches vendors already listed in `vendors.json`; use `create-inferred-vendor` to add a
-brand-new vendor.
+Research pass looking for Agent Skills (agentskills.io `SKILL.md` folders) a vendor has published
+since the last run, verified as genuinely vendor-published, staged as a local feature branch per
+vendor repo (never pushed). Read `conventions.md` first — it covers repo hygiene,
+branching/commit/validate, the cache file shape, the verification checklist, the self-update rule,
+and the non-GitHub-host gap, shared across all three research passes. This file only covers what's
+specific to skills. Also read `create-skill-approval` for the approval file format this pass
+produces.
 
 This is a genuine internet research pass per vendor (WebSearch/WebFetch, plus GitHub code search
 where it applies) — not a search confined to a repo you already know about. Bounded effort is the
 point, though: this runs weekly, so a missed finding this week is caught next week.
 
-**REQUIRED BACKGROUND:** Read `skills/vendor-audit-conventions.md` in this repo first — it covers
-repo hygiene, branching/commit/validate, the cache file shape, the verification checklist, the
-self-update rule, and the non-GitHub-host gap, shared across all three vendor-audit skills. This
-file only covers what's specific to skills. Also read `create-skill-approval` for the approval
-file format this skill produces.
-
 ## Workflow
 
-1. **Load the cache** — read `known-vendor-sources.json` in this skill's directory. For each
-   vendor: known GitHub orgs to search, sources already approved (skip these), and previously
-   rejected candidates (skip re-verifying unless `lastChecked` is more than ~90 days old).
+1. **Load the cache** — read `cache/skill-sources.json`. For each vendor: known GitHub orgs to
+   search, sources already approved (skip these), and previously rejected candidates (skip
+   re-verifying unless `lastChecked` is more than ~90 days old).
 2. **For each vendor in `vendors.json`** (parallelizable — dispatch one subagent per vendor for
    the research step, since vendors are fully independent; keep branch/commit work in the
    dispatching thread so git state stays predictable), do the following:
-   - **Get a clean local repo and read current state** — per `vendor-audit-conventions.md`. Read
+   - **Get a clean local repo and read current state** — per `conventions.md`. Read
      `organization.json` and every `skills/*.json`. A skill approval's `source.path` can be a
      single string, a glob (`"skills/*"`), or an array mixing both — to know what's "already
      covered," you have to actually resolve those against the source repo's current folder
      listing (or a recent clone of it), not just string-compare paths. A candidate that already
      falls under an approved glob/array is covered even though no approval file names it
      literally.
-   - **Determine search targets** — per `vendor-audit-conventions.md`'s "Determining GitHub
-     search targets" section.
+   - **Determine search targets** — per `conventions.md`'s "Determining GitHub search targets"
+     section.
    - **Search the internet, bounded** (aim for ≤6 queries/vendor total across all of the below —
      enough to be thorough, not to crawl every corner of the web):
      - WebSearch for the vendor name plus `SKILL.md agent skill`, and separately plus Agent
@@ -51,7 +38,7 @@ file format this skill produces.
        announce a skills repo before or instead of a discoverable code-search hit.
      - `gh api search/code -f q='filename:SKILL.md org:<org>'` per known GitHub org — a precise
        supplement to the web search above, not a replacement for it. Only reaches github.com; see
-       `vendor-audit-conventions.md`'s non-GitHub gap note for other hosts.
+       `conventions.md`'s non-GitHub gap note for other hosts.
      - A candidate found this way that names a GitHub org you didn't have cached yet is itself a
        result — add it to `githubOrgs` in the cache-update step below so next week's code-search
        pass starts from it directly.
@@ -73,7 +60,7 @@ file format this skill produces.
        rarely a real, user-facing skill.
      - Reject repo-internal maintainer/dev-workflow skill folders — `SKILL.md` files under
        `.codex/skills/`, `.agents/skills/`, or `.claude/skills/` inside a vendor's own
-       product/tooling repo that automate *that repo's own* engineering workflow (PR triage,
+       product/tooling repo that automate _that repo's own_ engineering workflow (PR triage,
        release process, dependency bumps, doc-site content migration, internal telemetry/build
        conventions) rather than teach a user how to use a vendor product. Heuristic: if the
        skill's instructions assume the agent is operating inside the vendor's own repo/CI
@@ -96,7 +83,7 @@ file format this skill produces.
        several skill bodies spread across the glob, not just one or two.** This matters most when
        the source repo is the vendor's own primary open-source product/dev repo (as opposed to a
        repo dedicated to being a skills catalog) — a whole `.agents/skills/*` or `.claude/skills/*`
-       directory there can be entirely internal contributor tooling for developing *that repo*,
+       directory there can be entirely internal contributor tooling for developing _that repo_,
        not a single stray skill mixed into otherwise-legitimate content. Both JetBrains globs
        approved 2026-09-18 (`JetBrains/intellij-community#.agents/skills/*`, 39 skills;
        `JetBrains/kotlin#.claude/skills/*`, 6 skills) turned out to be 100% repo-internal on
@@ -126,27 +113,27 @@ file format this skill produces.
        location to avoid double-approving identical content under two skillIds.
      - For everything else, open the `SKILL.md` and confirm it has real YAML frontmatter with
        `name`/`description` — a stray file that merely happens to be named `SKILL.md` isn't one.
-   - **Verify every remaining candidate** against `vendor-audit-conventions.md`'s checklist,
-     **including its same-org-family rule** — a repo under a product/ecosystem org that merely
-     sounds affiliated with the vendor (e.g. `Kotlin` for JetBrains) is load-bearing here exactly
-     as it is for plugins; don't skip it just because it's documented under the plugin audit. Note:
-     SKILL.md frontmatter rarely carries an explicit author/vendor field the way a `plugin.json`
-     does, so lean more heavily on repo ownership and GitHub org verification for skills than on
-     manifest self-attribution. Also check whether the plugin audit's cache already flagged this
-     repo as a community-contributed aggregator (e.g. its own README says so) — that verdict
-     generalizes across artifact types within the same repo without re-verifying each individual
-     `SKILL.md`'s authorship. Anything that doesn't clearly clear the bar goes to the reject
-     pile with a one-line reason; it does not become an approval, and does not get asked about.
+   - **Verify every remaining candidate** against `conventions.md`'s checklist, **including its
+     same-org-family rule** — a repo under a product/ecosystem org that merely sounds affiliated
+     with the vendor (e.g. `Kotlin` for JetBrains) is load-bearing here exactly as it is for
+     plugins; don't skip it just because it's documented under the plugin pass. Note: SKILL.md
+     frontmatter rarely carries an explicit author/vendor field the way a `plugin.json` does, so
+     lean more heavily on repo ownership and GitHub org verification for skills than on manifest
+     self-attribution. Also check whether the plugin pass's cache already flagged this repo as a
+     community-contributed aggregator (e.g. its own README says so) — that verdict generalizes
+     across artifact types within the same repo without re-verifying each individual `SKILL.md`'s
+     authorship. Anything that doesn't clearly clear the bar goes to the reject pile with a
+     one-line reason; it does not become an approval, and does not get asked about.
    - **Stage genuine findings** — group multiple newly-found skill folders in the _same_ repo into
      one approval using a glob or an explicit path array (per `create-skill-approval`'s multi-skill
      examples), rather than one file per skill folder. One file per _distinct source repo_, same as
      `create-inferred-vendor`'s rule. `mkdir -p skills/` first if the vendor repo has no prior skill
-     approvals. Branch, commit, and validate per `vendor-audit-conventions.md`.
+     approvals. Branch, commit, and validate per `conventions.md`.
    - **Update the vendor's cache entry** — confirmed `githubOrgs`, `lastChecked` = today, newly
      approved sources appended to `knownSources.skills` (one entry per resolved path, even when
      grouped into a single approval file), new rejections appended with reason and date.
-3. **Write back `known-vendor-sources.json`** with all vendor updates from the previous step.
+3. **Write back `cache/skill-sources.json`** with all vendor updates from the previous step.
 4. **Report a summary**: per vendor — branch created (if any) and files added, candidates
    rejected and why, or "skipped: dirty working tree" / "nothing new". This is a staged proposal;
    pushing and opening PRs is a separate, human decision.
-5. **Self-update** — per `vendor-audit-conventions.md`'s rule, every run, no exceptions.
+5. **Self-update** — per `conventions.md`'s rule, every run, no exceptions.

@@ -1,45 +1,32 @@
----
-name: audit-agent-plugin-sources
-description: >
-  Weekly discovery sweep across every AI Registry vendor for newly published Agent Plugins
-  (agent-plugins.org plugin.json) and marketplace files (e.g. OpenAI Codex/ChatGPT's
-  .agents/plugins/marketplace.json) that aren't approved yet, verified as genuinely
-  vendor-published, staged as a local feature branch per vendor repo (never pushed). Use when
-  running the recurring plugin/marketplace audit, or when asked to check registry vendors for
-  new plugins or marketplaces to approve.
----
+# Agent Plugin & Marketplace Research Pass
 
-# AI Registry — Agent Plugin & Marketplace Source Audit
-
-Recurring (intended: weekly) research pass over every vendor already in the registry, looking for
-Agent Plugins and marketplace files the vendor has published since the last run. This is
-discovery, not onboarding — it only touches vendors already listed in `vendors.json`; use
-`create-inferred-vendor` to add a brand-new vendor.
+Research pass looking for Agent Plugins (agent-plugins.org `plugin.json`) and marketplace files
+(e.g. OpenAI Codex/ChatGPT's `.agents/plugins/marketplace.json`) a vendor has published since the
+last run, verified as genuinely vendor-published, staged as a local feature branch per vendor repo
+(never pushed). Read `conventions.md` first — it covers repo hygiene, branching/commit/validate,
+the cache file shape, the verification checklist, the self-update rule, and the non-GitHub-host
+gap, shared across all three research passes. This file only covers what's specific to plugins and
+marketplaces. Also read `create-plugin-approval` and `create-marketplace-approval` for the approval
+file formats this pass produces.
 
 This is a genuine internet research pass per vendor (WebSearch/WebFetch, plus GitHub code search
 where it applies) — not a search confined to a repo you already know about. Bounded effort is the
 point, though: this runs weekly, so a missed finding this week is caught next week.
 
-**REQUIRED BACKGROUND:** Read `skills/vendor-audit-conventions.md` in this repo first — it covers
-repo hygiene, branching/commit/validate, the cache file shape, the verification checklist, the
-self-update rule, and the non-GitHub-host gap, shared across all three vendor-audit skills. This
-file only covers what's specific to plugins and marketplaces. Also read `create-plugin-approval`
-and `create-marketplace-approval` for the approval file formats this skill produces.
-
 ## Workflow
 
-1. **Load the cache** — read `known-vendor-sources.json` in this skill's directory. For each
-   vendor: known GitHub orgs to search, sources already approved (skip these), and previously
-   rejected candidates (skip re-verifying unless `lastChecked` is more than ~90 days old).
+1. **Load the cache** — read `cache/plugin-sources.json`. For each vendor: known GitHub orgs to
+   search, sources already approved (skip these), and previously rejected candidates (skip
+   re-verifying unless `lastChecked` is more than ~90 days old).
 2. **For each vendor in `vendors.json`** (parallelizable — dispatch one subagent per vendor for
    the research step, since vendors are fully independent; keep branch/commit work in the
    dispatching thread so git state stays predictable), do the following:
-   - **Get a clean local repo and read current state** — per `vendor-audit-conventions.md`. Read
+   - **Get a clean local repo and read current state** — per `conventions.md`. Read
      `organization.json`, every `plugins/*.json`, every `marketplaces/*.json`. Build the set of
      already-approved `source.url` (+`path`) pairs so you never re-suggest something already
      there.
-   - **Determine search targets** — per `vendor-audit-conventions.md`'s "Determining GitHub
-     search targets" section.
+   - **Determine search targets** — per `conventions.md`'s "Determining GitHub search targets"
+     section.
    - **Search the internet, bounded** (aim for ≤6 queries/vendor total across all of the below —
      enough to be thorough, not to crawl every corner of the web):
      - WebSearch for the vendor name plus `plugin.json agent-plugins.org`, and separately plus
@@ -51,8 +38,7 @@ and `create-marketplace-approval` for the approval file formats this skill produ
      - `gh api search/code -f q='filename:plugin.json org:<org>'` and
        `gh api search/code -f q='filename:marketplace.json path:.agents/plugins org:<org>'` per
        known GitHub org — a precise supplement to the web search above, not a replacement for it.
-       Only reaches github.com; see `vendor-audit-conventions.md`'s non-GitHub gap note for other
-       hosts.
+       Only reaches github.com; see `conventions.md`'s non-GitHub gap note for other hosts.
      - A candidate found this way that names a GitHub org you didn't have cached yet is itself a
        result — add it to `githubOrgs` in the cache-update step below so next week's code-search
        pass starts from it directly.
@@ -116,9 +102,9 @@ and `create-marketplace-approval` for the approval file formats this skill produ
        this 2026-09-18 on `google/skills`'s marketplace file). Prefer letting
        `npm run validate-vendor` do the resolution/duplicate-detection rather than hand-parsing,
        or handle both shapes explicitly if you must parse it yourself.
-   - **Verify every remaining candidate** against `vendor-audit-conventions.md`'s checklist.
-     Anything that doesn't clearly clear the bar goes to the reject pile with a one-line reason;
-     it does not become an approval, and does not get asked about.
+   - **Verify every remaining candidate** against `conventions.md`'s checklist. Anything that
+     doesn't clearly clear the bar goes to the reject pile with a one-line reason; it does not
+     become an approval, and does not get asked about.
    - **Stage genuine findings** — for each verified plugin, write a `plugins/<id>.json` file
      following `create-plugin-approval`'s rules; for each verified marketplace, write a
      `marketplaces/<name>.json` following `create-marketplace-approval`'s rules (reject it
@@ -126,7 +112,7 @@ and `create-marketplace-approval` for the approval file formats this skill produ
      approval is all-or-nothing, don't hand-pick entries out of it). `mkdir -p` the target
      directory first — git doesn't track empty directories, so a vendor repo with no prior plugin
      approvals may not have a `plugins/` folder yet. Branch, commit, and validate per
-     `vendor-audit-conventions.md`.
+     `conventions.md`.
    - **Update the vendor's cache entry** — confirmed `githubOrgs`, `lastChecked` = today, newly
      approved sources appended to `knownSources.plugins`/`knownSources.marketplaces`, new
      rejections appended with reason and date.
@@ -135,8 +121,8 @@ and `create-marketplace-approval` for the approval file formats this skill produ
      `containedSkills` discovery looks one level down for `skills/*/SKILL.md` and won't find
      anything in this case, so validation will misleadingly report "0 skills" even though the
      plugin is entirely skills. Not a blocker, just don't mistake it for a real content problem.
-3. **Write back `known-vendor-sources.json`** with all vendor updates from the previous step.
+3. **Write back `cache/plugin-sources.json`** with all vendor updates from the previous step.
 4. **Report a summary**: per vendor — branch created (if any) and files added, candidates
    rejected and why, or "skipped: dirty working tree" / "nothing new". This is a staged proposal;
    pushing and opening PRs is a separate, human decision.
-5. **Self-update** — per `vendor-audit-conventions.md`'s rule, every run, no exceptions.
+5. **Self-update** — per `conventions.md`'s rule, every run, no exceptions.
