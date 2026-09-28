@@ -114,9 +114,9 @@ export function ClientsPage() {
             Sandbox extensions carry a content hash of their directory and a{" "}
             <InlineCode>source.commit</InlineCode> the same way, and can also
             name a specific revision: <InlineCode>source.ref</InlineCode> holds
-            a git tag or branch when the organization approved one. A branch is
-            still a moving target, so read the ref rather than treating its
-            presence as a pin.
+            a git tag, branch, or full commit SHA when the organization approved
+            one. A branch is still a moving target, so read the ref rather than
+            treating its presence as a pin.
           </li>
           <li className="leading-relaxed">
             Withdrawing an approval removes the entry from the feed, but so does

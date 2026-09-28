@@ -767,45 +767,52 @@ describe("skillCloneKey", () => {
   });
 });
 
+// --- Source repository helpers for the fetchSkillMetadata tests ---
+
+function initSourceRepo(sourceDir: string): void {
+  execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+  execSync('git config user.email "test@test.com"', {
+    cwd: sourceDir,
+    stdio: "pipe",
+  });
+  execSync('git config user.name "Test"', {
+    cwd: sourceDir,
+    stdio: "pipe",
+  });
+}
+
+function commitAll(sourceDir: string, message: string): string {
+  execSync(`git add -A && git commit -m ${message}`, {
+    cwd: sourceDir,
+    stdio: "pipe",
+  });
+  return execSync("git rev-parse HEAD", { cwd: sourceDir, stdio: "pipe" })
+    .toString()
+    .trim();
+}
+
+function writeSkill(sourceDir: string, path: string, name: string): void {
+  mkdirSync(join(sourceDir, path), { recursive: true });
+  writeFileSync(
+    join(sourceDir, path, "SKILL.md"),
+    `---\nname: ${name}\ndescription: ${name}.\n---\n`,
+  );
+}
+
 // --- fetchSkillMetadata with ref ---
 
 describe("fetchSkillMetadata with ref", () => {
-  function initSourceRepo(sourceDir: string): void {
-    execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
-    execSync('git config user.email "test@test.com"', {
-      cwd: sourceDir,
-      stdio: "pipe",
-    });
-    execSync('git config user.name "Test"', {
-      cwd: sourceDir,
-      stdio: "pipe",
-    });
-  }
-
   it("checks out the pinned ref instead of the default branch", () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "skill-ref-test-"));
     const sourceDir = mkdtempSync(join(tmpdir(), "skill-ref-src-"));
     try {
       initSourceRepo(sourceDir);
-
-      writeFileSync(
-        join(sourceDir, "SKILL.md"),
-        "---\nname: on-main\ndescription: On main.\n---\n",
-      );
-      execSync("git add -A && git commit -m main", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
+      writeSkill(sourceDir, ".", "on-main");
+      commitAll(sourceDir, "main");
 
       execSync("git checkout -b v1.0.0", { cwd: sourceDir, stdio: "pipe" });
-      writeFileSync(
-        join(sourceDir, "SKILL.md"),
-        "---\nname: on-v1\ndescription: On v1.\n---\n",
-      );
-      execSync("git add -A && git commit -m v1", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
+      writeSkill(sourceDir, ".", "on-v1");
+      commitAll(sourceDir, "v1");
       execSync("git checkout main", { cwd: sourceDir, stdio: "pipe" });
 
       const metadata = fetchSkillMetadata(
@@ -815,7 +822,7 @@ describe("fetchSkillMetadata with ref", () => {
         "v1.0.0",
       );
       assert.equal(metadata.name, "on-v1");
-      assert.equal(metadata.description, "On v1.");
+      assert.equal(metadata.description, "on-v1.");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
       rmSync(sourceDir, { recursive: true, force: true });
@@ -827,30 +834,10 @@ describe("fetchSkillMetadata with ref", () => {
     const sourceDir = mkdtempSync(join(tmpdir(), "skill-sha-src-"));
     try {
       initSourceRepo(sourceDir);
-
-      writeFileSync(
-        join(sourceDir, "SKILL.md"),
-        "---\nname: pinned-commit\ndescription: Pinned.\n---\n",
-      );
-      execSync("git add -A && git commit -m pinned", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
-      const sha = execSync("git rev-parse HEAD", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      })
-        .toString()
-        .trim();
-
-      writeFileSync(
-        join(sourceDir, "SKILL.md"),
-        "---\nname: on-main\ndescription: On main.\n---\n",
-      );
-      execSync("git add -A && git commit -m main", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
+      writeSkill(sourceDir, ".", "pinned-commit");
+      const sha = commitAll(sourceDir, "pinned");
+      writeSkill(sourceDir, ".", "on-main");
+      commitAll(sourceDir, "main");
 
       const metadata = fetchSkillMetadata(
         `file://${sourceDir}`,
@@ -859,8 +846,37 @@ describe("fetchSkillMetadata with ref", () => {
         sha,
       );
       assert.equal(metadata.name, "pinned-commit");
-      assert.equal(metadata.description, "Pinned.");
+      assert.equal(metadata.description, "pinned-commit.");
       assert.equal(metadata.commit, sha);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // The SHA is fetched after the default branch is cloned. If a failed fetch
+  // left that clone behind, the first path would fail but the second would
+  // reuse it, and be published under the SHA with the default branch's hash
+  // and commit, and no warning.
+  it("fails every path at a commit SHA that can't be checked out", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-bad-sha-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-bad-sha-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, "skills/a", "a");
+      writeSkill(sourceDir, "skills/b", "b");
+      commitAll(sourceDir, "main");
+
+      const url = `file://${sourceDir}`;
+      const missing = "0".repeat(40);
+      assert.throws(
+        () => fetchSkillMetadata(url, "skills/a", tmpDir, missing),
+        /Failed to check out ref/,
+      );
+      assert.throws(
+        () => fetchSkillMetadata(url, "skills/b", tmpDir, missing),
+        /Failed to check out ref/,
+      );
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
       rmSync(sourceDir, { recursive: true, force: true });
@@ -872,25 +888,12 @@ describe("fetchSkillMetadata with ref", () => {
     const sourceDir = mkdtempSync(join(tmpdir(), "skill-ref-cache-src-"));
     try {
       initSourceRepo(sourceDir);
-
-      writeFileSync(
-        join(sourceDir, "SKILL.md"),
-        "---\nname: on-main\ndescription: On main.\n---\n",
-      );
-      execSync("git add -A && git commit -m main", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
+      writeSkill(sourceDir, ".", "on-main");
+      commitAll(sourceDir, "main");
 
       execSync("git checkout -b v1.0.0", { cwd: sourceDir, stdio: "pipe" });
-      writeFileSync(
-        join(sourceDir, "SKILL.md"),
-        "---\nname: on-v1\ndescription: On v1.\n---\n",
-      );
-      execSync("git add -A && git commit -m v1", {
-        cwd: sourceDir,
-        stdio: "pipe",
-      });
+      writeSkill(sourceDir, ".", "on-v1");
+      commitAll(sourceDir, "v1");
       execSync("git checkout main", { cwd: sourceDir, stdio: "pipe" });
 
       const url = `file://${sourceDir}`;
@@ -905,39 +908,59 @@ describe("fetchSkillMetadata with ref", () => {
   });
 });
 
+// --- fetchSkillMetadata at the repository root ---
+
+describe("fetchSkillMetadata at the repository root", () => {
+  // A client fetching source.commit gets the full tree and hashes all of it,
+  // so the published hash has to cover the same files — not just the
+  // top-level ones a fresh sparse clone checks out.
+  it("hashes the whole tree, including subdirectories", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-root-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-root-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "root");
+      mkdirSync(join(sourceDir, "scripts"));
+      writeFileSync(join(sourceDir, "scripts", "helper.py"), "print('hi')\n");
+      commitAll(sourceDir, "root");
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+      );
+      assert.equal(metadata.contentHash, computeContentHash(sourceDir));
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // A root skill turns sparse checkout off in the clone every approval of
+  // that repo shares, and `sparse-checkout add` refuses to run after that.
+  it("still reads a path from the clone after a root skill", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-root-shared-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-root-shared-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "root");
+      writeSkill(sourceDir, "skills/nested", "nested");
+      commitAll(sourceDir, "both");
+
+      const url = `file://${sourceDir}`;
+      fetchSkillMetadata(url, undefined, tmpDir);
+      const nested = fetchSkillMetadata(url, "skills/nested", tmpDir);
+      assert.equal(nested.name, "nested");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
 // --- fetchSkillMetadata commit ---
 
 describe("fetchSkillMetadata commit", () => {
-  function initSourceRepo(sourceDir: string): void {
-    execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
-    execSync('git config user.email "test@test.com"', {
-      cwd: sourceDir,
-      stdio: "pipe",
-    });
-    execSync('git config user.name "Test"', {
-      cwd: sourceDir,
-      stdio: "pipe",
-    });
-  }
-
-  function commitAll(sourceDir: string, message: string): string {
-    execSync(`git add -A && git commit -m ${message}`, {
-      cwd: sourceDir,
-      stdio: "pipe",
-    });
-    return execSync("git rev-parse HEAD", { cwd: sourceDir, stdio: "pipe" })
-      .toString()
-      .trim();
-  }
-
-  function writeSkill(sourceDir: string, path: string, name: string): void {
-    mkdirSync(join(sourceDir, path), { recursive: true });
-    writeFileSync(
-      join(sourceDir, path, "SKILL.md"),
-      `---\nname: ${name}\ndescription: ${name}.\n---\n`,
-    );
-  }
-
   it("reports the default branch's commit when no ref is set", () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "skill-commit-test-"));
     const sourceDir = mkdtempSync(join(tmpdir(), "skill-commit-src-"));

@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { resolve, sep } from "node:path";
 
 /**
@@ -63,7 +64,10 @@ const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
  * checks out the SHA as its own step — whose failure gets its own error
  * naming the ref, distinct from a generic clone failure, since a host that
  * doesn't serve bare SHAs (no uploadpack.allowReachableSHA1InWant) fails
- * there, not at the clone above.
+ * there, not at the clone above. That failure removes the default-branch
+ * clone before throwing: callers reuse whatever is already at `cloneDir`, so
+ * leaving it would have every later entry at this ref read the default
+ * branch, and publish its hash under the SHA without a warning.
  *
  * Returns the commit that ended up checked out, whatever `ref` named.
  */
@@ -74,20 +78,21 @@ export function cloneAtRef(
 ): string {
   const repoUrl = authenticatedRepoUrl(sourceUrl);
   const isCommitSha = ref !== undefined && COMMIT_SHA_PATTERN.test(ref);
+  const branch = isCommitSha ? undefined : ref;
 
   const cloneArgs = ["clone", "--depth", "1", "--filter=blob:none", "--sparse"];
-  if (ref !== undefined && !isCommitSha) cloneArgs.push("--branch", ref);
+  if (branch !== undefined) cloneArgs.push("--branch", branch);
   cloneArgs.push(repoUrl, cloneDir);
 
   try {
     execFileSync("git", cloneArgs, { stdio: "pipe" });
   } catch {
     throw new Error(
-      `Failed to clone ${sourceUrl}${ref !== undefined && !isCommitSha ? ` at ref "${ref}"` : ""}`,
+      `Failed to clone ${sourceUrl}${branch !== undefined ? ` at ref "${branch}"` : ""}`,
     );
   }
 
-  if (ref !== undefined && isCommitSha) {
+  if (isCommitSha) {
     try {
       execFileSync(
         "git",
@@ -98,6 +103,7 @@ export function cloneAtRef(
         stdio: "pipe",
       });
     } catch {
+      rmSync(cloneDir, { recursive: true, force: true });
       throw new Error(`Failed to check out ref "${ref}" in ${sourceUrl}`);
     }
   }

@@ -4,7 +4,7 @@ description: >
   Generate sandbox extension approval files for the AI Registry.
   Use this when a user wants to approve the sandbox tool and feature extensions
   in a git repository from their vendor repository.
-argument-hint: "<source-url> [ref] — the git repo URL holding the extensions, and an optional tag or branch"
+argument-hint: "<source-url> [ref] — the git repo URL holding the extensions, and an optional tag, branch, or commit SHA"
 ---
 
 # AI Registry — Sandbox Extension Approval Generator
@@ -47,8 +47,8 @@ whatever the default branch becomes.
 
 ## Your Workflow
 
-1. **Identify the repository** — The user provides a git repository URL, and optionally a tag
-   or branch.
+1. **Identify the repository** — The user provides a git repository URL, and optionally a tag,
+   branch, or commit SHA.
 2. **Read the extensions** — Clone the repository (at the ref, if given) and list the
    directories under `tools/` and `features/`. Read each `spec.yaml` and report the `kind`,
    `name`, `displayName` and `description` to the user, along with what each one does at

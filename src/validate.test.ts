@@ -1822,6 +1822,53 @@ describe("validateSandboxExtensionApproval", () => {
   });
 });
 
+// The ref is printed into the `enclave ... --ref <ref>` command the website
+// offers to copy, so it gets the same pattern as skill and plugin refs.
+describe("validateSandboxExtensionApproval — source.ref pattern", () => {
+  function sandboxApprovalDataWithRef(ref: string) {
+    return {
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git", ref },
+    };
+  }
+
+  it("accepts a full commit SHA as ref", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("a".repeat(40)),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a ref with a shell command separator", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("main;rm -rf ~"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a space", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("my ref"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a backtick", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("`touch /tmp/x`"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref starting with a hyphen", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("-x"),
+    );
+    assert.equal(result.valid, false);
+  });
+});
+
 describe("validateVendorData — sandbox extension approvals", () => {
   it("collects a valid approval", () => {
     const result = validateVendorData(validOrg, [], {

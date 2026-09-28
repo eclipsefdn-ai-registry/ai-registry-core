@@ -29,8 +29,8 @@
         },
         "ref": {
           "type": "string",
-          "minLength": 1,
-          "description": "Git tag or branch to read and hash instead of the default branch. Omit to follow the default branch, which is also what `enclave add` does when given no --ref."
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "description": "Git ref (tag, branch name, or full commit SHA) to read and hash instead of the default branch. Omit to follow the default branch, which is also what `enclave add` does when given no --ref. Restricted to safe git ref characters (no whitespace or shell metacharacters, since this value is passed to a git command during consolidation and appears in the copy-paste `enclave` install command on the website)."
         }
       }
     }

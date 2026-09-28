@@ -95,52 +95,76 @@ export function skillCloneKey(sourceUrl: string, ref?: string): string {
     .slice(0, 8);
 }
 
+/**
+ * The clone every skill approval of `sourceUrl` at `ref` shares, made on
+ * first use. A fresh clone has only the repository's top-level files checked
+ * out; glob discovery reads the tree without widening that, and
+ * cloneSkillFolder widens it to each path it reads.
+ */
+function sharedSkillClone(
+  sourceUrl: string,
+  tmpDir: string,
+  ref?: string,
+): { cloneDir: string; commit: string } {
+  const cloneDir = join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
+  if (existsSync(cloneDir)) {
+    // Every path read from this clone reports the commit it was cloned at.
+    // That's correct, not a shortcut: those paths were hashed at that commit.
+    return { cloneDir, commit: checkedOutCommit(cloneDir) };
+  }
+  return { cloneDir, commit: cloneAtRef(sourceUrl, cloneDir, ref) };
+}
+
+function isSparseCheckout(cloneDir: string): boolean {
+  try {
+    return (
+      execFileSync(
+        "git",
+        ["-C", cloneDir, "config", "--bool", "core.sparseCheckout"],
+        { stdio: "pipe", encoding: "utf-8" },
+      ).trim() === "true"
+    );
+  } catch {
+    // Unset, which git reports by exiting non-zero.
+    return false;
+  }
+}
+
 function cloneSkillFolder(
   sourceUrl: string,
   sourcePath: string | undefined,
   tmpDir: string,
   ref?: string,
 ): { dir: string; commit: string } {
-  const cloneDir = join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
+  const { cloneDir, commit } = sharedSkillClone(sourceUrl, tmpDir, ref);
 
-  let commit: string;
-  if (!existsSync(cloneDir)) {
-    commit = cloneAtRef(sourceUrl, cloneDir, ref);
-
-    if (sourcePath) {
-      // sourcePath is a real repository path, but still vendor-supplied —
-      // pass it as its own argv entry (execFileSync, no shell) rather than
-      // interpolating into a shell string, so a path like "a; rm -rf /"
-      // can't execute anything. Mirrors plugin-source.ts's clonePluginRepo.
-      try {
-        execFileSync(
-          "git",
-          ["-C", cloneDir, "sparse-checkout", "set", sourcePath],
-          { stdio: "pipe" },
-        );
-      } catch {
-        throw new Error(
-          `Failed to sparse-checkout path "${sourcePath}" in ${sourceUrl}`,
-        );
-      }
-    }
-  } else {
-    // Every path read from this clone reports the commit it was cloned at.
-    // That's correct, not a shortcut: those paths were hashed at that commit.
-    commit = checkedOutCommit(cloneDir);
-    if (sourcePath) {
-      // Repo already cloned — add this path to sparse checkout
-      try {
-        execFileSync(
-          "git",
-          ["-C", cloneDir, "sparse-checkout", "add", sourcePath],
-          { stdio: "pipe" },
-        );
-      } catch {
-        throw new Error(
-          `Failed to sparse-checkout path "${sourcePath}" in ${sourceUrl}`,
-        );
-      }
+  // A skill at a path is added to the sparse-checkout cone, next to whatever
+  // earlier approvals of this clone added — "add" rather than "set", which
+  // would drop theirs, and which is no different on a fresh --sparse clone.
+  //
+  // A skill at the repository root is the whole tree, and in cone mode no
+  // sparse-checkout path gets that ("set ." materializes only root-level
+  // files), so sparse checkout is disabled instead, as clonePluginRepo does
+  // for a root plugin. Otherwise its contentHash would cover only top-level
+  // files and never match a client hashing the full tree at source.commit.
+  // Once disabled, every path is already checked out and "add" refuses to run
+  // ("no sparse-checkout to add to"), so a later path needs no step at all.
+  //
+  // sourcePath is a real repository path, but still vendor-supplied — pass it
+  // as its own argv entry (execFileSync, no shell) rather than interpolating
+  // into a shell string, so a path like "a; rm -rf /" can't execute anything.
+  let sparseArgs: string[] | undefined;
+  if (!sourcePath) sparseArgs = ["disable"];
+  else if (isSparseCheckout(cloneDir)) sparseArgs = ["add", sourcePath];
+  if (sparseArgs) {
+    try {
+      execFileSync("git", ["-C", cloneDir, "sparse-checkout", ...sparseArgs], {
+        stdio: "pipe",
+      });
+    } catch {
+      throw new Error(
+        `Failed to check out skill contents ${sourcePath ? `at path "${sourcePath}" ` : ""}in ${sourceUrl}`,
+      );
     }
   }
 
@@ -194,10 +218,6 @@ const MAX_DISCOVERY = 100;
 
 export function isGlobPattern(path: string): boolean {
   return path === "*" || path.endsWith("/*");
-}
-
-function getCloneDir(sourceUrl: string, tmpDir: string, ref?: string): string {
-  return join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
 }
 
 export function discoverSkillPaths(
@@ -287,11 +307,11 @@ export function resolveSkillPaths(
     return { resolved: [...rawPaths], warnings };
   }
 
-  // Clone repo (without sparse-checkout) for glob discovery, at the
-  // requested ref — so a glob expands against the folders that exist there,
-  // not against whatever the default branch happens to have.
-  const cloneDir = getCloneDir(sourceUrl, tmpDir, ref);
-  cloneSkillFolder(sourceUrl, undefined, tmpDir, ref);
+  // Clone repo for glob discovery, at the requested ref — so a glob expands
+  // against the folders that exist there, not against whatever the default
+  // branch happens to have. Discovery reads the tree with ls-tree, so the
+  // checkout stays as narrow as the clone left it.
+  const { cloneDir } = sharedSkillClone(sourceUrl, tmpDir, ref);
 
   const allPaths: string[] = [];
   for (const p of rawPaths) {

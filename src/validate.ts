@@ -788,16 +788,28 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
         if (path === undefined) {
           pathsToVerify = [undefined];
         } else {
-          const { resolved, warnings } = resolveSkillPaths(
-            data.source.url,
-            path,
-            tmpDir,
-            data.source.ref,
-          );
-          for (const w of warnings) {
-            console.warn(`  WARNING: ${file} — ${w}`);
+          // A glob clones the source to expand, so an unreachable repo or a
+          // ref that doesn't exist throws here. Skip the approval: its raw
+          // paths are nothing to verify, and one bad approval must not end
+          // the run.
+          try {
+            const { resolved, warnings } = resolveSkillPaths(
+              data.source.url,
+              path,
+              tmpDir,
+              data.source.ref,
+            );
+            for (const w of warnings) {
+              console.warn(`  WARNING: ${file} — ${w}`);
+            }
+            pathsToVerify = resolved;
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(
+              `  WARNING: ${file} — could not resolve skill paths: ${message}`,
+            );
+            continue;
           }
-          pathsToVerify = resolved;
         }
 
         for (const singlePath of pathsToVerify) {

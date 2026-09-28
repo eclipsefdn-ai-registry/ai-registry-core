@@ -485,7 +485,7 @@ export function ApiPage() {
               name: "source",
               type: "object",
               description:
-                "Git repository URL, the path to this extension's directory, an optional git ref (tag or branch) pinning a revision instead of the default branch, and commit: the commit contentHash was computed at.",
+                "Git repository URL, the path to this extension's directory, an optional git ref (tag, branch, or full commit SHA) pinning a revision instead of the default branch, and commit: the commit contentHash was computed at.",
             },
             {
               name: "contentHash",
