@@ -9,6 +9,7 @@ import {
   discoverSandboxExtensions,
   fetchSandboxExtensionMetadata,
   sandboxCloneKey,
+  enrichSandboxExtensions,
   KIND_DIRS,
   type DiscoveredExtension,
 } from "./sandbox-source.js";
@@ -483,6 +484,37 @@ describe("fetchSandboxExtensionMetadata", () => {
       );
     } finally {
       rmSync(dir, { recursive: true });
+    }
+  });
+});
+
+// --- enrichSandboxExtensions ---
+
+describe("enrichSandboxExtensions", () => {
+  // One approval, one clone, several published entries: all of them carry
+  // the commit that clone was taken at, which is the commit each was hashed at.
+  it("gives every extension from one repository the clone's commit", () => {
+    const dir = makeKitRepo([
+      { path: "tools/openclaw", spec: spec("sandbox", "openclaw") },
+      { path: "features/github-cli", spec: spec("mixin", "github-cli") },
+    ]);
+    try {
+      const head = execSync("git rev-parse HEAD", { cwd: dir, stdio: "pipe" })
+        .toString()
+        .trim();
+      const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions([
+        {
+          sandboxExtensionId: "io.github.acme/kits",
+          source: { url: `file://${dir}` },
+          approvals: [],
+        },
+      ]);
+      assert.equal(sandboxTools.length, 1);
+      assert.equal(sandboxFeatures.length, 1);
+      assert.equal(sandboxTools[0].source.commit, head);
+      assert.equal(sandboxFeatures[0].source.commit, head);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

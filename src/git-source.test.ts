@@ -1,7 +1,14 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { execSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
-import { authenticatedRepoUrl, resolveInsideRepo } from "./git-source.js";
+import {
+  authenticatedRepoUrl,
+  cloneAtRef,
+  resolveInsideRepo,
+} from "./git-source.js";
 
 describe("authenticatedRepoUrl", () => {
   const saved = process.env.GH_TOKEN;
@@ -96,5 +103,33 @@ describe("resolveInsideRepo", () => {
       () => resolveInsideRepo(clone, "../x", "Plugin path"),
       /Plugin path "\.\.\/x" escapes the cloned repository/,
     );
+  });
+});
+
+describe("cloneAtRef", () => {
+  // A SHA is fetched after the default branch is already cloned. Callers
+  // reuse whatever is at cloneDir, so a failed fetch must not leave that
+  // default-branch clone behind for the next entry to read.
+  it("removes the clone when a commit SHA can't be checked out", () => {
+    const sourceDir = mkdtempSync(join(tmpdir(), "clone-at-ref-src-"));
+    const tmpDir = mkdtempSync(join(tmpdir(), "clone-at-ref-test-"));
+    try {
+      execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+      writeFileSync(join(sourceDir, "README.md"), "main\n");
+      execSync(
+        'git add -A && git -c user.email="test@test.com" -c user.name="Test" commit -m main',
+        { cwd: sourceDir, stdio: "pipe" },
+      );
+
+      const cloneDir = join(tmpDir, "clone");
+      assert.throws(
+        () => cloneAtRef(`file://${sourceDir}`, cloneDir, "0".repeat(40)),
+        /Failed to check out ref "0{40}"/,
+      );
+      assert.equal(existsSync(cloneDir), false);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
   });
 });

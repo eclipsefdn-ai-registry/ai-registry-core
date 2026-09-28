@@ -2,7 +2,6 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -12,6 +11,8 @@ import {
   discoverSkillPaths,
   resolveSkillPaths,
   expandSkillEntry,
+  skillCloneKey,
+  fetchSkillMetadata,
 } from "./skill-source.js";
 import type { SkillEntry } from "./consolidate.js";
 
@@ -337,13 +338,10 @@ describe("resolveSkillPaths", () => {
     sourceUrl: string,
     skills: string[],
     nonSkills: string[] = [],
+    ref?: string,
   ): { tmpDir: string } {
     const tmpDir = mkdtempSync(join(tmpdir(), "resolve-test-"));
-    const repoHash = createHash("sha256")
-      .update(sourceUrl)
-      .digest("hex")
-      .slice(0, 8);
-    const cloneDir = join(tmpDir, `skill-${repoHash}`);
+    const cloneDir = join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
     mkdirSync(cloneDir, { recursive: true });
     execSync("git init", { cwd: cloneDir, stdio: "pipe" });
     execSync('git config user.email "test@test.com"', {
@@ -510,13 +508,12 @@ describe("expandSkillEntry", () => {
     sourceUrl: string,
     skills: string[],
     nonSkills: string[] = [],
+    ref?: string,
+    existingTmpDir?: string,
   ): { tmpDir: string } {
-    const tmpDir = mkdtempSync(join(tmpdir(), "expand-test-"));
-    const repoHash = createHash("sha256")
-      .update(sourceUrl)
-      .digest("hex")
-      .slice(0, 8);
-    const cloneDir = join(tmpDir, `skill-${repoHash}`);
+    const tmpDir =
+      existingTmpDir ?? mkdtempSync(join(tmpdir(), "expand-test-"));
+    const cloneDir = join(tmpDir, `skill-${skillCloneKey(sourceUrl, ref)}`);
     mkdirSync(cloneDir, { recursive: true });
     execSync("git init", { cwd: cloneDir, stdio: "pipe" });
     execSync('git config user.email "test@test.com"', {
@@ -553,12 +550,15 @@ describe("expandSkillEntry", () => {
     sourceUrl: string,
     path: string | string[] | undefined,
     skillId = "io.example",
+    ref?: string,
   ): SkillEntry {
+    const source: SkillEntry["source"] = { url: sourceUrl, path };
+    if (ref !== undefined) source.ref = ref;
     return {
       skillId,
       name: "",
       description: "",
-      source: { url: sourceUrl, path },
+      source,
       contentHash: "",
       approvals: [],
     };
@@ -697,6 +697,344 @@ describe("expandSkillEntry", () => {
       assert.equal(result[0].source.path, "skills/foo");
     } finally {
       rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("preserves source.ref on every entry a glob expands into", () => {
+    const url = "https://example.test/ref-preserved.git";
+    const { tmpDir } = setup(
+      url,
+      ["skills/alpha", "skills/beta"],
+      [],
+      "v1.0.0",
+    );
+    try {
+      const result = expandSkillEntry(
+        makeEntry(url, "skills/*", "io.example", "v1.0.0"),
+        tmpDir,
+      );
+      assert.deepEqual(
+        result.map((e) => e.source.ref),
+        ["v1.0.0", "v1.0.0"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("expands a glob against the pinned ref, not the default branch", () => {
+    const url = "https://example.test/ref-glob.git";
+    // Two distinct pre-populated clones, keyed by skillCloneKey: one at no
+    // ref (the "default branch" clone) with one set of skill folders, one
+    // at "v2.0.0" with a different set — proving expandSkillEntry discovers
+    // against the ref-specific clone, not whichever one happens to exist.
+    const { tmpDir } = setup(url, ["skills/on-default"]);
+    setup(url, ["skills/on-v2"], [], "v2.0.0", tmpDir);
+    try {
+      const result = expandSkillEntry(
+        makeEntry(url, "skills/*", "io.example", "v2.0.0"),
+        tmpDir,
+      );
+      assert.deepEqual(
+        result.map((e) => e.source.path),
+        ["skills/on-v2"],
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+});
+
+// --- skillCloneKey ---
+
+describe("skillCloneKey", () => {
+  it("produces different keys for different refs of the same repo", () => {
+    const a = skillCloneKey("https://example.test/repo.git", "v1.0.0");
+    const b = skillCloneKey("https://example.test/repo.git", "v2.0.0");
+    assert.notEqual(a, b);
+  });
+
+  it("produces different keys for different repos with the same ref", () => {
+    const a = skillCloneKey("https://example.test/repo-a.git", "v1.0.0");
+    const b = skillCloneKey("https://example.test/repo-b.git", "v1.0.0");
+    assert.notEqual(a, b);
+  });
+
+  it("produces the same key when ref is omitted vs explicitly undefined", () => {
+    const a = skillCloneKey("https://example.test/repo.git");
+    const b = skillCloneKey("https://example.test/repo.git", undefined);
+    assert.equal(a, b);
+  });
+});
+
+// --- Source repository helpers for the fetchSkillMetadata tests ---
+
+function initSourceRepo(sourceDir: string): void {
+  execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+  execSync('git config user.email "test@test.com"', {
+    cwd: sourceDir,
+    stdio: "pipe",
+  });
+  execSync('git config user.name "Test"', {
+    cwd: sourceDir,
+    stdio: "pipe",
+  });
+}
+
+function commitAll(sourceDir: string, message: string): string {
+  execSync(`git add -A && git commit -m ${message}`, {
+    cwd: sourceDir,
+    stdio: "pipe",
+  });
+  return execSync("git rev-parse HEAD", { cwd: sourceDir, stdio: "pipe" })
+    .toString()
+    .trim();
+}
+
+function writeSkill(sourceDir: string, path: string, name: string): void {
+  mkdirSync(join(sourceDir, path), { recursive: true });
+  writeFileSync(
+    join(sourceDir, path, "SKILL.md"),
+    `---\nname: ${name}\ndescription: ${name}.\n---\n`,
+  );
+}
+
+// --- fetchSkillMetadata with ref ---
+
+describe("fetchSkillMetadata with ref", () => {
+  it("checks out the pinned ref instead of the default branch", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-ref-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-ref-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "on-main");
+      commitAll(sourceDir, "main");
+
+      execSync("git checkout -b v1.0.0", { cwd: sourceDir, stdio: "pipe" });
+      writeSkill(sourceDir, ".", "on-v1");
+      commitAll(sourceDir, "v1");
+      execSync("git checkout main", { cwd: sourceDir, stdio: "pipe" });
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+        "v1.0.0",
+      );
+      assert.equal(metadata.name, "on-v1");
+      assert.equal(metadata.description, "on-v1.");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("checks out a full commit SHA", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-sha-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-sha-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "pinned-commit");
+      const sha = commitAll(sourceDir, "pinned");
+      writeSkill(sourceDir, ".", "on-main");
+      commitAll(sourceDir, "main");
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+        sha,
+      );
+      assert.equal(metadata.name, "pinned-commit");
+      assert.equal(metadata.description, "pinned-commit.");
+      assert.equal(metadata.commit, sha);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // The SHA is fetched after the default branch is cloned. If a failed fetch
+  // left that clone behind, the first path would fail but the second would
+  // reuse it, and be published under the SHA with the default branch's hash
+  // and commit, and no warning.
+  it("fails every path at a commit SHA that can't be checked out", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-bad-sha-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-bad-sha-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, "skills/a", "a");
+      writeSkill(sourceDir, "skills/b", "b");
+      commitAll(sourceDir, "main");
+
+      const url = `file://${sourceDir}`;
+      const missing = "0".repeat(40);
+      assert.throws(
+        () => fetchSkillMetadata(url, "skills/a", tmpDir, missing),
+        /Failed to check out ref/,
+      );
+      assert.throws(
+        () => fetchSkillMetadata(url, "skills/b", tmpDir, missing),
+        /Failed to check out ref/,
+      );
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("two refs of the same repo get independent clones", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-ref-cache-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-ref-cache-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "on-main");
+      commitAll(sourceDir, "main");
+
+      execSync("git checkout -b v1.0.0", { cwd: sourceDir, stdio: "pipe" });
+      writeSkill(sourceDir, ".", "on-v1");
+      commitAll(sourceDir, "v1");
+      execSync("git checkout main", { cwd: sourceDir, stdio: "pipe" });
+
+      const url = `file://${sourceDir}`;
+      const onMain = fetchSkillMetadata(url, undefined, tmpDir, undefined);
+      const onV1 = fetchSkillMetadata(url, undefined, tmpDir, "v1.0.0");
+      assert.equal(onMain.name, "on-main");
+      assert.equal(onV1.name, "on-v1");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- fetchSkillMetadata at the repository root ---
+
+describe("fetchSkillMetadata at the repository root", () => {
+  // A client fetching source.commit gets the full tree and hashes all of it,
+  // so the published hash has to cover the same files — not just the
+  // top-level ones a fresh sparse clone checks out.
+  it("hashes the whole tree, including subdirectories", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-root-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-root-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "root");
+      mkdirSync(join(sourceDir, "scripts"));
+      writeFileSync(join(sourceDir, "scripts", "helper.py"), "print('hi')\n");
+      commitAll(sourceDir, "root");
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+      );
+      assert.equal(metadata.contentHash, computeContentHash(sourceDir));
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // A root skill turns sparse checkout off in the clone every approval of
+  // that repo shares, and `sparse-checkout add` refuses to run after that.
+  it("still reads a path from the clone after a root skill", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-root-shared-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-root-shared-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "root");
+      writeSkill(sourceDir, "skills/nested", "nested");
+      commitAll(sourceDir, "both");
+
+      const url = `file://${sourceDir}`;
+      fetchSkillMetadata(url, undefined, tmpDir);
+      const nested = fetchSkillMetadata(url, "skills/nested", tmpDir);
+      assert.equal(nested.name, "nested");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- fetchSkillMetadata commit ---
+
+describe("fetchSkillMetadata commit", () => {
+  it("reports the default branch's commit when no ref is set", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-commit-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-commit-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "tracked");
+      const head = commitAll(sourceDir, "main");
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+      );
+      assert.equal(metadata.commit, head);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports the tagged commit for an annotated tag, not the tag object", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-commit-tag-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-commit-tag-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, ".", "tagged");
+      const tagged = commitAll(sourceDir, "tagged");
+      execSync('git tag -a v1.0.0 -m "v1.0.0"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      writeSkill(sourceDir, ".", "later");
+      commitAll(sourceDir, "later");
+
+      const metadata = fetchSkillMetadata(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+        "v1.0.0",
+      );
+      assert.equal(metadata.name, "tagged");
+      assert.equal(metadata.commit, tagged);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // Several paths read from one clone all carry the commit that clone was
+  // taken at, even if the source moves on between reads. That is correct:
+  // each path was hashed at that commit. Resolving the commit per entry
+  // against the remote would publish a commit the hash wasn't computed at.
+  it("gives every path read from one clone the clone's commit", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "skill-commit-shared-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "skill-commit-shared-src-"));
+    try {
+      initSourceRepo(sourceDir);
+      writeSkill(sourceDir, "skills/a", "a");
+      writeSkill(sourceDir, "skills/b", "b");
+      const cloned = commitAll(sourceDir, "both");
+
+      const url = `file://${sourceDir}`;
+      const a = fetchSkillMetadata(url, "skills/a", tmpDir);
+
+      writeSkill(sourceDir, "skills/b", "b-moved");
+      commitAll(sourceDir, "moved");
+
+      const b = fetchSkillMetadata(url, "skills/b", tmpDir);
+      assert.equal(a.commit, cloned);
+      assert.equal(b.commit, cloned);
+      assert.equal(b.name, "b");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
     }
   });
 });
