@@ -47,6 +47,23 @@ const APPROVAL_FIELDS = [
   },
 ];
 
+// Shared by the skills, plugins, and sandbox extension tables: the same two
+// fields, computed the same way for all three.
+const LATEST_FIELDS = [
+  {
+    name: "latestCommit",
+    type: "string?",
+    description:
+      "The commit the source's default branch pointed at when consolidation ran. Equal to source.commit unless source.ref pins a tag or commit the default branch has since moved off. Absent when consolidation couldn't find out.",
+  },
+  {
+    name: "latestHash",
+    type: "string?",
+    description:
+      "Hash of the same path at latestCommit, computed like contentHash. The approval is behind its source when this differs from contentHash; comparing the commits instead says nothing, since they move with every change to the repository. For display and notification only: install at source.commit and verify against contentHash.",
+  },
+];
+
 export function ApiPage() {
   return (
     <div>
@@ -219,7 +236,15 @@ export function ApiPage() {
           <InlineCode>sandbox-features.json</InlineCode>) return a single one of
           those keys.
         </p>
+        <p className="mb-3 leading-relaxed">
+          Every file also carries <InlineCode>generatedAt</InlineCode>, an ISO
+          8601 timestamp of when the consolidation run that produced it started.
+          Everything in the file was read from its source after that, including{" "}
+          <InlineCode>latestCommit</InlineCode> and{" "}
+          <InlineCode>latestHash</InlineCode>, so it dates the whole file.
+        </p>
         <CodeBlock>{`{
+  "generatedAt": "2026-09-28T06:00:04.512Z",
   "organizations": [ ... ],
   "tools": [ ... ],
   "mcp": [ ... ],
@@ -341,6 +366,7 @@ export function ApiPage() {
               description:
                 "Hash of the skill folder as of the last consolidation run, at source.commit.",
             },
+            ...LATEST_FIELDS,
             {
               name: "approvals",
               type: "array",
@@ -395,6 +421,7 @@ export function ApiPage() {
               description:
                 "Hash of the whole plugin directory, at source.commit.",
             },
+            ...LATEST_FIELDS,
             {
               name: "containedSkills",
               type: "array",
@@ -492,6 +519,7 @@ export function ApiPage() {
               type: "string",
               description: "Hash of the extension directory, at source.commit.",
             },
+            ...LATEST_FIELDS,
             {
               name: "approvals",
               type: "array",
@@ -601,7 +629,9 @@ export function ApiPage() {
           >
             Anthropic MCP registry
           </a>{" "}
-          metadata and in skill, plugin, and sandbox extension sources.
+          metadata and in skill, plugin, and sandbox extension sources. Each
+          build stamps every file with <InlineCode>generatedAt</InlineCode>, so
+          a client can tell how old the data it holds is.
         </p>
         <p className="mb-3 leading-relaxed">
           The API is versioned by path. New fields and new top-level keys can

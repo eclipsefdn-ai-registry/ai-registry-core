@@ -123,3 +123,139 @@ export function checkedOutCommit(cloneDir: string): string {
     .toString()
     .trim();
 }
+
+/**
+ * What a remote reports about its branches: the commit its default branch
+ * points at, and the name of every branch.
+ */
+export interface RemoteBranches {
+  head: string;
+  branches: Set<string>;
+}
+
+/** Looks up a remote's branches by its source URL. */
+export type RemoteBranchesLookup = (sourceUrl: string) => RemoteBranches;
+
+/**
+ * Parses the output of `git ls-remote <url> HEAD refs/heads/*`.
+ *
+ * ls-remote matches its patterns against the tail of a ref, so `HEAD` also
+ * matches refs such as refs/remotes/origin/HEAD when the remote is itself a
+ * clone. Only a ref named exactly HEAD is the default branch's tip, and only
+ * refs/heads/ lines are branches.
+ */
+export function parseRemoteBranches(output: string): RemoteBranches {
+  let head: string | undefined;
+  const branches = new Set<string>();
+  for (const line of output.split("\n")) {
+    const [sha, refname] = line.trim().split("\t");
+    // `ref: refs/heads/main\tHEAD` is how --symref reports where HEAD
+    // points. It names a branch rather than a commit.
+    if (!refname || sha.startsWith("ref:")) continue;
+    if (refname === "HEAD") head = sha;
+    else if (refname.startsWith("refs/heads/")) {
+      branches.add(refname.slice("refs/heads/".length));
+    }
+  }
+  if (head === undefined) {
+    throw new Error("the remote reports no default branch (no HEAD)");
+  }
+  return { head, branches };
+}
+
+/**
+ * One `git ls-remote` for the default branch's tip and every branch name, with
+ * no clone.
+ *
+ * The thrown error is a new one rather than the one execFileSync raised: that
+ * one's message carries the command line, and with it the token
+ * authenticatedRepoUrl puts into an https URL.
+ */
+export function listRemoteBranches(sourceUrl: string): RemoteBranches {
+  let output: string;
+  try {
+    output = execFileSync(
+      "git",
+      ["ls-remote", authenticatedRepoUrl(sourceUrl), "HEAD", "refs/heads/*"],
+      {
+        stdio: "pipe",
+        encoding: "utf-8",
+        // One line per branch, and a large repository can have thousands.
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+  } catch {
+    throw new Error(`Failed to list the branches of ${sourceUrl}`);
+  }
+  try {
+    return parseRemoteBranches(output);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`${sourceUrl}: ${message}`);
+  }
+}
+
+/**
+ * A lookup that lists each URL's branches once for as long as it is kept, so
+ * every entry read from one repository shares a single ls-remote. A failure
+ * is kept too: a remote that couldn't be listed for one entry is not asked
+ * again for the next.
+ */
+export function remoteBranchesLookup(
+  list: RemoteBranchesLookup = listRemoteBranches,
+): RemoteBranchesLookup {
+  const results = new Map<string, RemoteBranches | Error>();
+  return (sourceUrl) => {
+    let result = results.get(sourceUrl);
+    if (result === undefined) {
+      try {
+        result = list(sourceUrl);
+      } catch (err) {
+        result = err instanceof Error ? err : new Error(String(err));
+      }
+      results.set(sourceUrl, result);
+    }
+    if (result instanceof Error) throw result;
+    return result;
+  };
+}
+
+/**
+ * Whether `ref` names a fixed point rather than something that moves. A full
+ * commit SHA or a tag is fixed. A branch name follows that branch, and no ref
+ * at all follows the default branch.
+ *
+ * A SHA is tested first, as cloneAtRef does, because that is how the
+ * checkout treated it. A name that is both a branch and a tag counts as a
+ * branch, because `git clone --branch` checks refs/heads/ before refs/tags/.
+ */
+export function isPinnedRef(
+  ref: string | undefined,
+  branches: ReadonlySet<string>,
+): boolean {
+  if (ref === undefined) return false;
+  if (COMMIT_SHA_PATTERN.test(ref)) return true;
+  return !branches.has(ref);
+}
+
+/**
+ * Whether finding out what a source ships now needs a second checkout, of its
+ * default branch.
+ *
+ * An entry that follows a branch is its own latest: what it resolved to is
+ * what that branch ships. Only a pin can fall behind, and only once the
+ * default branch has moved off the pinned commit. Otherwise the resolved
+ * commit and hash already are the latest ones.
+ *
+ * `remote` is not called for an entry with no ref, so the common case costs
+ * no network at all. Whatever `remote` throws propagates.
+ */
+export function needsDefaultBranchFetch(
+  ref: string | undefined,
+  resolvedCommit: string,
+  remote: () => RemoteBranches,
+): boolean {
+  if (ref === undefined) return false;
+  const { head, branches } = remote();
+  return isPinnedRef(ref, branches) && head !== resolvedCommit;
+}

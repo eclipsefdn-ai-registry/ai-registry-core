@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  readFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +18,8 @@ import {
   resolveInsideRepo,
   cloneAtRef,
   checkedOutCommit,
+  needsDefaultBranchFetch,
+  type RemoteBranchesLookup,
 } from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
 
@@ -271,16 +279,61 @@ export function fetchPluginManifest(
   };
 }
 
+// --- Latest (what the default branch ships now) ---
+
+/**
+ * Sets latestCommit and latestHash on an entry that has just been resolved,
+ * the same way skill-source.ts's recordLatest does: the resolved values
+ * unless the entry is pinned and the default branch has moved, and otherwise
+ * the plugin directory fetched again with no ref. A failure costs the entry
+ * only these two fields.
+ */
+function recordLatest(
+  entry: PluginEntry,
+  resolved: PluginMetadata,
+  tmpDir: string,
+  remote: RemoteBranchesLookup,
+): void {
+  try {
+    const latest = needsDefaultBranchFetch(
+      entry.source.ref,
+      resolved.commit,
+      () => remote(entry.source.url),
+    )
+      ? fetchPluginManifest(entry.source.url, entry.source.path, tmpDir)
+      : resolved;
+    entry.latestCommit = latest.commit;
+    entry.latestHash = latest.contentHash;
+    if (latest.contentHash !== resolved.contentHash) {
+      console.log(`    Latest hash: ${latest.contentHash} (default branch)`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `  WARNING: ${entry.pluginId} — could not tell what the default branch ships now, published without latestCommit/latestHash`,
+    );
+    console.warn(`    ${message}`);
+  }
+}
+
 // --- Enrichment (called by consolidate.ts) ---
 
-export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
+/**
+ * `remote`, when given, also sets latestCommit and latestHash on every entry
+ * (see recordLatest). Without it they are left unset.
+ */
+export function enrichPluginMetadata(
+  plugins: PluginEntry[],
+  remote?: RemoteBranchesLookup,
+): PluginEntry[] {
   if (plugins.length === 0) return plugins;
 
   console.log("Enriching plugins with source metadata...\n");
 
-  const tmpDir = resolve(ROOT, ".tmp-plugins");
-  if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
-  mkdirSync(tmpDir, { recursive: true });
+  // A unique directory per call, for the reason enrichSandboxExtensions
+  // gives: two overlapping runs sharing one fixed path would each delete the
+  // clones the other is reading.
+  const tmpDir = mkdtempSync(resolve(ROOT, ".tmp-plugins-"));
 
   const enriched: PluginEntry[] = [];
 
@@ -306,6 +359,7 @@ export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
+        if (remote) recordLatest(entry, metadata, tmpDir, remote);
         enriched.push(entry);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

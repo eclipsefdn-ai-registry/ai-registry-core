@@ -7,7 +7,13 @@ import { join, sep } from "node:path";
 import {
   authenticatedRepoUrl,
   cloneAtRef,
+  isPinnedRef,
+  listRemoteBranches,
+  needsDefaultBranchFetch,
+  parseRemoteBranches,
+  remoteBranchesLookup,
   resolveInsideRepo,
+  type RemoteBranches,
 } from "./git-source.js";
 
 describe("authenticatedRepoUrl", () => {
@@ -131,5 +137,201 @@ describe("cloneAtRef", () => {
       rmSync(tmpDir, { recursive: true, force: true });
       rmSync(sourceDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("parseRemoteBranches", () => {
+  const main = "a".repeat(40);
+  const feature = "b".repeat(40);
+
+  it("reads the default branch's tip and every branch name", () => {
+    const parsed = parseRemoteBranches(
+      [
+        `${main}\tHEAD`,
+        `${main}\trefs/heads/main`,
+        `${feature}\trefs/heads/feature/x`,
+        "",
+      ].join("\n"),
+    );
+    assert.equal(parsed.head, main);
+    assert.deepEqual([...parsed.branches].sort(), ["feature/x", "main"]);
+  });
+
+  // ls-remote matches `HEAD` against the tail of every ref, so a remote that
+  // is itself a clone also reports its remote-tracking HEAD. That one points
+  // wherever the clone's origin did, not at this remote's default branch.
+  it("takes only a ref named exactly HEAD as the tip", () => {
+    const parsed = parseRemoteBranches(
+      [
+        `${feature}\trefs/remotes/origin/HEAD`,
+        `${main}\tHEAD`,
+        `${main}\trefs/heads/main`,
+      ].join("\n"),
+    );
+    assert.equal(parsed.head, main);
+    assert.deepEqual([...parsed.branches], ["main"]);
+  });
+
+  it("ignores the line --symref adds", () => {
+    const parsed = parseRemoteBranches(
+      [`ref: refs/heads/main\tHEAD`, `${main}\tHEAD`].join("\n"),
+    );
+    assert.equal(parsed.head, main);
+  });
+
+  it("throws when the remote reports no HEAD", () => {
+    assert.throws(
+      () => parseRemoteBranches(`${main}\trefs/heads/main\n`),
+      /no default branch/,
+    );
+  });
+});
+
+describe("isPinnedRef", () => {
+  const branches = new Set(["main", "release/1.x"]);
+
+  it("treats no ref as following the default branch", () => {
+    assert.equal(isPinnedRef(undefined, branches), false);
+  });
+
+  it("treats a branch name, slashed or not, as following that branch", () => {
+    assert.equal(isPinnedRef("main", branches), false);
+    assert.equal(isPinnedRef("release/1.x", branches), false);
+  });
+
+  it("treats a name that isn't a branch as a tag", () => {
+    assert.equal(isPinnedRef("v1.0.0", branches), true);
+  });
+
+  it("treats a full commit SHA as pinned, whatever the branches are called", () => {
+    const sha = "c".repeat(40);
+    assert.equal(isPinnedRef(sha, new Set([sha])), true);
+  });
+});
+
+describe("needsDefaultBranchFetch", () => {
+  const resolved = "a".repeat(40);
+  const moved = "b".repeat(40);
+
+  function spyRemote(remote: RemoteBranches): {
+    remote: () => RemoteBranches;
+    calls: () => number;
+  } {
+    let calls = 0;
+    return {
+      remote: () => {
+        calls++;
+        return remote;
+      },
+      calls: () => calls,
+    };
+  }
+
+  // Most entries have no ref, so this is the case that must cost nothing.
+  it("never asks the remote about an entry with no ref", () => {
+    const spy = spyRemote({ head: moved, branches: new Set(["main"]) });
+    assert.equal(
+      needsDefaultBranchFetch(undefined, resolved, spy.remote),
+      false,
+    );
+    assert.equal(spy.calls(), 0);
+  });
+
+  // The entry follows its branch, so what it resolved to is that branch's
+  // latest, even when the default branch is somewhere else entirely.
+  it("needs no second checkout for a branch ref, even off the default branch", () => {
+    const spy = spyRemote({ head: moved, branches: new Set(["main", "dev"]) });
+    assert.equal(needsDefaultBranchFetch("dev", resolved, spy.remote), false);
+  });
+
+  it("needs no second checkout for a pin the default branch still points at", () => {
+    const spy = spyRemote({ head: resolved, branches: new Set(["main"]) });
+    assert.equal(
+      needsDefaultBranchFetch("v1.0.0", resolved, spy.remote),
+      false,
+    );
+    assert.equal(
+      needsDefaultBranchFetch(resolved, resolved, spy.remote),
+      false,
+    );
+  });
+
+  it("needs a second checkout once the default branch has moved off a pin", () => {
+    const spy = spyRemote({ head: moved, branches: new Set(["main"]) });
+    assert.equal(needsDefaultBranchFetch("v1.0.0", resolved, spy.remote), true);
+    assert.equal(needsDefaultBranchFetch(resolved, resolved, spy.remote), true);
+  });
+
+  it("lets a failed lookup propagate", () => {
+    assert.throws(
+      () =>
+        needsDefaultBranchFetch("v1.0.0", resolved, () => {
+          throw new Error("unreachable");
+        }),
+      /unreachable/,
+    );
+  });
+});
+
+describe("remoteBranchesLookup", () => {
+  const listed: RemoteBranches = { head: "a".repeat(40), branches: new Set() };
+
+  it("lists each URL once, however many entries ask", () => {
+    const asked: string[] = [];
+    const lookup = remoteBranchesLookup((url) => {
+      asked.push(url);
+      return listed;
+    });
+    lookup("https://example.test/a.git");
+    lookup("https://example.test/a.git");
+    lookup("https://example.test/b.git");
+    assert.deepEqual(asked, [
+      "https://example.test/a.git",
+      "https://example.test/b.git",
+    ]);
+  });
+
+  it("keeps a failure rather than asking again", () => {
+    let calls = 0;
+    const lookup = remoteBranchesLookup(() => {
+      calls++;
+      throw new Error("unreachable");
+    });
+    assert.throws(() => lookup("https://example.test/a.git"), /unreachable/);
+    assert.throws(() => lookup("https://example.test/a.git"), /unreachable/);
+    assert.equal(calls, 1);
+  });
+});
+
+describe("listRemoteBranches", () => {
+  it("reports the default branch's tip and branches, but not tags", () => {
+    const sourceDir = mkdtempSync(join(tmpdir(), "ls-remote-src-"));
+    try {
+      const git = (command: string) =>
+        execSync(`git ${command}`, { cwd: sourceDir, stdio: "pipe" })
+          .toString()
+          .trim();
+      git("init -b main");
+      writeFileSync(join(sourceDir, "README.md"), "main\n");
+      git("add -A");
+      git('-c user.email="test@test.com" -c user.name="Test" commit -m main');
+      git("branch release/1.x");
+      git("tag v1.0.0");
+
+      const remote = listRemoteBranches(`file://${sourceDir}`);
+      assert.equal(remote.head, git("rev-parse HEAD"));
+      assert.deepEqual([...remote.branches].sort(), ["main", "release/1.x"]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("names the source, not the command, when the remote can't be listed", () => {
+    const missing = join(tmpdir(), "ls-remote-missing-does-not-exist");
+    assert.throws(
+      () => listRemoteBranches(`file://${missing}`),
+      (err: Error) =>
+        err.message === `Failed to list the branches of file://${missing}`,
+    );
   });
 });

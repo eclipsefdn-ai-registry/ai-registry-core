@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -13,7 +13,9 @@ import {
   expandSkillEntry,
   skillCloneKey,
   fetchSkillMetadata,
+  enrichSkillMetadata,
 } from "./skill-source.js";
+import { remoteBranchesLookup } from "./git-source.js";
 import type { SkillEntry } from "./consolidate.js";
 
 // --- parseSkillFrontmatter ---
@@ -1036,5 +1038,108 @@ describe("fetchSkillMetadata commit", () => {
       rmSync(tmpDir, { recursive: true, force: true });
       rmSync(sourceDir, { recursive: true, force: true });
     }
+  });
+});
+
+// --- enrichSkillMetadata latestCommit and latestHash ---
+
+describe("enrichSkillMetadata latest", () => {
+  // One source serves every case. skills/a, skills/b and skills/c are tagged
+  // v1.0.0 (annotated, so the pin resolves through a tag object), with a
+  // develop branch at the same commit. Then main moves on: skills/b is
+  // edited, skills/c deleted, and skills/a left alone.
+  let sourceDir: string;
+  let url: string;
+  let tagged: string;
+  let tip: string;
+
+  before(() => {
+    sourceDir = mkdtempSync(join(tmpdir(), "skill-latest-src-"));
+    url = `file://${sourceDir}`;
+    initSourceRepo(sourceDir);
+    writeSkill(sourceDir, "skills/a", "a");
+    writeSkill(sourceDir, "skills/b", "b");
+    writeSkill(sourceDir, "skills/c", "c");
+    tagged = commitAll(sourceDir, "v1");
+    execSync('git tag -a v1.0.0 -m "v1.0.0"', {
+      cwd: sourceDir,
+      stdio: "pipe",
+    });
+    execSync("git branch develop", { cwd: sourceDir, stdio: "pipe" });
+    writeSkill(sourceDir, "skills/b", "b-edited");
+    rmSync(join(sourceDir, "skills/c"), { recursive: true });
+    tip = commitAll(sourceDir, "moved");
+  });
+
+  after(() => {
+    rmSync(sourceDir, { recursive: true, force: true });
+  });
+
+  function entry(path: string, ref?: string): SkillEntry {
+    const source: SkillEntry["source"] = { url, path };
+    if (ref !== undefined) source.ref = ref;
+    return {
+      skillId: `io.example/${path.split("/").pop()}`,
+      name: "",
+      description: "",
+      source,
+      contentHash: "",
+      approvals: [],
+    };
+  }
+
+  function enrichOne(e: SkillEntry): SkillEntry {
+    const [enriched] = enrichSkillMetadata([e], remoteBranchesLookup());
+    assert.ok(enriched, `${e.skillId} was not published`);
+    return enriched;
+  }
+
+  // The repository's tip moved, so latestCommit differs from source.commit.
+  // That says nothing about this skill: its own folder is what counts.
+  it("keeps the hash of a pinned skill whose folder didn't change", () => {
+    const a = enrichOne(entry("skills/a", "v1.0.0"));
+    assert.equal(a.source.commit, tagged);
+    assert.equal(a.latestCommit, tip);
+    assert.equal(a.latestHash, a.contentHash);
+  });
+
+  it("publishes a different hash for a pinned skill whose folder changed", () => {
+    const b = enrichOne(entry("skills/b", "v1.0.0"));
+    assert.equal(b.latestCommit, tip);
+    assert.notEqual(b.latestHash, b.contentHash);
+    // The source's working tree is main's tip, so this is the default
+    // branch's hash of the folder.
+    assert.equal(b.latestHash, computeContentHash(join(sourceDir, "skills/b")));
+  });
+
+  // skills/b differs between develop and main, so a checkout of the default
+  // branch would show up as a latestHash different from contentHash.
+  it("gives a branch-tracking skill its resolved values, with no default-branch checkout", () => {
+    const b = enrichOne(entry("skills/b", "develop"));
+    assert.equal(b.source.commit, tagged);
+    assert.equal(b.latestCommit, b.source.commit);
+    assert.equal(b.latestHash, b.contentHash);
+  });
+
+  it("gives a skill with no ref its resolved values", () => {
+    const a = enrichOne(entry("skills/a"));
+    assert.equal(a.source.commit, tip);
+    assert.equal(a.latestCommit, tip);
+    assert.equal(a.latestHash, a.contentHash);
+  });
+
+  // What was approved is still what was approved. Only the comparison is
+  // unknown, so the entry stays and the two fields go.
+  it("keeps a pinned skill the default branch no longer has, without latest", () => {
+    const c = enrichOne(entry("skills/c", "v1.0.0"));
+    assert.equal(c.source.commit, tagged);
+    assert.equal(c.latestCommit, undefined);
+    assert.equal(c.latestHash, undefined);
+  });
+
+  it("leaves latest unset when no lookup is given", () => {
+    const [a] = enrichSkillMetadata([entry("skills/a", "v1.0.0")]);
+    assert.equal(a.latestCommit, undefined);
+    assert.equal(a.latestHash, undefined);
   });
 });

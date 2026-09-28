@@ -16,13 +16,20 @@ Five artifact types, same approval model:
 
 Organizations can provide tools (with `installConfigs`) or just approve artifacts without tool-specific configuration. All but sandbox extensions use the same approval file format — `installConfigs` is optional there and absent from the sandbox extension schema entirely.
 
+**Latest.** Skill, plugin, and sandbox extension entries publish `source.commit` and `contentHash`, which say what was approved. Next to them go `latestCommit` and `latestHash`, which say what the source's default branch ships at the entry's path now.
+
+- Only an approval whose `source.ref` pins a tag or commit can differ, and only once the default branch moves off it.
+- One `git ls-remote` per repository decides. Only when the branch has moved is the path fetched and hashed again, with no ref.
+- Behind is `latestHash !== contentHash`. Every consumer derives it, it is never stored, and it is never a commit comparison.
+- Every published file carries a `generatedAt` timestamp.
+
 ## Data flow
 
 ```
 Vendor repos → validate → collect → enrich (MCP registry + skill sources + plugin sources + agent card fetches + sandbox extension repos) → write static JSON → deploy website
 ```
 
-Unreachable MCP servers get `mcpRegistryVerified: false`. Unreachable skill and plugin sources are skipped with a warning. Unreachable agent card URLs are skipped with a warning. An unreachable sandbox extension repository is skipped whole; a single extension failing its spec checks is skipped on its own.
+Unreachable MCP servers get `mcpRegistryVerified: false`. Unreachable skill and plugin sources are skipped with a warning. Unreachable agent card URLs are skipped with a warning. An unreachable sandbox extension repository is skipped whole; a single extension failing its spec checks is skipped on its own. Failing to find out what the default branch ships now costs an entry only its `latestCommit`/`latestHash`, never the entry.
 
 ## Key conventions
 
@@ -44,6 +51,7 @@ src/
   agent-source.ts           Agent enrichment (HTTP fetch, parse, hash)
   marketplace-source.ts     Marketplace expansion (parse marketplace file, resolve + derive plugin IDs)
   sandbox-source.ts         Sandbox extension enrichment (clone, discover tools/* and features/*, parse spec, hash)
+  git-source.ts             Shared git helpers (clone at a ref, list remote branches, decide whether latest needs a second fetch)
   anthropic-registry.ts     MCP server metadata lookup
   cli-validate.ts           CLI entry: validate a vendor repo
   cli-consolidate.ts        CLI entry: consolidate all vendors
@@ -77,6 +85,8 @@ Tests use Node.js built-in `node:test` with `assert/strict`. Pure function tests
 - `installConfigs` and `tools` are optional. Handle missing values with `?? []`.
 - Validation is split: Phase 1 (schema), Phase 2 (MCP registry verification), Phase 3 (skill source verification), Phase 4 (plugin manifest verification), Phase 5 (agent card verification), Phase 6 (marketplace expansion verification), Phase 7 (sandbox extension source verification). Phases 2-7 warn on failure, don't block.
 - Consolidation is split: collect (no network) → enrich MCP (network, fatal on error) → enrich skills (network, skip on error) → expand marketplace approvals into plugin approvals (network, skip on error per marketplace) → enrich plugins (network, skip on error) → enrich agents (network, skip on error) → expand sandbox extension repos into per-extension entries (network, skip on error) → write.
+- The skill, plugin, and sandbox extension steps record latest only when given a `RemoteBranchesLookup` (`src/git-source.ts`). Consolidation passes one shared lookup. Vendor validation passes none, so it does no extra network work.
+- The second fetch that computes `latestHash` must go through the same function that produced `contentHash`, or the two stop being comparable.
 - Website types in `website/src/types.ts` mirror but don't import from `src/consolidate.ts` — keep them in sync manually.
 - Guidance for implementing clients exists twice on purpose: `skills/implement-registry-client/` for agents, `/docs/clients` (`website/src/pages/docs/ClientsPage.tsx`) for people. Each is complete and neither links to the other, so a rule that changes needs both edited. Drift here is accepted, not a bug to fix by merging them.
 - The sandbox extension install command (`enclave tools|features add ...`) lives only in `website/src/enclaveCommand.ts` and is never written into the consolidated JSON, matching how `InstallFromCli` already works for skills and plugins. It returns undefined for non-GitHub sources, since Enclave's `owner/repo` shorthand assumes github.com.

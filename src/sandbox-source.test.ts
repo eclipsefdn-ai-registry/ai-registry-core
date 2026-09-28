@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -13,6 +13,9 @@ import {
   KIND_DIRS,
   type DiscoveredExtension,
 } from "./sandbox-source.js";
+import { computeContentHash } from "./skill-source.js";
+import { remoteBranchesLookup } from "./git-source.js";
+import type { SandboxExtensionEntry } from "./consolidate.js";
 
 // --- parseSandboxSpec ---
 
@@ -515,6 +518,99 @@ describe("enrichSandboxExtensions", () => {
       assert.equal(sandboxFeatures[0].source.commit, head);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- enrichSandboxExtensions latestCommit and latestHash ---
+
+describe("enrichSandboxExtensions latest", () => {
+  // Three extensions tagged v1.0.0. Then the default branch moves on:
+  // features/github-cli gains a file, tools/gone is deleted, and
+  // tools/openclaw is left alone.
+  let dir: string;
+  let url: string;
+  let tagged: string;
+  let tip: string;
+
+  const git = (command: string) =>
+    execSync(`git ${command}`, { cwd: dir, stdio: "pipe" }).toString().trim();
+
+  before(() => {
+    dir = makeKitRepo([
+      { path: "tools/openclaw", spec: spec("sandbox", "openclaw") },
+      { path: "tools/gone", spec: spec("sandbox", "gone") },
+      { path: "features/github-cli", spec: spec("mixin", "github-cli") },
+    ]);
+    url = `file://${dir}`;
+    tagged = git("rev-parse HEAD");
+    git("tag v1.0.0");
+    writeFileSync(join(dir, "features", "github-cli", "install.sh"), "gh\n");
+    rmSync(join(dir, "tools", "gone"), { recursive: true });
+    git("add -A");
+    git("commit -m moved");
+    tip = git("rev-parse HEAD");
+  });
+
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function enrich(ref?: string, withLookup = true): SandboxExtensionEntry[] {
+    const source: { url: string; ref?: string } = { url };
+    if (ref !== undefined) source.ref = ref;
+    const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions(
+      [{ sandboxExtensionId: "io.github.acme/kits", source, approvals: [] }],
+      withLookup ? remoteBranchesLookup() : undefined,
+    );
+    return [...sandboxTools, ...sandboxFeatures];
+  }
+
+  function byPath(entries: SandboxExtensionEntry[], path: string) {
+    const found = entries.find((e) => e.source.path === path);
+    assert.ok(found, `${path} was not published`);
+    return found;
+  }
+
+  it("compares each pinned extension's own directory, not the repository", () => {
+    const entries = enrich("v1.0.0");
+
+    const openclaw = byPath(entries, "tools/openclaw");
+    assert.equal(openclaw.source.commit, tagged);
+    assert.equal(openclaw.latestCommit, tip);
+    assert.equal(openclaw.latestHash, openclaw.contentHash);
+
+    const githubCli = byPath(entries, "features/github-cli");
+    assert.equal(githubCli.latestCommit, tip);
+    assert.notEqual(githubCli.latestHash, githubCli.contentHash);
+    assert.equal(
+      githubCli.latestHash,
+      computeContentHash(join(dir, "features", "github-cli")),
+    );
+  });
+
+  // Still published, since that is what the approval covered at v1.0.0.
+  // There is just nothing on the default branch to compare it with.
+  it("keeps an extension the default branch no longer has, without latest", () => {
+    const gone = byPath(enrich("v1.0.0"), "tools/gone");
+    assert.equal(gone.source.commit, tagged);
+    assert.equal(gone.latestCommit, undefined);
+    assert.equal(gone.latestHash, undefined);
+  });
+
+  it("gives an approval with no ref its resolved values", () => {
+    const entries = enrich();
+    assert.equal(entries.length, 2);
+    for (const entry of entries) {
+      assert.equal(entry.latestCommit, tip);
+      assert.equal(entry.latestHash, entry.contentHash);
+    }
+  });
+
+  it("leaves latest unset when no lookup is given", () => {
+    for (const entry of enrich("v1.0.0", false)) {
+      assert.equal(entry.latestCommit, undefined);
+      assert.equal(entry.latestHash, undefined);
     }
   });
 });

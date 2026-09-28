@@ -104,15 +104,26 @@ export function ClientsPage() {
             <InlineCode>source.commit</InlineCode> to verify the hash. With no{" "}
             <InlineCode>source.ref</InlineCode>, the approval follows the
             default branch and <InlineCode>source.commit</InlineCode> moves with
-            it on every run.
+            it on every run. Each entry also carries{" "}
+            <InlineCode>latestCommit</InlineCode> and{" "}
+            <InlineCode>latestHash</InlineCode>, what the default branch ships
+            at the same path now, whenever consolidation could find that out.
+            They show when a pinned approval has fallen behind its source, and
+            they are never something to install; see{" "}
+            <a href="#staying-current" className="text-primary hover:underline">
+              Staying current
+            </a>
+            .
           </li>
           <li className="leading-relaxed">
             Agents carry a content hash too, but of a single fetched Agent Card
             JSON file, not a directory — there is no path to pin.
           </li>
           <li className="leading-relaxed">
-            Sandbox extensions carry a content hash of their directory and a{" "}
-            <InlineCode>source.commit</InlineCode> the same way, and can also
+            Sandbox extensions carry a content hash of their directory, a{" "}
+            <InlineCode>source.commit</InlineCode>, and{" "}
+            <InlineCode>latestCommit</InlineCode> and{" "}
+            <InlineCode>latestHash</InlineCode>, all the same way. They can also
             name a specific revision: <InlineCode>source.ref</InlineCode> holds
             a git tag, branch, or full commit SHA when the organization approved
             one. A branch is still a moving target, so read the ref rather than
@@ -178,6 +189,14 @@ export function ClientsPage() {
           anything changed. Keep an empty response and a failed request
           distinct, because they mean opposite things.
         </p>
+        <p className="mb-3 leading-relaxed">
+          Every file carries <InlineCode>generatedAt</InlineCode>, an ISO 8601
+          timestamp of when the consolidation run that produced it started.
+          Everything in the file was read from its source after that, so it
+          dates the whole file. Show it next to anything you derive from{" "}
+          <InlineCode>latestCommit</InlineCode> or{" "}
+          <InlineCode>latestHash</InlineCode>.
+        </p>
       </DocsSection>
 
       <DocsSection id="core">
@@ -190,7 +209,8 @@ export function ClientsPage() {
           , <InlineCode>mcp</InlineCode>, <InlineCode>skills</InlineCode>,{" "}
           <InlineCode>plugins</InlineCode>, <InlineCode>agents</InlineCode>,{" "}
           <InlineCode>sandboxTools</InlineCode>, and{" "}
-          <InlineCode>sandboxFeatures</InlineCode>. New keys may appear.
+          <InlineCode>sandboxFeatures</InlineCode>, next to the{" "}
+          <InlineCode>generatedAt</InlineCode> timestamp. New keys may appear.
         </p>
         <p className="mb-3 leading-relaxed">
           <strong>2. Resolve approvals.</strong> Each entry carries an{" "}
@@ -320,16 +340,16 @@ export function ClientsPage() {
         </InfoCallout>
         <p className="mt-3 mb-3 leading-relaxed">
           Fetch at <InlineCode>source.commit</InlineCode>, not at the branch or
-          tag it came from. It is published on every skill and plugin, pinned or
-          not, and a tree fetched there should match{" "}
-          <InlineCode>contentHash</InlineCode> exactly, so a mismatch at that
-          commit is never upstream drift: the source is serving something other
-          than what was hashed, or your hash implementation disagrees with the
-          reference. If the commit can't be fetched, because history was
-          rewritten or the host won't serve a bare SHA, fall back to{" "}
-          <InlineCode>source.ref</InlineCode> or the default branch, where a
-          mismatch is expected for up to a day after an upstream commit on a
-          branch, since consolidation runs daily.
+          tag it came from, and never at <InlineCode>latestCommit</InlineCode>.
+          It is published on every skill and plugin, pinned or not, and a tree
+          fetched there should match <InlineCode>contentHash</InlineCode>{" "}
+          exactly, so a mismatch at that commit is never upstream drift: the
+          source is serving something other than what was hashed, or your hash
+          implementation disagrees with the reference. If the commit can't be
+          fetched, because history was rewritten or the host won't serve a bare
+          SHA, fall back to <InlineCode>source.ref</InlineCode> or the default
+          branch, where a mismatch is expected for up to a day after an upstream
+          commit on a branch, since consolidation runs daily.
         </p>
         <p className="mb-3 leading-relaxed">
           On a mismatch you can't explain that way, tell the user the source has
@@ -597,6 +617,82 @@ export function ClientsPage() {
           Update only artifacts carrying your provenance marker. One the user
           placed by hand was never yours to replace.
         </p>
+        <h3 className="font-semibold mt-5 mb-2">What the source ships now</h3>
+        <p className="mb-3 leading-relaxed">
+          Skills, plugins, and sandbox extensions carry two more fields next to{" "}
+          <InlineCode>source.commit</InlineCode> and{" "}
+          <InlineCode>contentHash</InlineCode>.{" "}
+          <InlineCode>latestCommit</InlineCode> is the commit the source's
+          default branch pointed at when consolidation ran, and{" "}
+          <InlineCode>latestHash</InlineCode> is the content hash of the entry's
+          own path at that commit, computed exactly as{" "}
+          <InlineCode>contentHash</InlineCode> is. The first two say what was
+          approved; these say what the source ships now.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          The approval is behind its source when{" "}
+          <InlineCode>latestHash</InlineCode> differs from{" "}
+          <InlineCode>contentHash</InlineCode>. Compare those two and nothing
+          else:
+        </p>
+        <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
+          <li className="leading-relaxed">
+            <strong>Never compare commits.</strong> A repository holding twenty
+            skills moves its default branch whenever any one of them changes, so{" "}
+            <InlineCode>latestCommit</InlineCode> differs from{" "}
+            <InlineCode>source.commit</InlineCode> on all twenty while only one
+            of them changed.
+          </li>
+          <li className="leading-relaxed">
+            <strong>Only a pinned approval can fall behind.</strong> One with no{" "}
+            <InlineCode>source.ref</InlineCode>, or with a branch name, follows
+            that branch, so its latest fields equal{" "}
+            <InlineCode>source.commit</InlineCode> and{" "}
+            <InlineCode>contentHash</InlineCode> by construction. A tag or a
+            full commit SHA is a fixed point, and the default branch can move
+            past it.
+          </li>
+          <li className="leading-relaxed">
+            <strong>Absent means unknown.</strong> Both fields are missing when
+            consolidation couldn't tell, because the source didn't answer or the
+            default branch no longer has a valid artifact at that path. That is
+            neither current nor behind, so claim nothing. In JavaScript,{" "}
+            <InlineCode>undefined !== contentHash</InlineCode> is true, so a
+            check that doesn't test for <InlineCode>latestHash</InlineCode>{" "}
+            first reports every such entry as behind.
+          </li>
+          <li className="leading-relaxed">
+            <strong>Different is not newer.</strong> A tag cut on a release
+            branch can be ahead of the default branch or diverged from it. Say
+            that the source ships something different now, not that a newer
+            version exists.
+          </li>
+          <li className="leading-relaxed">
+            <strong>
+              A hash says that the content changed, not what it changed to.
+            </strong>{" "}
+            There is no version to name. "The source has changed since this was
+            approved" is as far as it goes.
+          </li>
+        </ul>
+        <InfoCallout>
+          <strong>
+            This is for display and notification, never an update.
+          </strong>{" "}
+          Nothing at <code>latestCommit</code> has been approved, so never
+          install from it and never verify a download against{" "}
+          <code>latestHash</code>. Install at <code>source.commit</code> and
+          verify against <code>contentHash</code> as always. Once you have the
+          bytes, the hash you compute from them is the one that says what you
+          got.
+        </InfoCallout>
+        <p className="mt-3 mb-3 leading-relaxed">
+          Update detection doesn't change: an update is something newly
+          approved, which arrives as a new <InlineCode>contentHash</InlineCode>.
+          Show <InlineCode>generatedAt</InlineCode> wherever you show the latest
+          fields, since a stored "latest" is only as current as the run that
+          stored it.
+        </p>
       </DocsSection>
 
       <DocsSection id="detecting-tampering">
@@ -632,6 +728,13 @@ export function ClientsPage() {
           <InlineCode>source.commit</InlineCode>, using the same algorithm for
           all three. Hash a tree fetched at any other commit and a mismatch
           tells you nothing.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          <InlineCode>latestHash</InlineCode> is the same algorithm over the
+          same path, at <InlineCode>latestCommit</InlineCode>, which is what
+          makes it comparable with <InlineCode>contentHash</InlineCode>. It
+          describes the source's default branch rather than what was approved,
+          so it is never what you verify an install against.
         </p>
         <ol className="mb-3 space-y-2 text-sm list-decimal pl-5">
           <li className="leading-relaxed">
@@ -802,6 +905,17 @@ export function ClientsPage() {
           items={[
             "Use configHash for MCP servers and contentHash for every other type",
             "Preserve user-supplied configuration across an update",
+          ]}
+        />
+        <Checklist
+          title="If you show whether an approval is current"
+          idPrefix="current"
+          items={[
+            "Compare latestHash with contentHash, never latestCommit with source.commit",
+            "Treat a missing latestHash as unknown rather than behind",
+            "Word a difference without a direction, since the default branch can be behind a pinned tag",
+            "Show generatedAt next to anything derived from the latest fields",
+            "Never install from latestCommit or verify a download against latestHash",
           ]}
         />
         <Checklist

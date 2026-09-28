@@ -48,6 +48,7 @@ interface OrgsData {
 // sandbox extension approval carries no install configs, so there is nothing
 // for the per-tool view to scope by.
 interface ScopedData {
+  generatedAt: RegistryData["generatedAt"];
   mcp: RegistryData["mcp"];
   skills: RegistryData["skills"];
   plugins: RegistryData["plugins"];
@@ -89,6 +90,7 @@ function useScopedRegistryData(
         const orgsData = (await orgsRes.json()) as OrgsData;
 
         setData({
+          generatedAt: scopedData.generatedAt,
           organizations: orgsData.organizations,
           tools: orgsData.tools,
           mcp: scopedData.mcp,

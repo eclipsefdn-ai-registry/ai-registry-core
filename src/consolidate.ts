@@ -23,7 +23,7 @@ import {
   derivePluginIdFromSource,
 } from "./marketplace-source.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
-import { authenticatedRepoUrl } from "./git-source.js";
+import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
@@ -190,6 +190,15 @@ export interface SkillEntry {
     commit?: string;
   };
   contentHash: string;
+  // Output only, set at enrichment: what the source's default branch ships
+  // at this entry's path now, as a commit and the hash of the path there.
+  // Equal to source.commit and contentHash unless ref pins a tag or commit
+  // the default branch has since moved off, and absent when that couldn't be
+  // found out. Behind means latestHash !== contentHash. Comparing commits
+  // says nothing, since the commit moves whenever anything in the repository
+  // does. Same on PluginEntry and SandboxExtensionEntry.
+  latestCommit?: string;
+  latestHash?: string;
   approvals: SkillApproval[];
 }
 
@@ -232,6 +241,9 @@ export interface PluginEntry {
   keywords?: string[];
   source: { url: string; path?: string; ref?: string; commit?: string };
   contentHash: string;
+  // see SkillEntry
+  latestCommit?: string;
+  latestHash?: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
   approvals: PluginApproval[];
@@ -321,6 +333,9 @@ export interface SandboxExtensionEntry {
   description: string;
   source: { url: string; path: string; ref?: string; commit?: string };
   contentHash: string;
+  // see SkillEntry
+  latestCommit?: string;
+  latestHash?: string;
   approvals: SandboxExtensionApproval[];
 }
 
@@ -1344,44 +1359,37 @@ function writeJson(filePath: string, data: unknown): void {
   writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n");
 }
 
-function writeOutput(output: ConsolidatedOutput): void {
+// Every file goes through `write`, which stamps it with generatedAt: the time
+// this run started, before any source was read. That is what dates the
+// latestCommit/latestHash values in it. A client reading only
+// tools/<id>.json needs the date as much as one reading all.json, so no file
+// is left without it.
+function writeOutput(output: ConsolidatedOutput, generatedAt: string): void {
   const outputDir = resolve(ROOT, "dist/api/v1");
   mkdirSync(outputDir, { recursive: true });
 
-  const allPath = resolve(outputDir, "all.json");
-  writeJson(allPath, output);
-  console.log(`Written: ${allPath}`);
+  const write = (filePath: string, data: object): void => {
+    writeJson(filePath, { generatedAt, ...data });
+    console.log(`Written: ${filePath}`);
+  };
 
-  const orgsPath = resolve(outputDir, "organizations.json");
-  writeJson(orgsPath, {
+  write(resolve(outputDir, "all.json"), output);
+
+  write(resolve(outputDir, "organizations.json"), {
     organizations: output.organizations,
     tools: output.tools,
   });
-  console.log(`Written: ${orgsPath}`);
 
-  const mcpPath = resolve(outputDir, "mcp.json");
-  writeJson(mcpPath, { mcp: output.mcp });
-  console.log(`Written: ${mcpPath}`);
-
-  const skillsPath = resolve(outputDir, "skills.json");
-  writeJson(skillsPath, { skills: output.skills });
-  console.log(`Written: ${skillsPath}`);
-
-  const pluginsPath = resolve(outputDir, "plugins.json");
-  writeJson(pluginsPath, { plugins: output.plugins });
-  console.log(`Written: ${pluginsPath}`);
-
-  const agentsPath = resolve(outputDir, "agents.json");
-  writeJson(agentsPath, { agents: output.agents });
-  console.log(`Written: ${agentsPath}`);
-
-  const sandboxToolsPath = resolve(outputDir, "sandbox-tools.json");
-  writeJson(sandboxToolsPath, { sandboxTools: output.sandboxTools });
-  console.log(`Written: ${sandboxToolsPath}`);
-
-  const sandboxFeaturesPath = resolve(outputDir, "sandbox-features.json");
-  writeJson(sandboxFeaturesPath, { sandboxFeatures: output.sandboxFeatures });
-  console.log(`Written: ${sandboxFeaturesPath}`);
+  write(resolve(outputDir, "mcp.json"), { mcp: output.mcp });
+  write(resolve(outputDir, "skills.json"), { skills: output.skills });
+  write(resolve(outputDir, "plugins.json"), { plugins: output.plugins });
+  write(resolve(outputDir, "agents.json"), { agents: output.agents });
+  write(resolve(outputDir, "sandbox-tools.json"), {
+    sandboxTools: output.sandboxTools,
+  });
+  write(resolve(outputDir, "sandbox-features.json"), {
+    sandboxFeatures: output.sandboxFeatures,
+  });
 
   // Sandbox extensions are deliberately absent from the per-tool files below:
   // their approvals carry no installConfigs, so there is nothing that scopes an
@@ -1391,22 +1399,19 @@ function writeOutput(output: ConsolidatedOutput): void {
   mkdirSync(toolsDir, { recursive: true });
 
   for (const tool of output.tools) {
-    const toolPath = resolve(toolsDir, `${tool.id}.json`);
-    writeJson(toolPath, {
+    write(resolve(toolsDir, `${tool.id}.json`), {
       mcp: buildToolView(tool.id, output.mcp),
       skills: buildToolSkillView(tool.id, output.skills),
       plugins: buildToolPluginView(tool.id, output.plugins),
       agents: buildToolAgentView(tool.id, output.agents),
     });
-    console.log(`Written: ${toolPath}`);
   }
 
   const orgsDir = resolve(outputDir, "orgs");
   mkdirSync(orgsDir, { recursive: true });
 
   for (const org of output.organizations) {
-    const orgPath = resolve(orgsDir, `${org.id}.json`);
-    writeJson(orgPath, {
+    write(resolve(orgsDir, `${org.id}.json`), {
       mcp: buildOrgEntryView(org.id, output.mcp),
       skills: buildOrgEntryView(org.id, output.skills),
       plugins: buildOrgEntryView(org.id, output.plugins),
@@ -1414,7 +1419,6 @@ function writeOutput(output: ConsolidatedOutput): void {
       sandboxTools: buildOrgEntryView(org.id, output.sandboxTools),
       sandboxFeatures: buildOrgEntryView(org.id, output.sandboxFeatures),
     });
-    console.log(`Written: ${orgPath}`);
   }
 
   console.log(`\n  Organizations: ${output.organizations.length}`);
@@ -1431,6 +1435,10 @@ function writeOutput(output: ConsolidatedOutput): void {
 
 export async function main(): Promise<void> {
   console.log("=== AI Registry Consolidation ===\n");
+
+  // Taken before anything is read, so every value in the output is at least
+  // this recent. See writeOutput.
+  const generatedAt = new Date().toISOString();
 
   const vendors = loadAndValidateVendors();
   const output: ConsolidatedOutput = {
@@ -1551,8 +1559,14 @@ export async function main(): Promise<void> {
   resolveMcpTrust(output, validMcpTrusts);
   resolveMcpCrossVendorConfigs(output);
 
+  // Shared by the skill, plugin and sandbox extension steps below, so a
+  // repository referenced by more than one of them is listed with a single
+  // ls-remote. Each step uses it to record latestCommit/latestHash, what the
+  // source's default branch ships now.
+  const remote = remoteBranchesLookup();
+
   // Step 2b: Enrich skills with source metadata (expands multi-path, skips unreachable sources)
-  output.skills = enrichSkillMetadata(output.skills);
+  output.skills = enrichSkillMetadata(output.skills, remote);
 
   // Resolve trust delegations into derived skill approvals
   resolveSkillTrust(output, validSkillTrusts);
@@ -1574,7 +1588,7 @@ export async function main(): Promise<void> {
   expandMarketplaceApprovals(pendingMarketplaces, output);
 
   // Step 2c: Enrich plugins with source metadata (skips unreachable sources)
-  output.plugins = enrichPluginMetadata(output.plugins);
+  output.plugins = enrichPluginMetadata(output.plugins, remote);
 
   // Resolve trust delegations into derived plugin approvals
   resolvePluginTrust(output, validPluginTrusts);
@@ -1590,6 +1604,7 @@ export async function main(): Promise<void> {
   // extension on error)
   const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions(
     pendingSandboxExtensions,
+    remote,
   );
   output.sandboxTools = sandboxTools;
   output.sandboxFeatures = sandboxFeatures;
@@ -1623,5 +1638,5 @@ export async function main(): Promise<void> {
   output.sandboxFeatures.sort((a, b) =>
     a.sandboxExtensionId.localeCompare(b.sandboxExtensionId),
   );
-  writeOutput(output);
+  writeOutput(output, generatedAt);
 }
