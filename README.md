@@ -358,7 +358,7 @@ The consolidation pipeline follows a build-or-nothing approach:
 5. **Enrich Agents** — Fetch each agent's `agent_card.json` over HTTP to extract name/description and compute a content hash. Unreachable sources are skipped with a warning — the agent is omitted from the output until its source is reachable again.
 6. **Write & Deploy** — Only reached if the previous steps succeed.
 
-Skills, plugins, and sandbox extensions also record what their source's default branch ships at the same path now (`latestCommit`, `latestHash`). For one pinned to a tag or commit, a difference there is what shows that the source has moved past the pin. If it can't be found out, those two fields are left out. The entry is never dropped for it.
+Skills, plugins, and sandbox extensions also record what their source ships at the same path now (`latestCommit`, `latestHash`). For one pinned to a tag or commit, a difference there is what shows that the source has moved past the pin. If it can't be found out, those two fields are left out. The entry is never dropped for it.
 
 If collection or MCP enrichment fails, the build stops and the previous deployment stays live.
 

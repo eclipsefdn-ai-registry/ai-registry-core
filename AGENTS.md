@@ -16,7 +16,7 @@ Five artifact types, same approval model:
 
 Organizations can provide tools (with `installConfigs`) or just approve artifacts without tool-specific configuration. All but sandbox extensions use the same approval file format — `installConfigs` is optional there and absent from the sandbox extension schema entirely.
 
-**Latest.** Skill, plugin, and sandbox extension entries publish `source.commit` and `contentHash`, which say what was approved. Next to them go `latestCommit` and `latestHash`, which say what the source's default branch ships at the entry's path now.
+**Latest.** Skill, plugin, and sandbox extension entries publish `source.commit` and `contentHash`, which say what was approved. Next to them go `latestCommit` and `latestHash`, which say what the source ships at the entry's path now: the tip of the ref's own branch for a branch ref, of the default branch otherwise.
 
 - Only an approval whose `source.ref` pins a tag or commit can differ, and only once the default branch moves off it.
 - One `git ls-remote` per repository decides. Only when the branch has moved is the path fetched and hashed again, with no ref.

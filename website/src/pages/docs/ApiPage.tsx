@@ -54,7 +54,7 @@ const LATEST_FIELDS = [
     name: "latestCommit",
     type: "string?",
     description:
-      "The commit the source's default branch pointed at when consolidation ran. Equal to source.commit unless source.ref pins a tag or commit the default branch has since moved off. Absent when consolidation couldn't find out.",
+      "The tip, when consolidation ran, of the branch the entry follows: the one source.ref names for a branch ref, the default branch otherwise. Equal to source.commit unless source.ref pins a tag or commit the default branch has since moved off. Absent when consolidation couldn't find out.",
   },
   {
     name: "latestHash",

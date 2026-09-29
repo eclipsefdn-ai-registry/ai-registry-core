@@ -190,8 +190,9 @@ export interface SkillEntry {
     commit?: string;
   };
   contentHash: string;
-  // Output only, set at enrichment: what the source's default branch ships
-  // at this entry's path now, as a commit and the hash of the path there.
+  // Output only, set at enrichment: what the source ships at this entry's
+  // path now, as a commit and the hash of the path there, taken at the tip of
+  // the ref's own branch for a branch ref and of the default branch otherwise.
   // Equal to source.commit and contentHash unless ref pins a tag or commit
   // the default branch has since moved off, and absent when that couldn't be
   // found out. Behind means latestHash !== contentHash. Comparing commits

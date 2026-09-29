@@ -8,25 +8,25 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
-import { cliSource, repoWebUrl } from "../cliSource";
+import { cliSource, sourceTreeUrl } from "../cliSource";
+import { sourceLinkTitle } from "../approvedTarget";
 import { InstallFromCli } from "./InstallFromCli";
+import { ApprovedTarget } from "./ApprovedTarget";
 
 export function PluginDetail({
   plugin,
   getOrg,
   getTool,
   onBack,
+  generatedAt,
 }: {
   plugin: Plugin;
   getOrg: (id: string) => Organization | undefined;
   getTool: (id: string) => Tool | undefined;
   onBack: () => void;
+  generatedAt?: string;
 }) {
-  const sourceRef = plugin.source.ref ?? "main";
-  const repoUrl = repoWebUrl(plugin.source.url);
-  const sourceUrl = plugin.source.path
-    ? `${repoUrl}/tree/${sourceRef}/${plugin.source.path}`
-    : `${repoUrl}/tree/${sourceRef}`;
+  const sourceUrl = sourceTreeUrl(plugin.source);
   // The plugins CLI takes a source and nothing else, so a plugin stored in a
   // subdirectory resolves by discovery rather than by path. The CLI also has
   // no flag to pin a ref/tag — it always installs from the default branch,
@@ -49,14 +49,15 @@ export function PluginDetail({
         <span className="text-muted-foreground font-mono text-xs">
           {plugin.pluginId}
         </span>
+        <ApprovedTarget entry={plugin} generatedAt={generatedAt} />
+        {/* Labelled as the manifest's, and printed as published: nothing ties
+            it to the ref, and a plugin pinned to 2.6.0 can declare 1.0.0. */}
         {plugin.version && (
-          <span className="text-muted-foreground text-xs">
-            v{plugin.version}
-          </span>
-        )}
-        {plugin.source.ref && (
-          <span className="text-muted-foreground text-xs">
-            Pinned to: {plugin.source.ref}
+          <span
+            className="text-muted-foreground text-xs cursor-help"
+            title="What plugin.json declares at the commit this entry's hash was computed at, which is separate from any ref the approval names."
+          >
+            plugin.json version {plugin.version}
           </span>
         )}
         <span className="text-muted-foreground text-xs">
@@ -67,6 +68,7 @@ export function PluginDetail({
             href={sanitizeUrl(sourceUrl)}
             target="_blank"
             rel="noopener noreferrer"
+            title={sourceLinkTitle(plugin.source.commit)}
             className="text-primary hover:underline text-sm"
           >
             Source

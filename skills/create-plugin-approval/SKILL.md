@@ -94,7 +94,7 @@ During consolidation, the whole plugin directory (not just `plugin.json`) is fet
 - `containedMcpServers` — discovered from `mcp.json`'s `mcpServers` map, each with `name` and `transport`.
 - `contentHash` — a hash covering the whole plugin directory, so it changes whenever any contained file changes.
 - `source.commit` — the commit that was checked out and hashed.
-- `latestCommit`, `latestHash` — what the source's default branch ships at the same path now. With a `ref` pinning a tag or commit, a differing `latestHash` shows that the source has moved past the approval. Without a ref, or with a branch, they equal `source.commit` and `contentHash`.
+- `latestCommit`, `latestHash` — what the source ships at the same path now. With a `ref` pinning a tag or commit, a differing `latestHash` shows that the source has moved past the approval. Without a ref, or with a branch, they equal `source.commit` and `contentHash`.
 
 You do not need to enumerate any of this in the approval file — it's populated automatically from the source.
 

@@ -106,10 +106,10 @@ export function ClientsPage() {
             default branch and <InlineCode>source.commit</InlineCode> moves with
             it on every run. Each entry also carries{" "}
             <InlineCode>latestCommit</InlineCode> and{" "}
-            <InlineCode>latestHash</InlineCode>, what the default branch ships
-            at the same path now, whenever consolidation could find that out.
-            They show when a pinned approval has fallen behind its source, and
-            they are never something to install; see{" "}
+            <InlineCode>latestHash</InlineCode>, what the source ships at the
+            same path now, whenever consolidation could find that out. They show
+            when a pinned approval has fallen behind its source, and they are
+            never something to install; see{" "}
             <a href="#staying-current" className="text-primary hover:underline">
               Staying current
             </a>
@@ -622,12 +622,13 @@ export function ClientsPage() {
           Skills, plugins, and sandbox extensions carry two more fields next to{" "}
           <InlineCode>source.commit</InlineCode> and{" "}
           <InlineCode>contentHash</InlineCode>.{" "}
-          <InlineCode>latestCommit</InlineCode> is the commit the source's
-          default branch pointed at when consolidation ran, and{" "}
-          <InlineCode>latestHash</InlineCode> is the content hash of the entry's
-          own path at that commit, computed exactly as{" "}
-          <InlineCode>contentHash</InlineCode> is. The first two say what was
-          approved; these say what the source ships now.
+          <InlineCode>latestCommit</InlineCode> is the tip, when consolidation
+          ran, of the branch the entry follows (the one{" "}
+          <InlineCode>source.ref</InlineCode> names for a branch ref, the
+          default branch otherwise), and <InlineCode>latestHash</InlineCode> is
+          the content hash of the entry's own path at that commit, computed
+          exactly as <InlineCode>contentHash</InlineCode> is. The first two say
+          what was approved; these say what the source ships now.
         </p>
         <p className="mb-3 leading-relaxed">
           The approval is behind its source when{" "}
@@ -675,6 +676,21 @@ export function ClientsPage() {
             approved" is as far as it goes.
           </li>
         </ul>
+        <p className="mb-3 leading-relaxed">
+          State the approved revision and any change together: that the approval
+          is at <InlineCode>v1.2.0</InlineCode>, say, and, when the hashes
+          differ, that the source has changed since. Showing{" "}
+          <InlineCode>latestCommit</InlineCode> beside{" "}
+          <InlineCode>source.commit</InlineCode> hands the user the commit
+          comparison above. Don't call the approval outdated or stale either: a
+          pinned approval is still valid, and it is the newer content that
+          nobody has reviewed. A plugin's <InlineCode>version</InlineCode>{" "}
+          doesn't help. It is whatever <InlineCode>plugin.json</InlineCode>{" "}
+          declares at <InlineCode>source.commit</InlineCode>, not a statement
+          about <InlineCode>source.ref</InlineCode>, and a plugin approved at{" "}
+          <InlineCode>2.6.0</InlineCode> can declare{" "}
+          <InlineCode>1.0.0</InlineCode>.
+        </p>
         <InfoCallout>
           <strong>
             This is for display and notification, never an update.
@@ -733,8 +749,8 @@ export function ClientsPage() {
           <InlineCode>latestHash</InlineCode> is the same algorithm over the
           same path, at <InlineCode>latestCommit</InlineCode>, which is what
           makes it comparable with <InlineCode>contentHash</InlineCode>. It
-          describes the source's default branch rather than what was approved,
-          so it is never what you verify an install against.
+          describes what the source ships now rather than what was approved, so
+          it is never what you verify an install against.
         </p>
         <ol className="mb-3 space-y-2 text-sm list-decimal pl-5">
           <li className="leading-relaxed">
@@ -914,6 +930,7 @@ export function ClientsPage() {
             "Compare latestHash with contentHash, never latestCommit with source.commit",
             "Treat a missing latestHash as unknown rather than behind",
             "Word a difference without a direction, since the default branch can be behind a pinned tag",
+            "State the approved revision and any change together, and never call a pinned approval outdated or stale",
             "Show generatedAt next to anything derived from the latest fields",
             "Never install from latestCommit or verify a download against latestHash",
           ]}

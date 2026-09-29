@@ -2,24 +2,25 @@ import { ArrowLeft } from "lucide-react";
 import type { Skill, Organization, Tool, SkillApproval } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
-import { cliSource, repoWebUrl } from "../cliSource";
+import { cliSource, sourceTreeUrl } from "../cliSource";
+import { sourceLinkTitle } from "../approvedTarget";
 import { InstallFromCli } from "./InstallFromCli";
+import { ApprovedTarget } from "./ApprovedTarget";
 
 export function SkillDetail({
   skill,
   getOrg,
   getTool,
   onBack,
+  generatedAt,
 }: {
   skill: Skill;
   getOrg: (id: string) => Organization | undefined;
   getTool: (id: string) => Tool | undefined;
   onBack: () => void;
+  generatedAt?: string;
 }) {
-  const repoUrl = repoWebUrl(skill.source.url);
-  const sourceUrl = skill.source.path
-    ? `${repoUrl}/tree/main/${skill.source.path}`
-    : repoUrl;
+  const sourceUrl = sourceTreeUrl(skill.source);
   // A repository holding several skills needs --skill to pick this one; when
   // the skill is the repository root there is nothing to disambiguate. The
   // flag matches on the SKILL.md frontmatter name, which is what `name` is.
@@ -42,6 +43,7 @@ export function SkillDetail({
         <span className="text-muted-foreground font-mono text-xs">
           {skill.skillId}
         </span>
+        <ApprovedTarget entry={skill} generatedAt={generatedAt} />
         <span className="text-muted-foreground text-xs">
           Hash: {skill.contentHash}
         </span>
@@ -50,6 +52,7 @@ export function SkillDetail({
             href={sanitizeUrl(sourceUrl)}
             target="_blank"
             rel="noopener noreferrer"
+            title={sourceLinkTitle(skill.source.commit)}
             className="text-primary hover:underline text-sm"
           >
             Source
