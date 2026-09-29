@@ -357,6 +357,19 @@ export function ClientsPage() {
           commit on a branch, since consolidation runs daily.
         </p>
         <p className="mb-3 leading-relaxed">
+          If you hand the download to another tool, such as a CLI, rather than
+          fetching yourself, that tool has to reach the approved revision. One
+          that only clones the default branch installs something other than what
+          was approved whenever <InlineCode>source.ref</InlineCode> is set, and
+          a branch ref counts: the tool would clone the default branch, not the
+          one named. So decide on the ref being present, not on whether it pins.
+          Where the tool can't reach it, offer no install through it and say
+          why, rather than a command that silently drops the ref. As of this
+          writing, the <InlineCode>skills</InlineCode> CLI (1.7.0) takes a ref
+          as <InlineCode>owner/repo#&lt;ref&gt;</InlineCode>, and the{" "}
+          <InlineCode>plugins</InlineCode> CLI (1.3.4) takes none.
+        </p>
+        <p className="mb-3 leading-relaxed">
           On a mismatch you can't explain that way, tell the user the source has
           changed since the organization approved it, name the organization and
           the date, and let them install anyway with an explicit choice. It's
@@ -911,6 +924,7 @@ export function ClientsPage() {
             "Pick an install config by date descending, organizationId ascending",
             "Verify contentHash before installing anything that has one, and let the user override an explicit mismatch warning",
             "Download skills, plugins, and sandbox extensions at source.commit, so a hash mismatch means changed content rather than a newer commit",
+            "Hand installation to another tool only if it can reach source.ref, and offer nothing rather than a command that drops it",
             "Record provenance for everything you install, and never overwrite what you did not",
             "Offer adoption when a local slot is already occupied",
             "Install plugins whole, keyed by pluginId, and load from inside the plugin root",

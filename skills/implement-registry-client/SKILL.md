@@ -168,6 +168,8 @@ The registry points at a skill's source; it does not host it. Install means down
 
 Fetch at `source.commit`, not at the branch or tag it came from, and never at `latestCommit`. It is published on every skill and plugin, pinned or not, and a tree fetched there should match `contentHash` exactly, so a mismatch at that commit is never upstream drift: the source is serving something other than what was hashed, or your hash implementation disagrees with the reference. If the commit can't be fetched, because history was rewritten or the host won't serve a bare SHA, fall back to `source.ref` or the default branch, where a mismatch is expected for up to a day after an upstream commit on a branch, since consolidation runs daily.
 
+If you hand the download to another tool, such as a CLI, rather than fetching yourself, that tool has to reach the endorsed revision. One that only clones the default branch installs something other than what was endorsed whenever `source.ref` is set, and a branch ref counts: the tool would clone the default branch, not the one named. So decide on the ref being present, not on whether it pins. Where the tool can't reach it, offer no install through it and say why, rather than a command that silently drops the ref. As of this writing, the `skills` CLI (1.7.0) takes a ref as `owner/repo#<ref>`, and the `plugins` CLI (1.3.4) takes none.
+
 On a mismatch you can't explain that way, tell the user the source has changed since the organization endorsed it, name the organization and the date, and let them install anyway with an explicit choice. It's also what a compromised source looks like, and the user is the one who gets to weigh that.
 
 Record the hash you computed, not the one from the feed. The recorded hash is the baseline for drift detection, and a baseline the local content never matched detects nothing.
@@ -324,6 +326,7 @@ Removing artifacts automatically deletes working installations whenever a source
 - [ ] Pick an install config by `date` descending and `organizationId` ascending
 - [ ] Verify `contentHash` before installing anything that has one, and let the user override an explicit mismatch warning
 - [ ] Download skills, plugins, and sandbox extensions at `source.commit`, so a hash mismatch means changed content rather than a newer commit
+- [ ] Hand installation to another tool only if it can reach `source.ref`, and offer nothing rather than a command that drops it
 - [ ] Record provenance for everything you install, and never overwrite what you did not
 - [ ] Offer adoption when a local slot is already occupied
 - [ ] Install plugins whole, keyed by `pluginId`, and load from inside the plugin root

@@ -8,9 +8,10 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
-import { cliSource, sourceTreeUrl } from "../cliSource";
+import { sourceTreeUrl } from "../cliSource";
+import { pluginsCommand } from "../installCommand";
 import { sourceLinkTitle } from "../approvedTarget";
-import { InstallFromCli } from "./InstallFromCli";
+import { InstallFromCli, InstallFromCliUnavailable } from "./InstallFromCli";
 import { ApprovedTarget } from "./ApprovedTarget";
 
 export function PluginDetail({
@@ -27,12 +28,9 @@ export function PluginDetail({
   generatedAt?: string;
 }) {
   const sourceUrl = sourceTreeUrl(plugin.source);
-  // The plugins CLI takes a source and nothing else, so a plugin stored in a
-  // subdirectory resolves by discovery rather than by path. The CLI also has
-  // no flag to pin a ref/tag — it always installs from the default branch,
-  // so a pinned plugin's install command necessarily diverges from the
-  // version/hash shown above.
-  const installCommand = `npx plugins add ${cliSource(plugin.source.url)}`;
+  // Undefined whenever the approval names a ref, which the plugins CLI can't
+  // target yet; see pluginsCommand.
+  const installCommand = pluginsCommand(plugin);
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -126,14 +124,16 @@ export function PluginDetail({
         ))}
       </div>
 
-      <InstallFromCli
-        command={installCommand}
-        note={
-          plugin.source.ref
-            ? `This plugin pins ${plugin.source.ref}; the plugins CLI has no way to request a specific ref and always installs from the default branch.`
-            : undefined
-        }
-      />
+      {installCommand ? (
+        <InstallFromCli command={installCommand} />
+      ) : (
+        <InstallFromCliUnavailable>
+          Installing the approved version isn't currently possible with{" "}
+          <code>npx plugins add</code>. This approval names{" "}
+          <code>{plugin.source.ref}</code>, and the plugins CLI always installs
+          from the repository's default branch.
+        </InstallFromCliUnavailable>
+      )}
     </div>
   );
 }
