@@ -120,6 +120,9 @@ export interface VendorMcpMetadata {
 export interface ApprovalData {
   serverId: string;
   date: string;
+  // Informational: the MCP registry version the organization reviewed. What
+  // runs is decided by config and installConfigs, which nothing ties to it,
+  // and consolidation never fills it in when an approval leaves it out.
   version?: string;
   config?: GenericMcpConfig;
   installConfigs?: InstallConfig[];
@@ -130,6 +133,7 @@ export interface ApprovalData {
 export interface Approval {
   organizationId: string;
   date: string;
+  // only what the approval file gave, see ApprovalData
   version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
@@ -487,13 +491,9 @@ export function enrichWithRegistryData(
   entry.description = result.description;
   entry.latestVersion = result.latestVersion;
   entry.mcpRegistryVerified = result.verified;
-
-  // Approvals without a pinned version default to the latest from the registry
-  for (const approval of entry.approvals) {
-    if (!approval.version) {
-      approval.version = result.latestVersion;
-    }
-  }
+  // latestVersion stays on the entry and is not copied into approvals that
+  // gave no version: that would read as each of them naming a version it
+  // never named, and the config, not the version, decides what runs.
 }
 
 // preferOrg lets a caller make an approval's own organization win over a

@@ -31,7 +31,8 @@ const APPROVAL_FIELDS = [
   {
     name: "version",
     type: "string?",
-    description: "Pinned MCP server version. Absent means latest.",
+    description:
+      "MCP only, and informational: the MCP registry version the organization reviewed, present only when the approval gave one. It doesn't decide what runs; the install configuration does.",
   },
   {
     name: "viaTrust",
@@ -318,7 +319,7 @@ export function ApiPage() {
               name: "latestVersion",
               type: "string?",
               description:
-                "Latest version known to the Anthropic MCP registry.",
+                "Latest version known to the Anthropic MCP registry. Registry metadata, like name and description: it isn't copied into approvals and says nothing about what an approval runs.",
             },
             {
               name: "mcpRegistryVerified",

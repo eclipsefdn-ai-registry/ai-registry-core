@@ -17,12 +17,17 @@ For skills and plugins, resolve drift first. An artifact whose local content no 
 
 ## `version` is not an update signal
 
-`approvals[].version` pins an MCP server version, and plugins carry a `version` from their manifest. Neither drives update detection:
+Two fields carry a `version`, and neither drives update detection:
+
+- An MCP approval's `approvals[].version` is informational. It records the MCP registry version the organization reviewed, and it is present only when the approval gave one. It doesn't pin what runs: the server runs whatever its config starts.
+- A plugin's `version` is whatever its `plugin.json` declares at `source.commit`.
+
+Comparing versions gets updates wrong both ways:
 
 - A new version with an unchanged config gives the user nothing to apply.
 - A changed config under the same version is a real update and a version comparison misses it.
 
-Show `version` where it helps a user understand what they have. Decide with the hash.
+Show a plugin's `version` where it helps a user understand what they have. Never present an MCP approval's as the version the user runs. Decide with the hash.
 
 ## What the source ships now
 

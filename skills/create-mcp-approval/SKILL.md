@@ -37,7 +37,7 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
 
 - **serverId** (required): Must match a server in the Anthropic MCP registry.
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
-- **version** (optional): Pinned server version (e.g., `1.0.1`). Omit to use the latest version from the MCP registry. Only set this when the vendor explicitly needs to pin a specific version (e.g., a newer version has a known issue). When a version is pinned, the install config (e.g., `args` in the config object) should reference that same version instead of `@latest`.
+- **version** (optional): Informational. The MCP registry version the organization reviewed (e.g., `1.0.1`). It doesn't change what runs: `config` and `installConfigs` do, and nothing ties them to this field. Omit it unless the organization wants to record which version it looked at.
 - **config** (optional, but include it whenever you can): Generic, tool-agnostic connection info for the server — **not** tool-specific, and **not** wrapped in `mcpServers`/`servers`. See "The Generic Root `config`" below.
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools (approval-only without install configuration).
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
@@ -122,7 +122,7 @@ When you add `clientId`, `clientSecret`, or `scopes`, the user must obtain those
 
 ## Version Behavior
 
-During consolidation, the registry enriches each approval with version information:
+`version` is informational, and consolidation publishes it exactly as written:
 
-- **No `version` field** (default): The latest version is fetched from the Anthropic MCP registry and set on the approval. The install config should use `@latest` in package references.
-- **`version` set** (pinned): The vendor has pinned a specific version, typically because the install config references that exact version. The consolidation step preserves the pinned version and does not overwrite it with the registry's latest. This lets consumers see the actual version that will be installed.
+- **No `version` field** (default): The approval is published without one. The registry's latest version is published once, on the server entry, as `latestVersion`.
+- **`version` set**: It is published as given, as a record of what the organization reviewed. It doesn't pin anything. A client installs whatever `config` and `installConfigs` start, so a command using `@latest` runs the latest release whatever this field says.

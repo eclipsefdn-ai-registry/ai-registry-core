@@ -317,6 +317,11 @@ export function ClientsPage() {
             Content hashing does not apply. <InlineCode>configHash</InlineCode>{" "}
             covers the approval, and update detection uses it.
           </li>
+          <li className="leading-relaxed">
+            <InlineCode>approvals[].version</InlineCode>, when present, is the
+            MCP registry version the organization reviewed. It doesn't pin what
+            runs, the config does, so never present it as the installed version.
+          </li>
         </ul>
       </DocsSection>
 
@@ -599,11 +604,18 @@ export function ClientsPage() {
           response cannot contain anything new.
         </p>
         <p className="mb-3 leading-relaxed">
-          <InlineCode>version</InlineCode> is not an update signal. A new
-          version with an unchanged config gives the user nothing to apply, and
-          a changed config under the same version is a real update that a
-          version comparison misses. Show it where it helps a user understand
-          what they have; decide with the hash.
+          <InlineCode>version</InlineCode> is not an update signal. On an MCP
+          approval it is informational: the MCP registry version the
+          organization reviewed, present only when the approval gave one, and it
+          doesn't pin what runs, since the server runs whatever its config
+          starts. A plugin's is whatever its{" "}
+          <InlineCode>plugin.json</InlineCode> declares at{" "}
+          <InlineCode>source.commit</InlineCode>. A new version with an
+          unchanged config gives the user nothing to apply, and a changed config
+          under the same version is a real update that a version comparison
+          misses. Show a plugin's version where it helps a user understand what
+          they have, never present an MCP approval's as the version the user
+          runs, and decide with the hash.
         </p>
         <p className="mb-3 leading-relaxed">
           An update replaces what the registry published and preserves what the

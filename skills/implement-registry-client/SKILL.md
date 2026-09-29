@@ -135,6 +135,7 @@ The registry publishes configuration. Install means writing that configuration w
 - `mcpRegistryVerified` means the server is listed in the Anthropic MCP registry. It says nothing about the server's behaviour or safety.
 - `publisherClaimedBy` names an organization that claims to publish the server, not merely to endorse it. Show it distinctly from endorsement if you show it at all.
 - Content hashing does not apply here. `configHash` covers the approval, and update detection uses it.
+- `approvals[].version`, when present, is the MCP registry version the organization reviewed. It doesn't pin what runs, the config does, so never present it as the installed version.
 
 ## Agent Skills
 

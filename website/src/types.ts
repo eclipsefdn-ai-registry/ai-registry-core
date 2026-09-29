@@ -24,6 +24,8 @@ export interface InstallConfig {
 export interface Approval {
   organizationId: string;
   date: string;
+  // Informational: the MCP registry version the organization reviewed, and
+  // only when the approval file gave one. What runs is set by the configs.
   version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
