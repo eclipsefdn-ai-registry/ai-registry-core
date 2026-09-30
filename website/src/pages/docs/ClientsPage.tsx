@@ -364,9 +364,14 @@ export function ClientsPage() {
           a branch ref counts: the tool would clone the default branch, not the
           one named. So decide on the ref being present, not on whether it pins.
           Where the tool can't reach it, offer no install through it and say
-          why, rather than a command that silently drops the ref. As of this
-          writing, the <InlineCode>skills</InlineCode> CLI (1.7.0) takes a ref
-          as <InlineCode>owner/repo#&lt;ref&gt;</InlineCode>, and the{" "}
+          why, rather than a command that silently drops the ref. What you hand
+          over does depend on whether it pins. For a pin, hand over{" "}
+          <InlineCode>source.commit</InlineCode> rather than the tag, since a
+          tag can be moved after it was hashed and a commit can't. A branch goes
+          over by name, so the tool's own updates keep following it. As of this
+          writing, the <InlineCode>skills</InlineCode> CLI (1.7.0) takes a ref,
+          a full commit SHA included, as{" "}
+          <InlineCode>owner/repo#&lt;ref&gt;</InlineCode>, and the{" "}
           <InlineCode>plugins</InlineCode> CLI (1.3.4) takes none.
         </p>
         <p className="mb-3 leading-relaxed">

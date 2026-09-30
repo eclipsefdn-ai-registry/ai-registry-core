@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { pluginsCommand, skillsCommand } from "./installCommand";
 import type { Plugin, Skill } from "./types";
 
-function skill(source: Partial<Skill["source"]> = {}) {
+const COMMIT = "7b4a44e40e0112233445566778899aabbccddeef";
+const HASH = "49b0db08bdaa";
+const OTHER_HASH = "760876d07424";
+
+function skill(
+  source: Partial<Skill["source"]> = {},
+  hashes: Partial<Pick<Skill, "contentHash" | "latestHash">> = {},
+) {
   return {
     name: "code-review",
     source: {
@@ -11,6 +18,9 @@ function skill(source: Partial<Skill["source"]> = {}) {
       path: "skills/code-review",
       ...source,
     },
+    contentHash: HASH,
+    latestHash: HASH,
+    ...hashes,
   };
 }
 
@@ -38,20 +48,58 @@ describe("skillsCommand", () => {
     );
   });
 
-  // The trigger is the ref itself: a branch is targeted the same way as a
-  // tag, since without it the CLI would clone the default branch.
-  for (const ref of [
-    "v1.2.0",
-    "release/1.x",
-    "7b4a44e40e0112233445566778899aabbccddeef",
-  ]) {
-    it(`targets the ref ${ref}`, () => {
-      assert.equal(
-        skillsCommand(skill({ ref })),
-        `npx skills add anthropics/skills#${ref} --skill code-review`,
-      );
-    });
-  }
+  // A tag can be moved after it was hashed; the commit it pointed at can't.
+  it("installs the commit that was hashed for a pinned tag", () => {
+    assert.equal(
+      skillsCommand(skill({ ref: "v1.2.0", pinned: true, commit: COMMIT })),
+      `npx skills add anthropics/skills#${COMMIT} --skill code-review`,
+    );
+  });
+
+  it("installs the commit for a full commit SHA ref", () => {
+    assert.equal(
+      skillsCommand(skill({ ref: COMMIT, commit: COMMIT })),
+      `npx skills add anthropics/skills#${COMMIT} --skill code-review`,
+    );
+  });
+
+  // A differing hash is what makes approvedTarget read a ref the feed doesn't
+  // classify as a pin.
+  it("installs the commit for an unclassified ref whose hash has changed", () => {
+    assert.equal(
+      skillsCommand(
+        skill({ ref: "v1.2.0", commit: COMMIT }, { latestHash: OTHER_HASH }),
+      ),
+      `npx skills add anthropics/skills#${COMMIT} --skill code-review`,
+    );
+  });
+
+  // Without the fragment the CLI would clone the default branch. By name
+  // rather than as the commit, because the CLI records it in its lock file,
+  // so `skills update` keeps following the branch instead of freezing it.
+  it("targets a branch by name", () => {
+    assert.equal(
+      skillsCommand(
+        skill({ ref: "release/1.x", pinned: false, commit: COMMIT }),
+      ),
+      "npx skills add anthropics/skills#release/1.x --skill code-review",
+    );
+  });
+
+  // Without source.pinned an unchanged v1.2.0 could still be a branch.
+  it("targets a ref the feed doesn't classify as given", () => {
+    assert.equal(
+      skillsCommand(skill({ ref: "v1.2.0", commit: COMMIT })),
+      "npx skills add anthropics/skills#v1.2.0 --skill code-review",
+    );
+  });
+
+  it("falls back to the ref for a pin in a feed without source.commit", () => {
+    assert.equal(
+      skillsCommand(skill({ ref: "v1.2.0", pinned: true })),
+      "npx skills add anthropics/skills#v1.2.0 --skill code-review",
+    );
+  });
 
   it("targets a ref at the repository root", () => {
     assert.equal(

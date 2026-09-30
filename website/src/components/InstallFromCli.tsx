@@ -58,14 +58,14 @@ export function InstallFromCli({
  */
 export function InstallFromCliUnavailable({
   children,
-  label = "Install from CLI",
 }: {
   children: React.ReactNode;
-  label?: string;
 }) {
   return (
     <div className="mt-6">
-      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium text-muted-foreground">
+        Install from CLI
+      </span>
       <p className="mt-2 text-xs text-muted-foreground">{children}</p>
     </div>
   );
