@@ -152,6 +152,7 @@ export function OrgPage() {
           getOrg={getOrg}
           getTool={getTool}
           onBack={() => setSearchParams({})}
+          generatedAt={data.generatedAt}
         />
       </div>
     );
@@ -165,6 +166,7 @@ export function OrgPage() {
           getOrg={getOrg}
           getTool={getTool}
           onBack={() => setSearchParams({})}
+          generatedAt={data.generatedAt}
         />
       </div>
     );
@@ -190,6 +192,7 @@ export function OrgPage() {
           extension={selectedSandboxExtension}
           getOrg={getOrg}
           onBack={() => setSearchParams({})}
+          generatedAt={data.generatedAt}
         />
       </div>
     );

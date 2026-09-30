@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  readFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +18,8 @@ import {
   resolveInsideRepo,
   cloneAtRef,
   checkedOutCommit,
+  recordLatest,
+  type RemoteBranchesLookup,
 } from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
 
@@ -273,14 +281,22 @@ export function fetchPluginManifest(
 
 // --- Enrichment (called by consolidate.ts) ---
 
-export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
+/**
+ * `remote`, when given, also sets latestCommit and latestHash on every entry
+ * (see recordLatest in git-source.ts). Without it they are left unset.
+ */
+export function enrichPluginMetadata(
+  plugins: PluginEntry[],
+  remote?: RemoteBranchesLookup,
+): PluginEntry[] {
   if (plugins.length === 0) return plugins;
 
   console.log("Enriching plugins with source metadata...\n");
 
-  const tmpDir = resolve(ROOT, ".tmp-plugins");
-  if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
-  mkdirSync(tmpDir, { recursive: true });
+  // A unique directory per call, for the reason enrichSandboxExtensions
+  // gives: two overlapping runs sharing one fixed path would each delete the
+  // clones the other is reading.
+  const tmpDir = mkdtempSync(resolve(ROOT, ".tmp-plugins-"));
 
   const enriched: PluginEntry[] = [];
 
@@ -306,6 +322,16 @@ export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
+        if (remote) {
+          recordLatest(
+            entry,
+            entry.pluginId,
+            metadata,
+            () =>
+              fetchPluginManifest(entry.source.url, entry.source.path, tmpDir),
+            remote,
+          );
+        }
         enriched.push(entry);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

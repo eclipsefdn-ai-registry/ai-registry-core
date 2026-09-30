@@ -341,6 +341,8 @@ https://ai.open-vsx.org/api/v1/
 | [`organizations.json`](https://ai.open-vsx.org/api/v1/organizations.json) | All organizations and their tools                                                                                                                                                                                 |
 | `tools/<tool-id>.json`                                                    | Per-tool view — servers, skills, plugins, and agents approved for that tool, with install configs for other tools stripped. Sandbox extensions have no install configs and appear in `orgs/<org-id>.json` instead |
 
+Every file carries `generatedAt`, the time the consolidation run that produced it started.
+
 Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://ai.open-vsx.org/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://ai.open-vsx.org/schemas/skill-approval.schema.json), [`plugin-approval.schema.json`](https://ai.open-vsx.org/schemas/plugin-approval.schema.json), [`agent-approval.schema.json`](https://ai.open-vsx.org/schemas/agent-approval.schema.json), [`sandbox-extension-approval.schema.json`](https://ai.open-vsx.org/schemas/sandbox-extension-approval.schema.json)).
 
 A tool integration typically fetches `organizations.json` + its own `tools/<tool-id>.json`. See the [client implementation guidance](skills/implement-registry-client/SKILL.md) for what to do with them: resolving approvals, showing who approved an artifact, verifying content, installing, and keeping it current.
@@ -355,6 +357,8 @@ The consolidation pipeline follows a build-or-nothing approach:
 4. **Enrich Plugins** — Fetch each plugin's directory via sparse git checkout to read its manifest, enumerate contained skills and MCP servers, and compute a content hash. Unreachable sources are skipped with a warning — the plugin is omitted from the output until its source is reachable again.
 5. **Enrich Agents** — Fetch each agent's `agent_card.json` over HTTP to extract name/description and compute a content hash. Unreachable sources are skipped with a warning — the agent is omitted from the output until its source is reachable again.
 6. **Write & Deploy** — Only reached if the previous steps succeed.
+
+Skills, plugins, and sandbox extensions also record what their source ships at the same path now (`latestCommit`, `latestHash`). For one pinned to a tag or commit, a difference there is what shows that the source has moved past the pin. If it can't be found out, those two fields are left out. The entry is never dropped for it.
 
 If collection or MCP enrichment fails, the build stops and the previous deployment stays live.
 

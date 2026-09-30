@@ -292,7 +292,7 @@ describe("enrichWithRegistryData", () => {
     assert.equal(entry.mcpRegistryVerified, true);
   });
 
-  it("sets version to latestVersion on approvals without a pinned version", () => {
+  it("leaves version unset on approvals that gave none", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",
@@ -315,10 +315,13 @@ describe("enrichWithRegistryData", () => {
       latestVersion: "3.1.0",
     });
 
-    assert.equal(entry.approvals[0].version, "3.1.0");
+    // The registry's latest belongs to the entry. Written into the approval
+    // it would look like a version the organization named.
+    assert.equal("version" in entry.approvals[0], false);
+    assert.equal(entry.latestVersion, "3.1.0");
   });
 
-  it("preserves pinned version on approvals that already have one", () => {
+  it("keeps the version an approval gave", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",

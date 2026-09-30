@@ -165,6 +165,7 @@ export function HomePage() {
           getOrg={getOrg}
           getTool={getTool}
           onBack={() => setSearchParams({})}
+          generatedAt={data.generatedAt}
         />
       </div>
     );
@@ -178,6 +179,7 @@ export function HomePage() {
           getOrg={getOrg}
           getTool={getTool}
           onBack={() => setSearchParams({})}
+          generatedAt={data.generatedAt}
         />
       </div>
     );
@@ -203,6 +205,7 @@ export function HomePage() {
           extension={selectedSandboxExtension}
           getOrg={getOrg}
           onBack={() => setSearchParams({})}
+          generatedAt={data.generatedAt}
         />
       </div>
     );

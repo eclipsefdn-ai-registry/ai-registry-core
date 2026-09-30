@@ -4,6 +4,8 @@ The hash the registry publishes as `contentHash` for skills and plugins. Reprodu
 
 Consolidation computes it over the skill folder or the plugin directory, checked out at the commit published next to it as `source.commit`. Both use the same algorithm. Hash a tree fetched at any other commit and a mismatch tells you nothing.
 
+`latestHash` is the same algorithm over the same path, at `latestCommit`, which is what makes it comparable with `contentHash`. It describes what the source ships now rather than what was endorsed, so it is never what you verify an install against. See [what the source ships now](staying-current.md#what-the-source-ships-now).
+
 Agents also carry a `contentHash`, but it is not this algorithm: it is a SHA-256 of the fetched Agent Card JSON text, first 12 hex characters, with no directory walk. See [Agents](../SKILL.md#agents) in the main skill file.
 
 ## Algorithm

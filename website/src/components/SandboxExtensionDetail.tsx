@@ -6,9 +6,11 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
-import { repoWebUrl } from "../cliSource";
+import { sourceTreeUrl } from "../cliSource";
+import { sourceLinkTitle } from "../approvedTarget";
 import { enclaveCommand } from "../enclaveCommand";
 import { InstallFromCli } from "./InstallFromCli";
+import { ApprovedTarget } from "./ApprovedTarget";
 
 // Two vocabularies name the same thing: the spec says kind, Enclave's CLI and
 // docs say tools and features. Spell the mapping out once, in the metadata row
@@ -23,13 +25,14 @@ export function SandboxExtensionDetail({
   extension,
   getOrg,
   onBack,
+  generatedAt,
 }: {
   extension: SandboxExtension;
   getOrg: (id: string) => Organization | undefined;
   onBack: () => void;
+  generatedAt?: string;
 }) {
-  const sourceRef = extension.source.ref ?? "HEAD";
-  const sourceUrl = `${repoWebUrl(extension.source.url)}/tree/${sourceRef}/${extension.source.path}`;
+  const sourceUrl = sourceTreeUrl(extension.source);
   const installCommand = enclaveCommand(extension);
 
   return (
@@ -50,12 +53,7 @@ export function SandboxExtensionDetail({
         <span className="text-muted-foreground text-xs">
           Sandbox {KIND_LABEL[extension.kind]}
         </span>
-        {/* Printed verbatim rather than badged as "pinned": a branch, a tag and
-            a commit are three different promises, and one badge covering all
-            three would read as stronger than a branch actually is. */}
-        <span className="text-muted-foreground text-xs">
-          Ref: {extension.source.ref ?? "default branch"}
-        </span>
+        <ApprovedTarget entry={extension} generatedAt={generatedAt} />
         <span className="text-muted-foreground text-xs">
           Hash: {extension.contentHash}
         </span>
@@ -64,6 +62,7 @@ export function SandboxExtensionDetail({
             href={sanitizeUrl(sourceUrl)}
             target="_blank"
             rel="noopener noreferrer"
+            title={sourceLinkTitle(extension.source.commit)}
             className="text-primary hover:underline text-sm"
           >
             Source

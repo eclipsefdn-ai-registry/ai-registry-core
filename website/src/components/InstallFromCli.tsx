@@ -51,3 +51,22 @@ export function InstallFromCli({
     </div>
   );
 }
+
+/**
+ * Takes the install box's place when no command can install what was approved.
+ * Same label and spacing, but nothing to copy: an explanation is all there is.
+ */
+export function InstallFromCliUnavailable({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-6">
+      <span className="text-sm font-medium text-muted-foreground">
+        Install from CLI
+      </span>
+      <p className="mt-2 text-xs text-muted-foreground">{children}</p>
+    </div>
+  );
+}

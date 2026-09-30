@@ -24,6 +24,8 @@ export interface InstallConfig {
 export interface Approval {
   organizationId: string;
   date: string;
+  // Informational: the MCP registry version the organization reviewed, and
+  // only when the approval file gave one. What runs is set by the configs.
   version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
@@ -58,8 +60,26 @@ export interface Skill {
   skillId: string;
   name: string;
   description: string;
-  source: { url: string; path?: string; ref?: string; commit?: string };
+  // pinned says whether ref names a fixed point, a tag or a full commit SHA,
+  // rather than a branch. Absent in feeds that don't carry it, which reads as
+  // unknown rather than false: a named ref could be either. Same on Plugin and
+  // SandboxExtension.
+  source: {
+    url: string;
+    path?: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
   contentHash: string;
+  // What the source ships at this path now: the tip of the ref's own branch
+  // for a branch ref, of the default branch otherwise. Equal to source.commit
+  // and contentHash unless the ref pins a tag or commit the default branch has
+  // moved off, and absent when consolidation couldn't find out. Behind means
+  // latestHash !== contentHash, and only when latestHash is present. Never
+  // compare the commits. Same on Plugin and SandboxExtension.
+  latestCommit?: string;
+  latestHash?: string;
   approvals: SkillApproval[];
 }
 
@@ -98,8 +118,18 @@ export interface Plugin {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string; ref?: string; commit?: string };
+  // see Skill
+  source: {
+    url: string;
+    path?: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
   contentHash: string;
+  // see Skill
+  latestCommit?: string;
+  latestHash?: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
   approvals: PluginApproval[];
@@ -149,12 +179,26 @@ export interface SandboxExtension {
   // the spec's own name — what `enclave add --name` matches on
   extensionName: string;
   description: string;
-  source: { url: string; path: string; ref?: string; commit?: string };
+  // see Skill
+  source: {
+    url: string;
+    path: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
   contentHash: string;
+  // see Skill
+  latestCommit?: string;
+  latestHash?: string;
   approvals: SandboxExtensionApproval[];
 }
 
 export interface RegistryData {
+  // When the consolidation run that wrote the data started. Every file
+  // carries it (consolidate.ts stamps it in writeOutput, so it isn't part of
+  // ConsolidatedOutput there), and it dates latestCommit/latestHash.
+  generatedAt: string;
   organizations: Organization[];
   tools: Tool[];
   mcp: McpServer[];

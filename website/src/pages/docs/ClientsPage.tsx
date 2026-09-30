@@ -104,15 +104,26 @@ export function ClientsPage() {
             <InlineCode>source.commit</InlineCode> to verify the hash. With no{" "}
             <InlineCode>source.ref</InlineCode>, the approval follows the
             default branch and <InlineCode>source.commit</InlineCode> moves with
-            it on every run.
+            it on every run. Each entry also carries{" "}
+            <InlineCode>latestCommit</InlineCode> and{" "}
+            <InlineCode>latestHash</InlineCode>, what the source ships at the
+            same path now, whenever consolidation could find that out. They show
+            when a pinned approval has fallen behind its source, and they are
+            never something to install; see{" "}
+            <a href="#staying-current" className="text-primary hover:underline">
+              Staying current
+            </a>
+            .
           </li>
           <li className="leading-relaxed">
             Agents carry a content hash too, but of a single fetched Agent Card
             JSON file, not a directory — there is no path to pin.
           </li>
           <li className="leading-relaxed">
-            Sandbox extensions carry a content hash of their directory and a{" "}
-            <InlineCode>source.commit</InlineCode> the same way, and can also
+            Sandbox extensions carry a content hash of their directory, a{" "}
+            <InlineCode>source.commit</InlineCode>, and{" "}
+            <InlineCode>latestCommit</InlineCode> and{" "}
+            <InlineCode>latestHash</InlineCode>, all the same way. They can also
             name a specific revision: <InlineCode>source.ref</InlineCode> holds
             a git tag, branch, or full commit SHA when the organization approved
             one. A branch is still a moving target, so read the ref rather than
@@ -178,6 +189,14 @@ export function ClientsPage() {
           anything changed. Keep an empty response and a failed request
           distinct, because they mean opposite things.
         </p>
+        <p className="mb-3 leading-relaxed">
+          Every file carries <InlineCode>generatedAt</InlineCode>, an ISO 8601
+          timestamp of when the consolidation run that produced it started.
+          Everything in the file was read from its source after that, so it
+          dates the whole file. Show it next to anything you derive from{" "}
+          <InlineCode>latestCommit</InlineCode> or{" "}
+          <InlineCode>latestHash</InlineCode>.
+        </p>
       </DocsSection>
 
       <DocsSection id="core">
@@ -190,7 +209,8 @@ export function ClientsPage() {
           , <InlineCode>mcp</InlineCode>, <InlineCode>skills</InlineCode>,{" "}
           <InlineCode>plugins</InlineCode>, <InlineCode>agents</InlineCode>,{" "}
           <InlineCode>sandboxTools</InlineCode>, and{" "}
-          <InlineCode>sandboxFeatures</InlineCode>. New keys may appear.
+          <InlineCode>sandboxFeatures</InlineCode>, next to the{" "}
+          <InlineCode>generatedAt</InlineCode> timestamp. New keys may appear.
         </p>
         <p className="mb-3 leading-relaxed">
           <strong>2. Resolve approvals.</strong> Each entry carries an{" "}
@@ -297,6 +317,11 @@ export function ClientsPage() {
             Content hashing does not apply. <InlineCode>configHash</InlineCode>{" "}
             covers the approval, and update detection uses it.
           </li>
+          <li className="leading-relaxed">
+            <InlineCode>approvals[].version</InlineCode>, when present, is the
+            MCP registry version the organization reviewed. It doesn't pin what
+            runs, the config does, so never present it as the installed version.
+          </li>
         </ul>
       </DocsSection>
 
@@ -320,16 +345,34 @@ export function ClientsPage() {
         </InfoCallout>
         <p className="mt-3 mb-3 leading-relaxed">
           Fetch at <InlineCode>source.commit</InlineCode>, not at the branch or
-          tag it came from. It is published on every skill and plugin, pinned or
-          not, and a tree fetched there should match{" "}
-          <InlineCode>contentHash</InlineCode> exactly, so a mismatch at that
-          commit is never upstream drift: the source is serving something other
-          than what was hashed, or your hash implementation disagrees with the
-          reference. If the commit can't be fetched, because history was
-          rewritten or the host won't serve a bare SHA, fall back to{" "}
-          <InlineCode>source.ref</InlineCode> or the default branch, where a
-          mismatch is expected for up to a day after an upstream commit on a
-          branch, since consolidation runs daily.
+          tag it came from, and never at <InlineCode>latestCommit</InlineCode>.
+          It is published on every skill and plugin, pinned or not, and a tree
+          fetched there should match <InlineCode>contentHash</InlineCode>{" "}
+          exactly, so a mismatch at that commit is never upstream drift: the
+          source is serving something other than what was hashed, or your hash
+          implementation disagrees with the reference. If the commit can't be
+          fetched, because history was rewritten or the host won't serve a bare
+          SHA, fall back to <InlineCode>source.ref</InlineCode> or the default
+          branch, where a mismatch is expected for up to a day after an upstream
+          commit on a branch, since consolidation runs daily.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          If you hand the download to another tool, such as a CLI, rather than
+          fetching yourself, that tool has to reach the approved revision. One
+          that only clones the default branch installs something other than what
+          was approved whenever <InlineCode>source.ref</InlineCode> is set, and
+          a branch ref counts: the tool would clone the default branch, not the
+          one named. So decide on the ref being present, not on whether it pins.
+          Where the tool can't reach it, offer no install through it and say
+          why, rather than a command that silently drops the ref. What you hand
+          over does depend on whether it pins. For a pin, hand over{" "}
+          <InlineCode>source.commit</InlineCode> rather than the tag, since a
+          tag can be moved after it was hashed and a commit can't. A branch goes
+          over by name, so the tool's own updates keep following it. As of this
+          writing, the <InlineCode>skills</InlineCode> CLI (1.7.0) takes a ref,
+          a full commit SHA included, as{" "}
+          <InlineCode>owner/repo#&lt;ref&gt;</InlineCode>, and the{" "}
+          <InlineCode>plugins</InlineCode> CLI (1.3.4) takes none.
         </p>
         <p className="mb-3 leading-relaxed">
           On a mismatch you can't explain that way, tell the user the source has
@@ -579,11 +622,18 @@ export function ClientsPage() {
           response cannot contain anything new.
         </p>
         <p className="mb-3 leading-relaxed">
-          <InlineCode>version</InlineCode> is not an update signal. A new
-          version with an unchanged config gives the user nothing to apply, and
-          a changed config under the same version is a real update that a
-          version comparison misses. Show it where it helps a user understand
-          what they have; decide with the hash.
+          <InlineCode>version</InlineCode> is not an update signal. On an MCP
+          approval it is informational: the MCP registry version the
+          organization reviewed, present only when the approval gave one, and it
+          doesn't pin what runs, since the server runs whatever its config
+          starts. A plugin's is whatever its{" "}
+          <InlineCode>plugin.json</InlineCode> declares at{" "}
+          <InlineCode>source.commit</InlineCode>. A new version with an
+          unchanged config gives the user nothing to apply, and a changed config
+          under the same version is a real update that a version comparison
+          misses. Show a plugin's version where it helps a user understand what
+          they have, never present an MCP approval's as the version the user
+          runs, and decide with the hash.
         </p>
         <p className="mb-3 leading-relaxed">
           An update replaces what the registry published and preserves what the
@@ -596,6 +646,98 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           Update only artifacts carrying your provenance marker. One the user
           placed by hand was never yours to replace.
+        </p>
+        <h3 className="font-semibold mt-5 mb-2">What the source ships now</h3>
+        <p className="mb-3 leading-relaxed">
+          Skills, plugins, and sandbox extensions carry two more fields next to{" "}
+          <InlineCode>source.commit</InlineCode> and{" "}
+          <InlineCode>contentHash</InlineCode>.{" "}
+          <InlineCode>latestCommit</InlineCode> is the tip, when consolidation
+          ran, of the branch the entry follows (the one{" "}
+          <InlineCode>source.ref</InlineCode> names for a branch ref, the
+          default branch otherwise), and <InlineCode>latestHash</InlineCode> is
+          the content hash of the entry's own path at that commit, computed
+          exactly as <InlineCode>contentHash</InlineCode> is. The first two say
+          what was approved; these say what the source ships now.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          The approval is behind its source when{" "}
+          <InlineCode>latestHash</InlineCode> differs from{" "}
+          <InlineCode>contentHash</InlineCode>. Compare those two and nothing
+          else:
+        </p>
+        <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
+          <li className="leading-relaxed">
+            <strong>Never compare commits.</strong> A repository holding twenty
+            skills moves its default branch whenever any one of them changes, so{" "}
+            <InlineCode>latestCommit</InlineCode> differs from{" "}
+            <InlineCode>source.commit</InlineCode> on all twenty while only one
+            of them changed.
+          </li>
+          <li className="leading-relaxed">
+            <strong>Only a pinned approval can fall behind.</strong> One with no{" "}
+            <InlineCode>source.ref</InlineCode>, or with a branch name, follows
+            that branch, so its latest fields equal{" "}
+            <InlineCode>source.commit</InlineCode> and{" "}
+            <InlineCode>contentHash</InlineCode> by construction. A tag or a
+            full commit SHA is a fixed point, and the default branch can move
+            past it.
+          </li>
+          <li className="leading-relaxed">
+            <strong>Absent means unknown.</strong> Both fields are missing when
+            consolidation couldn't tell, because the source didn't answer or the
+            default branch no longer has a valid artifact at that path. That is
+            neither current nor behind, so claim nothing. In JavaScript,{" "}
+            <InlineCode>undefined !== contentHash</InlineCode> is true, so a
+            check that doesn't test for <InlineCode>latestHash</InlineCode>{" "}
+            first reports every such entry as behind.
+          </li>
+          <li className="leading-relaxed">
+            <strong>Different is not newer.</strong> A tag cut on a release
+            branch can be ahead of the default branch or diverged from it. Say
+            that the source ships something different now, not that a newer
+            version exists.
+          </li>
+          <li className="leading-relaxed">
+            <strong>
+              A hash says that the content changed, not what it changed to.
+            </strong>{" "}
+            There is no version to name. "The source has changed since this was
+            approved" is as far as it goes.
+          </li>
+        </ul>
+        <p className="mb-3 leading-relaxed">
+          State the approved revision and any change together: that the approval
+          is at <InlineCode>v1.2.0</InlineCode>, say, and, when the hashes
+          differ, that the source has changed since. Showing{" "}
+          <InlineCode>latestCommit</InlineCode> beside{" "}
+          <InlineCode>source.commit</InlineCode> hands the user the commit
+          comparison above. Don't call the approval outdated or stale either: a
+          pinned approval is still valid, and it is the newer content that
+          nobody has reviewed. A plugin's <InlineCode>version</InlineCode>{" "}
+          doesn't help. It is whatever <InlineCode>plugin.json</InlineCode>{" "}
+          declares at <InlineCode>source.commit</InlineCode>, not a statement
+          about <InlineCode>source.ref</InlineCode>, and a plugin approved at{" "}
+          <InlineCode>2.6.0</InlineCode> can declare{" "}
+          <InlineCode>1.0.0</InlineCode>.
+        </p>
+        <InfoCallout>
+          <strong>
+            This is for display and notification, never an update.
+          </strong>{" "}
+          Nothing at <code>latestCommit</code> has been approved, so never
+          install from it and never verify a download against{" "}
+          <code>latestHash</code>. Install at <code>source.commit</code> and
+          verify against <code>contentHash</code> as always. Once you have the
+          bytes, the hash you compute from them is the one that says what you
+          got.
+        </InfoCallout>
+        <p className="mt-3 mb-3 leading-relaxed">
+          Update detection doesn't change: an update is something newly
+          approved, which arrives as a new <InlineCode>contentHash</InlineCode>.
+          Show <InlineCode>generatedAt</InlineCode> wherever you show the latest
+          fields, since a stored "latest" is only as current as the run that
+          stored it.
         </p>
       </DocsSection>
 
@@ -632,6 +774,13 @@ export function ClientsPage() {
           <InlineCode>source.commit</InlineCode>, using the same algorithm for
           all three. Hash a tree fetched at any other commit and a mismatch
           tells you nothing.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          <InlineCode>latestHash</InlineCode> is the same algorithm over the
+          same path, at <InlineCode>latestCommit</InlineCode>, which is what
+          makes it comparable with <InlineCode>contentHash</InlineCode>. It
+          describes what the source ships now rather than what was approved, so
+          it is never what you verify an install against.
         </p>
         <ol className="mb-3 space-y-2 text-sm list-decimal pl-5">
           <li className="leading-relaxed">
@@ -780,6 +929,7 @@ export function ClientsPage() {
             "Pick an install config by date descending, organizationId ascending",
             "Verify contentHash before installing anything that has one, and let the user override an explicit mismatch warning",
             "Download skills, plugins, and sandbox extensions at source.commit, so a hash mismatch means changed content rather than a newer commit",
+            "Hand installation to another tool only if it can reach source.ref, and offer nothing rather than a command that drops it",
             "Record provenance for everything you install, and never overwrite what you did not",
             "Offer adoption when a local slot is already occupied",
             "Install plugins whole, keyed by pluginId, and load from inside the plugin root",
@@ -802,6 +952,18 @@ export function ClientsPage() {
           items={[
             "Use configHash for MCP servers and contentHash for every other type",
             "Preserve user-supplied configuration across an update",
+          ]}
+        />
+        <Checklist
+          title="If you show whether an approval is current"
+          idPrefix="current"
+          items={[
+            "Compare latestHash with contentHash, never latestCommit with source.commit",
+            "Treat a missing latestHash as unknown rather than behind",
+            "Word a difference without a direction, since the default branch can be behind a pinned tag",
+            "State the approved revision and any change together, and never call a pinned approval outdated or stale",
+            "Show generatedAt next to anything derived from the latest fields",
+            "Never install from latestCommit or verify a download against latestHash",
           ]}
         />
         <Checklist

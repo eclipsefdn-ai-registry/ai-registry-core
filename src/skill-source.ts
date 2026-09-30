@@ -5,6 +5,7 @@ import {
   statSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   rmSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
@@ -14,7 +15,9 @@ import matter from "gray-matter";
 import {
   checkedOutCommit,
   cloneAtRef,
+  recordLatest,
   resolveInsideRepo,
+  type RemoteBranchesLookup,
 } from "./git-source.js";
 import type { SkillEntry } from "./consolidate.js";
 
@@ -361,14 +364,22 @@ export function expandSkillEntry(
 
 // --- Enrichment (called by consolidate.ts) ---
 
-export function enrichSkillMetadata(skills: SkillEntry[]): SkillEntry[] {
+/**
+ * `remote`, when given, also sets latestCommit and latestHash on every entry
+ * (see recordLatest in git-source.ts). Without it they are left unset.
+ */
+export function enrichSkillMetadata(
+  skills: SkillEntry[],
+  remote?: RemoteBranchesLookup,
+): SkillEntry[] {
   if (skills.length === 0) return skills;
 
   console.log("Enriching skills with source metadata...\n");
 
-  const tmpDir = resolve(ROOT, ".tmp-skills");
-  if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
-  mkdirSync(tmpDir, { recursive: true });
+  // A unique directory per call, for the reason enrichSandboxExtensions
+  // gives: two overlapping runs sharing one fixed path would each delete the
+  // clones the other is reading.
+  const tmpDir = mkdtempSync(resolve(ROOT, ".tmp-skills-"));
 
   const enriched: SkillEntry[] = [];
 
@@ -403,6 +414,17 @@ export function enrichSkillMetadata(skills: SkillEntry[]): SkillEntry[] {
         console.log(`  Enriched: ${entry.skillId}`);
         console.log(`    Name: ${metadata.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
+        // A second fetch, when one is needed, reuses the clone that skills
+        // tracking the default branch of the same repository already share.
+        if (remote) {
+          recordLatest(
+            entry,
+            entry.skillId,
+            metadata,
+            () => fetchSkillMetadata(entry.source.url, path, tmpDir),
+            remote,
+          );
+        }
         enriched.push(entry);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
