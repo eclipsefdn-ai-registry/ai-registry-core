@@ -1,9 +1,18 @@
-import { GitBranch, Pin } from "lucide-react";
+import { GitBranch, Pin, type LucideIcon } from "lucide-react";
 import {
   approvedTarget,
   approvedTargetText,
+  type ApprovedTarget as Target,
   type ApprovedVsCurrent,
 } from "../approvedTarget";
+
+// No icon for a ref the feed doesn't classify: a branch icon or a pin would
+// each claim one of the two things it might be.
+const ICONS: Record<Target["kind"], LucideIcon | undefined> = {
+  tracks: GitBranch,
+  pinned: Pin,
+  ref: undefined,
+};
 
 /**
  * What an approval targets in its source, and whether the source has changed
@@ -29,14 +38,7 @@ export function ApprovedTarget({
 }) {
   const target = approvedTarget(entry);
   const { text, title } = approvedTargetText(target, generatedAt);
-  // No icon for a ref the feed doesn't classify: a branch icon or a pin would
-  // each claim one of the two things it might be.
-  const Icon =
-    target.kind === "tracks"
-      ? GitBranch
-      : target.kind === "pinned"
-        ? Pin
-        : undefined;
+  const Icon = ICONS[target.kind];
 
   return (
     <span

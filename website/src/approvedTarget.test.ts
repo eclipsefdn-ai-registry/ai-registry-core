@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   approvedTarget,
   approvedTargetText,
-  checkedOn,
   displayRef,
   sourceLinkTitle,
 } from "./approvedTarget";
@@ -192,17 +191,6 @@ describe("displayRef", () => {
     for (const name of ["deadbee", "g".repeat(40), "v1.2.0"]) {
       assert.equal(displayRef(name), name);
     }
-  });
-});
-
-describe("checkedOn", () => {
-  it("gives the date of the run", () => {
-    assert.equal(checkedOn(GENERATED_AT), "2026-09-28");
-  });
-
-  it("gives nothing for a feed without a usable timestamp", () => {
-    assert.equal(checkedOn(undefined), undefined);
-    assert.equal(checkedOn("not a date"), undefined);
   });
 });
 

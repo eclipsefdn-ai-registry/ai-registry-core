@@ -67,19 +67,6 @@ export function displayRef(ref: string): string {
   return COMMIT_SHA.test(ref) ? ref.slice(0, 7) : ref;
 }
 
-/**
- * The date of the consolidation run the latest fields come from, since a
- * stored "latest" is only as current as the run that stored it. Undefined when
- * the feed carries no usable generatedAt.
- */
-export function checkedOn(generatedAt: string | undefined): string | undefined {
-  if (!generatedAt) return undefined;
-  const time = Date.parse(generatedAt);
-  return Number.isNaN(time)
-    ? undefined
-    : new Date(time).toISOString().slice(0, 10);
-}
-
 export interface ApprovedTargetText {
   text: string;
   title: string;
@@ -95,7 +82,10 @@ export function approvedTargetText(
   target: ApprovedTarget,
   generatedAt?: string,
 ): ApprovedTargetText {
-  const date = checkedOn(generatedAt);
+  // The date of the run the latest fields come from, since a stored "latest"
+  // is only as current as the run that stored it. Consolidation writes
+  // generatedAt with toISOString(), so its first ten characters are the date.
+  const date = generatedAt?.slice(0, 10);
   const theDefaultBranch = date
     ? `As of ${date}, the default branch`
     : "The default branch";

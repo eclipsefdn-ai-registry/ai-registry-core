@@ -21,14 +21,6 @@ export function cliSource(url: string): string {
 }
 
 /**
- * The browsable base of a source repository, which sourceTreeUrl builds every
- * detail view's link on, so a normalization fix reaches all of them at once.
- */
-export function repoWebUrl(url: string): string {
-  return normalizeRepoUrl(url);
-}
-
-/**
  * A browsable link to an entry's source at `source.commit`, the commit its
  * contentHash was computed at, so the page opens on exactly what was hashed
  * rather than on whatever the branch holds by the time someone clicks. Falls
@@ -44,7 +36,7 @@ export function sourceTreeUrl(source: {
   ref?: string;
   commit?: string;
 }): string {
-  const base = repoWebUrl(source.url);
+  const base = normalizeRepoUrl(source.url);
   const revision = source.commit ?? source.ref;
   if (revision === undefined && !source.path) return base;
   const path = source.path ? `/${source.path}` : "";

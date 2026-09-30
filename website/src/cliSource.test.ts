@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { cliSource, repoWebUrl, sourceTreeUrl } from "./cliSource";
+import { cliSource, sourceTreeUrl } from "./cliSource";
 
 describe("cliSource", () => {
   it("reduces a GitHub URL to the owner/repo shorthand", () => {
@@ -23,31 +23,6 @@ describe("cliSource", () => {
     assert.equal(cliSource("https://github.com/acme/kits/"), "acme/kits");
     assert.equal(cliSource("https://github.com/acme/kits.git/"), "acme/kits");
     assert.equal(cliSource("https://github.com/acme/kits//"), "acme/kits");
-  });
-});
-
-describe("repoWebUrl", () => {
-  it("keeps the host, so the result is browsable", () => {
-    assert.equal(
-      repoWebUrl("https://github.com/acme/kits.git"),
-      "https://github.com/acme/kits",
-    );
-  });
-
-  // The bug this helper exists to prevent: a trailing slash carried into a
-  // `/tree/<ref>/<path>` link renders as `kits//tree/main/...`.
-  it("strips a trailing slash so a /tree/ link stays well-formed", () => {
-    assert.equal(
-      `${repoWebUrl("https://github.com/acme/kits/")}/tree/main/tools/foo`,
-      "https://github.com/acme/kits/tree/main/tools/foo",
-    );
-  });
-
-  it("leaves a plain URL untouched", () => {
-    assert.equal(
-      repoWebUrl("https://gitlab.com/acme/kits"),
-      "https://gitlab.com/acme/kits",
-    );
   });
 });
 
@@ -111,6 +86,19 @@ describe("sourceTreeUrl", () => {
         commit,
       }),
       `https://github.com/acme/kits/tree/${commit}/skills/review`,
+    );
+  });
+
+  // A trailing slash carried into the link would render as
+  // `kits//tree/main/...`.
+  it("strips a trailing slash so the /tree/ link stays well-formed", () => {
+    assert.equal(
+      sourceTreeUrl({
+        url: "https://github.com/acme/kits/",
+        path: "tools/foo",
+        ref: "main",
+      }),
+      "https://github.com/acme/kits/tree/main/tools/foo",
     );
   });
 
