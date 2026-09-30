@@ -149,9 +149,8 @@ export function parseRemoteBranches(output: string): RemoteBranches {
   const branches = new Set<string>();
   for (const line of output.split("\n")) {
     const [sha, refname] = line.trim().split("\t");
-    // `ref: refs/heads/main\tHEAD` is how --symref reports where HEAD
-    // points. It names a branch rather than a commit.
-    if (!refname || sha.startsWith("ref:")) continue;
+    // The output ends in a newline, which leaves an empty last line.
+    if (!refname) continue;
     if (refname === "HEAD") head = sha;
     else if (refname.startsWith("refs/heads/")) {
       branches.add(refname.slice("refs/heads/".length));
@@ -251,11 +250,65 @@ export function isPinnedRef(
  * no network at all. Whatever `remote` throws propagates.
  */
 export function needsDefaultBranchFetch(
-  ref: string | undefined,
+  source: { url: string; ref?: string },
   resolvedCommit: string,
-  remote: () => RemoteBranches,
+  remote: RemoteBranchesLookup,
 ): boolean {
-  if (ref === undefined) return false;
-  const { head, branches } = remote();
-  return isPinnedRef(ref, branches) && head !== resolvedCommit;
+  if (source.ref === undefined) return false;
+  const { head, branches } = remote(source.url);
+  return isPinnedRef(source.ref, branches) && head !== resolvedCommit;
+}
+
+/** A commit, and the hash of an entry's path checked out there. */
+export interface ResolvedContent {
+  commit: string;
+  contentHash: string;
+}
+
+/**
+ * Sets latestCommit and latestHash on an entry that has just been resolved to
+ * `resolved`. Skill and plugin enrichment share it; sandbox-source.ts has its
+ * own, because it decides once per repository rather than once per entry.
+ *
+ * The resolved values are reused unless the entry is pinned and the default
+ * branch has moved (see needsDefaultBranchFetch). Only then is
+ * `fetchDefaultBranch` called. It must fetch the same path with no ref,
+ * through the same function that produced `resolved`, so that both hashes are
+ * computed by exactly the same code and can be compared.
+ *
+ * A failure costs the entry only these two fields, never the entry itself:
+ * what it resolved to is still what was approved. `id` names the entry in the
+ * warning.
+ */
+export function recordLatest(
+  entry: {
+    source: { url: string; ref?: string };
+    latestCommit?: string;
+    latestHash?: string;
+  },
+  id: string,
+  resolved: ResolvedContent,
+  fetchDefaultBranch: () => ResolvedContent,
+  remote: RemoteBranchesLookup,
+): void {
+  try {
+    const latest = needsDefaultBranchFetch(
+      entry.source,
+      resolved.commit,
+      remote,
+    )
+      ? fetchDefaultBranch()
+      : resolved;
+    entry.latestCommit = latest.commit;
+    entry.latestHash = latest.contentHash;
+    if (latest.contentHash !== resolved.contentHash) {
+      console.log(`    Latest hash: ${latest.contentHash} (default branch)`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `  WARNING: ${id} — could not tell what the default branch ships now, published without latestCommit/latestHash`,
+    );
+    console.warn(`    ${message}`);
+  }
 }

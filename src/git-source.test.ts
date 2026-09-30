@@ -11,9 +11,11 @@ import {
   listRemoteBranches,
   needsDefaultBranchFetch,
   parseRemoteBranches,
+  recordLatest,
   remoteBranchesLookup,
   resolveInsideRepo,
   type RemoteBranches,
+  type RemoteBranchesLookup,
 } from "./git-source.js";
 
 describe("authenticatedRepoUrl", () => {
@@ -172,13 +174,6 @@ describe("parseRemoteBranches", () => {
     assert.deepEqual([...parsed.branches], ["main"]);
   });
 
-  it("ignores the line --symref adds", () => {
-    const parsed = parseRemoteBranches(
-      [`ref: refs/heads/main\tHEAD`, `${main}\tHEAD`].join("\n"),
-    );
-    assert.equal(parsed.head, main);
-  });
-
   it("throws when the remote reports no HEAD", () => {
     assert.throws(
       () => parseRemoteBranches(`${main}\trefs/heads/main\n`),
@@ -210,66 +205,158 @@ describe("isPinnedRef", () => {
 });
 
 describe("needsDefaultBranchFetch", () => {
+  const url = "https://example.test/kits.git";
   const resolved = "a".repeat(40);
   const moved = "b".repeat(40);
 
   function spyRemote(remote: RemoteBranches): {
-    remote: () => RemoteBranches;
-    calls: () => number;
+    remote: RemoteBranchesLookup;
+    asked: string[];
   } {
-    let calls = 0;
+    const asked: string[] = [];
     return {
-      remote: () => {
-        calls++;
+      remote: (sourceUrl) => {
+        asked.push(sourceUrl);
         return remote;
       },
-      calls: () => calls,
+      asked,
     };
   }
 
   // Most entries have no ref, so this is the case that must cost nothing.
   it("never asks the remote about an entry with no ref", () => {
     const spy = spyRemote({ head: moved, branches: new Set(["main"]) });
-    assert.equal(
-      needsDefaultBranchFetch(undefined, resolved, spy.remote),
-      false,
-    );
-    assert.equal(spy.calls(), 0);
+    assert.equal(needsDefaultBranchFetch({ url }, resolved, spy.remote), false);
+    assert.deepEqual(spy.asked, []);
   });
 
   // The entry follows its branch, so what it resolved to is that branch's
   // latest, even when the default branch is somewhere else entirely.
   it("needs no second checkout for a branch ref, even off the default branch", () => {
     const spy = spyRemote({ head: moved, branches: new Set(["main", "dev"]) });
-    assert.equal(needsDefaultBranchFetch("dev", resolved, spy.remote), false);
+    assert.equal(
+      needsDefaultBranchFetch({ url, ref: "dev" }, resolved, spy.remote),
+      false,
+    );
   });
 
   it("needs no second checkout for a pin the default branch still points at", () => {
     const spy = spyRemote({ head: resolved, branches: new Set(["main"]) });
     assert.equal(
-      needsDefaultBranchFetch("v1.0.0", resolved, spy.remote),
+      needsDefaultBranchFetch({ url, ref: "v1.0.0" }, resolved, spy.remote),
       false,
     );
     assert.equal(
-      needsDefaultBranchFetch(resolved, resolved, spy.remote),
+      needsDefaultBranchFetch({ url, ref: resolved }, resolved, spy.remote),
       false,
     );
   });
 
   it("needs a second checkout once the default branch has moved off a pin", () => {
     const spy = spyRemote({ head: moved, branches: new Set(["main"]) });
-    assert.equal(needsDefaultBranchFetch("v1.0.0", resolved, spy.remote), true);
-    assert.equal(needsDefaultBranchFetch(resolved, resolved, spy.remote), true);
+    assert.equal(
+      needsDefaultBranchFetch({ url, ref: "v1.0.0" }, resolved, spy.remote),
+      true,
+    );
+    assert.equal(
+      needsDefaultBranchFetch({ url, ref: resolved }, resolved, spy.remote),
+      true,
+    );
+  });
+
+  it("asks about the entry's own repository", () => {
+    const spy = spyRemote({ head: moved, branches: new Set(["main"]) });
+    needsDefaultBranchFetch({ url, ref: "v1.0.0" }, resolved, spy.remote);
+    assert.deepEqual(spy.asked, [url]);
   });
 
   it("lets a failed lookup propagate", () => {
     assert.throws(
       () =>
-        needsDefaultBranchFetch("v1.0.0", resolved, () => {
+        needsDefaultBranchFetch({ url, ref: "v1.0.0" }, resolved, () => {
           throw new Error("unreachable");
         }),
       /unreachable/,
     );
+  });
+});
+
+describe("recordLatest", () => {
+  const url = "https://example.test/kits.git";
+  const resolved = { commit: "a".repeat(40), contentHash: "a1a1a1a1a1a1" };
+  const tip = { commit: "b".repeat(40), contentHash: "b2b2b2b2b2b2" };
+  // A default branch that has moved off the resolved commit.
+  const moved: RemoteBranchesLookup = () => ({
+    head: tip.commit,
+    branches: new Set(["main"]),
+  });
+
+  function entry(ref?: string): {
+    source: { url: string; ref?: string };
+    latestCommit?: string;
+    latestHash?: string;
+  } {
+    return { source: { url, ref } };
+  }
+
+  it("reuses the resolved values, with no lookup and no fetch, for an entry with no ref", () => {
+    const e = entry();
+    const calls: string[] = [];
+    recordLatest(
+      e,
+      "io.example/kit",
+      resolved,
+      () => {
+        calls.push("fetch");
+        return tip;
+      },
+      (sourceUrl) => {
+        calls.push("lookup");
+        return moved(sourceUrl);
+      },
+    );
+    assert.equal(e.latestCommit, resolved.commit);
+    assert.equal(e.latestHash, resolved.contentHash);
+    assert.deepEqual(calls, []);
+  });
+
+  it("records what the default branch ships once it has moved off a pin", () => {
+    const e = entry("v1.0.0");
+    recordLatest(e, "io.example/kit", resolved, () => tip, moved);
+    assert.equal(e.latestCommit, tip.commit);
+    assert.equal(e.latestHash, tip.contentHash);
+  });
+
+  // Either failure costs the entry only these two fields. What it resolved to
+  // is still what was approved, so nothing may be thrown at the caller.
+  it("leaves both fields unset when the remote can't be listed", () => {
+    const e = entry("v1.0.0");
+    recordLatest(
+      e,
+      "io.example/kit",
+      resolved,
+      () => tip,
+      () => {
+        throw new Error("unreachable");
+      },
+    );
+    assert.equal(e.latestCommit, undefined);
+    assert.equal(e.latestHash, undefined);
+  });
+
+  it("leaves both fields unset when the default branch can't be fetched", () => {
+    const e = entry("v1.0.0");
+    recordLatest(
+      e,
+      "io.example/kit",
+      resolved,
+      () => {
+        throw new Error("no longer there");
+      },
+      moved,
+    );
+    assert.equal(e.latestCommit, undefined);
+    assert.equal(e.latestHash, undefined);
   });
 });
 

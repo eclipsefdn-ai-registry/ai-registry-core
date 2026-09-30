@@ -15,7 +15,7 @@ import matter from "gray-matter";
 import {
   checkedOutCommit,
   cloneAtRef,
-  needsDefaultBranchFetch,
+  recordLatest,
   resolveInsideRepo,
   type RemoteBranchesLookup,
 } from "./git-source.js";
@@ -362,55 +362,11 @@ export function expandSkillEntry(
   return resolved.map((p) => expandedEntry(entry, p));
 }
 
-// --- Latest (what the default branch ships now) ---
-
-/**
- * Sets latestCommit and latestHash on an entry that has just been resolved.
- *
- * The resolved values are reused unless the entry is pinned and the default
- * branch has moved (see needsDefaultBranchFetch). Only then is the same path
- * fetched again with no ref, so the hash is computed by exactly the code that
- * computed contentHash, and the two can be compared. That second fetch reuses
- * the clone skills tracking the default branch of the same repository
- * already share.
- *
- * A failure costs the entry only these two fields, never the entry itself:
- * what it resolved to is still what was approved.
- */
-function recordLatest(
-  entry: SkillEntry,
-  path: string | undefined,
-  resolved: SkillMetadata,
-  tmpDir: string,
-  remote: RemoteBranchesLookup,
-): void {
-  try {
-    const latest = needsDefaultBranchFetch(
-      entry.source.ref,
-      resolved.commit,
-      () => remote(entry.source.url),
-    )
-      ? fetchSkillMetadata(entry.source.url, path, tmpDir)
-      : resolved;
-    entry.latestCommit = latest.commit;
-    entry.latestHash = latest.contentHash;
-    if (latest.contentHash !== resolved.contentHash) {
-      console.log(`    Latest hash: ${latest.contentHash} (default branch)`);
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `  WARNING: ${entry.skillId} — could not tell what the default branch ships now, published without latestCommit/latestHash`,
-    );
-    console.warn(`    ${message}`);
-  }
-}
-
 // --- Enrichment (called by consolidate.ts) ---
 
 /**
  * `remote`, when given, also sets latestCommit and latestHash on every entry
- * (see recordLatest). Without it they are left unset.
+ * (see recordLatest in git-source.ts). Without it they are left unset.
  */
 export function enrichSkillMetadata(
   skills: SkillEntry[],
@@ -458,7 +414,17 @@ export function enrichSkillMetadata(
         console.log(`  Enriched: ${entry.skillId}`);
         console.log(`    Name: ${metadata.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
-        if (remote) recordLatest(entry, path, metadata, tmpDir, remote);
+        // A second fetch, when one is needed, reuses the clone that skills
+        // tracking the default branch of the same repository already share.
+        if (remote) {
+          recordLatest(
+            entry,
+            entry.skillId,
+            metadata,
+            () => fetchSkillMetadata(entry.source.url, path, tmpDir),
+            remote,
+          );
+        }
         enriched.push(entry);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

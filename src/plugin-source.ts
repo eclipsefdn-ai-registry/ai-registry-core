@@ -18,7 +18,7 @@ import {
   resolveInsideRepo,
   cloneAtRef,
   checkedOutCommit,
-  needsDefaultBranchFetch,
+  recordLatest,
   type RemoteBranchesLookup,
 } from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
@@ -279,48 +279,11 @@ export function fetchPluginManifest(
   };
 }
 
-// --- Latest (what the default branch ships now) ---
-
-/**
- * Sets latestCommit and latestHash on an entry that has just been resolved,
- * the same way skill-source.ts's recordLatest does: the resolved values
- * unless the entry is pinned and the default branch has moved, and otherwise
- * the plugin directory fetched again with no ref. A failure costs the entry
- * only these two fields.
- */
-function recordLatest(
-  entry: PluginEntry,
-  resolved: PluginMetadata,
-  tmpDir: string,
-  remote: RemoteBranchesLookup,
-): void {
-  try {
-    const latest = needsDefaultBranchFetch(
-      entry.source.ref,
-      resolved.commit,
-      () => remote(entry.source.url),
-    )
-      ? fetchPluginManifest(entry.source.url, entry.source.path, tmpDir)
-      : resolved;
-    entry.latestCommit = latest.commit;
-    entry.latestHash = latest.contentHash;
-    if (latest.contentHash !== resolved.contentHash) {
-      console.log(`    Latest hash: ${latest.contentHash} (default branch)`);
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `  WARNING: ${entry.pluginId} — could not tell what the default branch ships now, published without latestCommit/latestHash`,
-    );
-    console.warn(`    ${message}`);
-  }
-}
-
 // --- Enrichment (called by consolidate.ts) ---
 
 /**
  * `remote`, when given, also sets latestCommit and latestHash on every entry
- * (see recordLatest). Without it they are left unset.
+ * (see recordLatest in git-source.ts). Without it they are left unset.
  */
 export function enrichPluginMetadata(
   plugins: PluginEntry[],
@@ -359,7 +322,16 @@ export function enrichPluginMetadata(
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
-        if (remote) recordLatest(entry, metadata, tmpDir, remote);
+        if (remote) {
+          recordLatest(
+            entry,
+            entry.pluginId,
+            metadata,
+            () =>
+              fetchPluginManifest(entry.source.url, entry.source.path, tmpDir),
+            remote,
+          );
+        }
         enriched.push(entry);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

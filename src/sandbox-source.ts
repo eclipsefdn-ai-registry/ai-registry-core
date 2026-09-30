@@ -336,7 +336,7 @@ function entryFor(
 
 /**
  * Sets latestCommit and latestHash on every extension one approved repository
- * yielded. It works like skill-source.ts's recordLatest, but decides once per
+ * yielded. It works like git-source.ts's recordLatest, but decides once per
  * repository, since its extensions were all resolved at the same commit.
  *
  * When the default branch does have to be read, only the paths this approval
@@ -367,11 +367,7 @@ function recordLatest(
 
   let tip: { cloneDir: string; commit: string } | undefined;
   try {
-    if (
-      needsDefaultBranchFetch(pending.source.ref, resolvedCommit, () =>
-        remote(pending.source.url),
-      )
-    ) {
+    if (needsDefaultBranchFetch(pending.source, resolvedCommit, remote)) {
       tip = cloneSandboxRepo(pending.source.url, tmpDir);
     }
   } catch (err) {

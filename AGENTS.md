@@ -51,7 +51,7 @@ src/
   agent-source.ts           Agent enrichment (HTTP fetch, parse, hash)
   marketplace-source.ts     Marketplace expansion (parse marketplace file, resolve + derive plugin IDs)
   sandbox-source.ts         Sandbox extension enrichment (clone, discover tools/* and features/*, parse spec, hash)
-  git-source.ts             Shared git helpers (clone at a ref, list remote branches, decide whether latest needs a second fetch)
+  git-source.ts             Shared git helpers (clone at a ref, list remote branches, decide whether latest needs a second fetch and record it)
   anthropic-registry.ts     MCP server metadata lookup
   cli-validate.ts           CLI entry: validate a vendor repo
   cli-consolidate.ts        CLI entry: consolidate all vendors
