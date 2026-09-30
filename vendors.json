@@ -54,5 +54,9 @@
   {
     "id": "ai-registry",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-ai-registry.git"
+  },
+  {
+    "id": "typefox",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-typefox.git"
   }
 ]
