@@ -1,11 +1,60 @@
-# Vendor Repo Scaffolding — Shared Conventions
+---
+name: create-vendor-repo
+description: >
+  Scaffold a brand-new vendor repo for the AI Registry, in either of two modes: **direct**, for an
+  organization that is participating itself and self-approving its own artifacts (Agent Skills, MCP
+  servers, Agent Plugins, A2A agents), or **inferred**, for pre-seeding a vendor that hasn't joined
+  yet from public research, with a disclaimer. Use this when onboarding any new organization — e.g.
+  "create a vendor repo for Acme Corp", "onboard our own project as a vendor", "add Atlassian as an
+  inferred vendor", "do the same research for GitHub".
+argument-hint: '<vendor-id-or-name> [direct|inferred] — e.g. "ai-registry" direct, "github" inferred'
+---
 
-Shared scaffolding steps for the two vendor-repo-creation skills — `create-inferred-vendor` (a
-vendor that hasn't joined the registry, pre-seeded from research) and `create-direct-vendor` (an
-organization directly participating, self-approving its own artifacts). Everything mechanical and
-identical between the two lives here so they don't drift independently; each skill's own SKILL.md
-covers only what's specific to its mode (research/verification for inferred, gathering info
-directly from the organization for direct).
+# AI Registry — Vendor Repo Generator
+
+You are scaffolding a new vendor repo. Everything mechanical — repo setup, file templates,
+approval-file conventions, validation, commit — is the same either way. What differs is where the
+content comes from, and that is the **mode**.
+
+## Step 0 — Pick the mode
+
+**Direct** — the organization is participating itself, self-declaring its identity and
+self-approving its own artifacts. What it tells you is authoritative, so there is no research or
+verification phase. `ai-registry-eclipsesource`, `ai-registry-mosaico`, and `ai-registry-theia` are
+existing examples.
+
+**Inferred** — the AI Registry project maintains the repo, not the vendor, pre-seeding the registry
+with artifacts the vendor published through official public channels, with a disclaimer that the
+vendor hasn't endorsed the listing. `ai-registry-google`, `ai-registry-anthropic`, and
+`ai-registry-jetbrains` are existing examples.
+
+Infer the mode from the request. The user asking on the organization's behalf ("our project", "we
+publish", "set up a repo for us"), or naming artifact sources directly, means direct. The user
+asking about a third party they don't speak for ("add Atlassian", "do the same research for X")
+means inferred. If it's genuinely ambiguous, ask with `AskUserQuestion` — the disclaimer and the
+whole verification phase hang on this, so don't guess quietly.
+
+Read one existing repo of the chosen mode end-to-end before starting if you want a concrete
+reference.
+
+## Workflow
+
+1. **Gather organization metadata**: `id` (lowercase, alphanumeric, hyphens), `name`,
+   `description`, `website`, `color`, and optionally `tools`. See "`organization.json`" below.
+2. **Gather artifact sources** — which Agent Skill/MCP server/Agent Plugin/A2A agent repos (and
+   paths within them) to approve.
+   - **Direct**: the user tells you, or you read the organization's own repo structure (e.g. a
+     `skills/` directory of `SKILL.md` folders) to find them. The source is already known and
+     self-declared, so there's no need to search the wider web.
+   - **Inferred**: this is the research-heavy part of the job. **Read
+     `references/inferred-research.md` now** and work through it in order — where to look, how to
+     verify official vs. community, how to resolve MCP servers, and how to scope conservatively.
+     Don't skip the verification phase to get to scaffolding faster; a wrong "official" claim is
+     worse than a missing artifact.
+3. **Scaffold the repo and generate approval files** — the rest of this file.
+4. **Validate and commit locally only** — see "Validate" and "Commit".
+5. **Wire up trust, if asked** — see "Trust relationships".
+6. **Stop** — see "What NOT to do automatically", and tell the user what's left.
 
 ## Repo setup
 
@@ -41,13 +90,13 @@ they just publish artifacts that other tools install.
 
 The two modes differ only in `description` and the `inferred` flag:
 
-- **Inferred** (see `create-inferred-vendor`): set `"inferred": true` and use this description
-  verbatim: `"This entry is based solely on information published through the organisation's
-official public channels. The organisation has not endorsed, approved or validated this listing,
-and is not necessarily participating in the AI Registry."`
-- **Direct** (see `create-direct-vendor`): omit `inferred` entirely (schema defaults to `false`)
-  and use a plain, factual description of the organization/project itself — see
-  `ai-registry-mosaico/organization.json` for the shape.
+- **Inferred**: set `"inferred": true` and use this description verbatim: `"This entry is based
+solely on information published through the organisation's official public channels. The
+organisation has not endorsed, approved or validated this listing, and is not necessarily
+participating in the AI Registry."`
+- **Direct**: omit `inferred` entirely (schema defaults to `false`) and use a plain, factual
+  description of the organization/project itself — see `ai-registry-mosaico/organization.json` for
+  the shape.
 
 ## `package.json`
 
@@ -150,10 +199,9 @@ they all live under one vendor's `skills/` directory. Follow `create-skill-appro
 `create-mcp-approval`/`create-plugin-approval`'s ID and naming-convention rules exactly
 (reverse-domain ID, `/` → `--` in the filename). For A2A agents, mirror
 `ai-registry-mosaico/agents/*.json` against `schemas/agent-approval.schema.json` (no dedicated
-skill exists yet). Approvals surfaced purely through a `trusts` relationship (see
-`create-direct-vendor`'s trust step) never need `installConfigs` — see `ai-registry-google/skills/*.json`
-and `ai-registry-anthropic/skills/*.json`, which carry none, relying entirely on the trusting
-org's own tool configuration.
+skill exists yet). Approvals surfaced purely through a `trusts` relationship (see below) never need
+`installConfigs` — see `ai-registry-google/skills/*.json` and `ai-registry-anthropic/skills/*.json`,
+which carry none, relying entirely on the trusting org's own tool configuration.
 
 ## Validate
 
@@ -176,6 +224,27 @@ git commit -m "<plain, factual message describing the actual content>"
 
 Keep messages plain and factual, matching every existing vendor repo's commit history — no AI
 attribution or co-author trailer.
+
+## Trust relationships
+
+A new vendor repo — either mode — is often something existing vendors want to delegate trust to
+(see the `trusts` field in `schemas/organization.schema.json`). `ai-registry-theia` trusts
+`anthropic`, `openai`, `aws` and `google` (all inferred) plus `eclipsesource` and `ai-registry`
+(both direct), so don't treat this as a direct-mode-only step.
+
+Only do this when the user asks for it. For each vendor repo that should trust the new org:
+
+- `git status` first — if it's dirty or not on a clean `main`, skip it and report, don't touch it.
+- Otherwise `git checkout main && git pull --ff-only`, then create a new feature branch off main —
+  don't commit trust changes directly to `main`.
+- Add an entry to that vendor's `organization.json` `trusts` array:
+  `{ "org": "<new-vendor-id>", "artifactTypes": { "<type>": {} } }` — if an entry for this org
+  already exists, add the missing artifact type to it instead of adding a duplicate entry.
+- If a direct approval file for this org's content already exists in the trusting vendor's own
+  `skills/`/`mcp/`/`plugins/`/`agents/` directory (predating the new vendor repo), remove it as
+  part of the same commit — the new `trusts` entry supersedes it.
+- Commit locally only, same plain/factual/no-AI-attribution convention as everywhere else. Never
+  push someone else's vendor repo without being asked to.
 
 ## What NOT to do automatically
 
