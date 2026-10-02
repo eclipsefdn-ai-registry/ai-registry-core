@@ -46,6 +46,15 @@ export function AboutPage() {
           >
             A2A agents
           </a>
+          , and{" "}
+          <a
+            href="https://enclave.eclipse.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            sandbox extensions
+          </a>
           , with support for additional artifact types planned for the future.
         </p>
         <p className="mb-3 leading-relaxed text-card-foreground">

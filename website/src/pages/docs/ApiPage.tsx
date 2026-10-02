@@ -26,12 +26,13 @@ const APPROVAL_FIELDS = [
     name: "installConfigs",
     type: "array",
     description:
-      "Tool-specific install configuration. Empty when the organization approved without configuring anything.",
+      "Tool-specific install configuration. Empty when the organization approved without configuring anything, and absent entirely on sandbox extension approvals.",
   },
   {
     name: "version",
     type: "string?",
-    description: "Pinned MCP server version. Absent means latest.",
+    description:
+      "MCP only, and informational: the MCP registry version the organization reviewed, present only when the approval gave one. It doesn't decide what runs; the install configuration does.",
   },
   {
     name: "viaTrust",
@@ -44,6 +45,23 @@ const APPROVAL_FIELDS = [
     type: "object?",
     description:
       "Present only on plugin approvals produced by fanning out a marketplace approval; records which marketplace (marketplaceUrl, format) produced this entry.",
+  },
+];
+
+// Shared by the skills, plugins, and sandbox extension tables: the same two
+// fields, computed the same way for all three.
+const LATEST_FIELDS = [
+  {
+    name: "latestCommit",
+    type: "string?",
+    description:
+      "The tip, when consolidation ran, of the branch the entry follows: the one source.ref names for a branch ref, the default branch otherwise. Equal to source.commit unless source.ref pins a tag or commit the default branch has since moved off. Absent when consolidation couldn't find out.",
+  },
+  {
+    name: "latestHash",
+    type: "string?",
+    description:
+      "Hash of the same path at latestCommit, computed like contentHash. The approval is behind its source when this differs from contentHash; comparing the commits instead says nothing, since they move with every change to the repository. For display and notification only: install at source.commit and verify against contentHash.",
   },
 ];
 
@@ -87,8 +105,8 @@ export function ApiPage() {
                 </a>
               </td>
               <td className="py-2">
-                Every organization, tool, MCP server, skill, plugin, and A2A
-                agent, with approvals merged across all vendors.
+                Every organization, tool, MCP server, skill, plugin, A2A agent,
+                and sandbox extension, with approvals merged across all vendors.
               </td>
             </tr>
             <tr className="border-b border-border align-top">
@@ -112,7 +130,9 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Artifacts approved for one tool, with other tools' install
-                configs stripped. Example:{" "}
+                configs stripped. Carries no sandbox extensions: their approvals
+                have no install configs, so nothing scopes them to a tool.
+                Example:{" "}
                 <a
                   href={`${BASE_URL}api/v1/tools/theia-ide.json`}
                   className="text-primary hover:underline"
@@ -165,6 +185,20 @@ export function ApiPage() {
                 >
                   <InlineCode>agents.json</InlineCode>
                 </a>
+                ,{" "}
+                <a
+                  href={`${BASE_URL}api/v1/sandbox-tools.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>sandbox-tools.json</InlineCode>
+                </a>
+                ,{" "}
+                <a
+                  href={`${BASE_URL}api/v1/sandbox-features.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>sandbox-features.json</InlineCode>
+                </a>
               </td>
               <td className="py-2">
                 Every approved artifact of one type, across every tool, with
@@ -186,27 +220,40 @@ export function ApiPage() {
 
       <DocsSection id="response-shapes">
         <p className="mb-3 leading-relaxed">
-          <InlineCode>all.json</InlineCode> returns an object with all six
-          top-level keys. <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode>{" "}
-          and <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> return only the
-          four artifact-type keys (<InlineCode>mcp</InlineCode>,{" "}
+          <InlineCode>all.json</InlineCode> returns an object with all eight
+          top-level keys. <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode>{" "}
+          returns the six artifact-type keys, filtered;{" "}
+          <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> returns the four
+          that carry install configs (<InlineCode>mcp</InlineCode>,{" "}
           <InlineCode>skills</InlineCode>, <InlineCode>plugins</InlineCode>,{" "}
-          <InlineCode>agents</InlineCode>), filtered — fetch{" "}
+          <InlineCode>agents</InlineCode>) — fetch{" "}
           <InlineCode>organizations.json</InlineCode> alongside them to resolve
           organization and tool names. The per-type files (
           <InlineCode>mcp.json</InlineCode>,{" "}
           <InlineCode>skills.json</InlineCode>,{" "}
           <InlineCode>plugins.json</InlineCode>,{" "}
-          <InlineCode>agents.json</InlineCode>) return a single one of those
-          four keys.
+          <InlineCode>agents.json</InlineCode>,{" "}
+          <InlineCode>sandbox-tools.json</InlineCode>,{" "}
+          <InlineCode>sandbox-features.json</InlineCode>) return a single one of
+          those keys.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Every file also carries <InlineCode>generatedAt</InlineCode>, an ISO
+          8601 timestamp of when the consolidation run that produced it started.
+          Everything in the file was read from its source after that, including{" "}
+          <InlineCode>latestCommit</InlineCode> and{" "}
+          <InlineCode>latestHash</InlineCode>, so it dates the whole file.
         </p>
         <CodeBlock>{`{
+  "generatedAt": "2026-09-28T06:00:04.512Z",
   "organizations": [ ... ],
   "tools": [ ... ],
   "mcp": [ ... ],
   "skills": [ ... ],
   "plugins": [ ... ],
-  "agents": [ ... ]
+  "agents": [ ... ],
+  "sandboxTools": [ ... ],
+  "sandboxFeatures": [ ... ]
 }`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
           These shapes are produced by consolidation and differ from the
@@ -272,7 +319,7 @@ export function ApiPage() {
               name: "latestVersion",
               type: "string?",
               description:
-                "Latest version known to the Anthropic MCP registry.",
+                "Latest version known to the Anthropic MCP registry. Registry metadata, like name and description: it isn't copied into approvals and says nothing about what an approval runs.",
             },
             {
               name: "mcpRegistryVerified",
@@ -312,14 +359,15 @@ export function ApiPage() {
               name: "source",
               type: "object",
               description:
-                "Git repository URL and optional path to the skill folder. No commit pin.",
+                "Git repository URL, optional path to the skill folder, an optional git ref (tag, branch, or commit SHA) to pin instead of the default branch, and commit: the commit contentHash was computed at.",
             },
             {
               name: "contentHash",
               type: "string",
               description:
-                "Hash of the skill folder as of the last consolidation run.",
+                "Hash of the skill folder as of the last consolidation run, at source.commit.",
             },
+            ...LATEST_FIELDS,
             {
               name: "approvals",
               type: "array",
@@ -366,13 +414,15 @@ export function ApiPage() {
               name: "source",
               type: "object",
               description:
-                "Git repository URL and optional path to the directory holding plugin.json, plus an optional git ref (tag or branch) to pin instead of the default branch.",
+                "Git repository URL and optional path to the directory holding plugin.json, an optional git ref (tag, branch, or commit SHA) to pin instead of the default branch, and commit: the commit contentHash was computed at.",
             },
             {
               name: "contentHash",
               type: "string",
-              description: "Hash of the whole plugin directory.",
+              description:
+                "Hash of the whole plugin directory, at source.commit.",
             },
+            ...LATEST_FIELDS,
             {
               name: "containedSkills",
               type: "array",
@@ -423,6 +473,59 @@ export function ApiPage() {
               name: "approvals",
               type: "array",
               description: "One entry per approving organization.",
+            },
+          ]}
+        />
+
+        <FieldTable
+          caption="sandboxTools[] and sandboxFeatures[]"
+          fields={[
+            {
+              name: "sandboxExtensionId",
+              type: "string",
+              description:
+                "Approval id plus the extension's repository path, e.g. io.github.eclipse-enclave/enclave-extensions/tools/openclaw.",
+            },
+            {
+              name: "kind",
+              type: "string",
+              description:
+                '"sandbox" for a tool extension, "mixin" for a feature extension. Taken from spec.yaml, and the reason the two lists are separate.',
+            },
+            {
+              name: "name",
+              type: "string",
+              description:
+                "displayName from the spec, falling back to the spec name.",
+            },
+            {
+              name: "extensionName",
+              type: "string",
+              description:
+                "The spec's own name, which is also its directory name. This is the identity the host CLI addresses the extension by.",
+            },
+            {
+              name: "description",
+              type: "string",
+              description: "Description from the spec.",
+            },
+            {
+              name: "source",
+              type: "object",
+              description:
+                "Git repository URL, the path to this extension's directory, an optional git ref (tag, branch, or full commit SHA) pinning a revision instead of the default branch, and commit: the commit contentHash was computed at.",
+            },
+            {
+              name: "contentHash",
+              type: "string",
+              description: "Hash of the extension directory, at source.commit.",
+            },
+            ...LATEST_FIELDS,
+            {
+              name: "approvals",
+              type: "array",
+              description:
+                "One entry per approving organization. These carry no installConfigs.",
             },
           ]}
         />
@@ -494,6 +597,10 @@ export function ApiPage() {
                 "marketplace-approval.schema.json",
                 "Marketplace approval file (fans out into plugin approvals)",
               ],
+              [
+                "sandbox-extension-approval.schema.json",
+                "Sandbox extension approval file (one repository, fans out into its individual extensions)",
+              ],
             ].map(([file, description]) => (
               <tr key={file} className="border-b border-border align-top">
                 <td className="py-2 pr-3">
@@ -523,7 +630,9 @@ export function ApiPage() {
           >
             Anthropic MCP registry
           </a>{" "}
-          metadata and in skill and plugin sources.
+          metadata and in skill, plugin, and sandbox extension sources. Each
+          build stamps every file with <InlineCode>generatedAt</InlineCode>, so
+          a client can tell how old the data it holds is.
         </p>
         <p className="mb-3 leading-relaxed">
           The API is versioned by path. New fields and new top-level keys can

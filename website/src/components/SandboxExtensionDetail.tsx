@@ -1,28 +1,39 @@
 import { ArrowLeft } from "lucide-react";
-import type { Skill, Organization, Tool, SkillApproval } from "../types";
+import type {
+  SandboxExtension,
+  SandboxExtensionApproval,
+  Organization,
+} from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
 import { sourceTreeUrl } from "../cliSource";
-import { skillsCommand } from "../installCommand";
 import { sourceLinkTitle } from "../approvedTarget";
+import { enclaveCommand } from "../enclaveCommand";
 import { InstallFromCli } from "./InstallFromCli";
 import { ApprovedTarget } from "./ApprovedTarget";
 
-export function SkillDetail({
-  skill,
+// Two vocabularies name the same thing: the spec says kind, Enclave's CLI and
+// docs say tools and features. Spell the mapping out once, in the metadata row
+// alongside the ref and hash, so a reader arriving from either side can follow
+// the install command below.
+const KIND_LABEL: Record<SandboxExtension["kind"], string> = {
+  sandbox: "tool extension (kind: sandbox)",
+  mixin: "feature extension (kind: mixin)",
+};
+
+export function SandboxExtensionDetail({
+  extension,
   getOrg,
-  getTool,
   onBack,
   generatedAt,
 }: {
-  skill: Skill;
+  extension: SandboxExtension;
   getOrg: (id: string) => Organization | undefined;
-  getTool: (id: string) => Tool | undefined;
   onBack: () => void;
   generatedAt?: string;
 }) {
-  const sourceUrl = sourceTreeUrl(skill.source);
-  const installCommand = skillsCommand(skill);
+  const sourceUrl = sourceTreeUrl(extension.source);
+  const installCommand = enclaveCommand(extension);
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -33,22 +44,25 @@ export function SkillDetail({
         <ArrowLeft className="h-4 w-4" />
         Back to list
       </button>
-      <h2 className="text-xl font-bold mb-1">{skill.name}</h2>
-      <p className="text-muted-foreground mb-4">{skill.description}</p>
+      <h2 className="text-xl font-bold mb-1">{extension.name}</h2>
+      <p className="text-muted-foreground mb-4">{extension.description}</p>
       <div className="flex gap-3 mb-6 flex-wrap items-center text-sm">
         <span className="text-muted-foreground font-mono text-xs">
-          {skill.skillId}
+          {extension.sandboxExtensionId}
         </span>
-        <ApprovedTarget entry={skill} generatedAt={generatedAt} />
         <span className="text-muted-foreground text-xs">
-          Hash: {skill.contentHash}
+          Sandbox {KIND_LABEL[extension.kind]}
+        </span>
+        <ApprovedTarget entry={extension} generatedAt={generatedAt} />
+        <span className="text-muted-foreground text-xs">
+          Hash: {extension.contentHash}
         </span>
         {sanitizeUrl(sourceUrl) && (
           <a
             href={sanitizeUrl(sourceUrl)}
             target="_blank"
             rel="noopener noreferrer"
-            title={sourceLinkTitle(skill.source.commit)}
+            title={sourceLinkTitle(extension.source.commit)}
             className="text-primary hover:underline text-sm"
           >
             Source
@@ -58,31 +72,41 @@ export function SkillDetail({
 
       <div>
         <h3 className="text-base font-semibold mb-3">
-          Approvals ({skill.approvals.length})
+          Approvals ({extension.approvals.length})
         </h3>
-        {skill.approvals.map((approval, i) => (
-          <SkillApprovalCard
+        {extension.approvals.map((approval, i) => (
+          <SandboxExtensionApprovalCard
             key={i}
             approval={approval}
             org={getOrg(approval.organizationId)}
-            getTool={getTool}
           />
         ))}
       </div>
 
-      {installCommand && <InstallFromCli command={installCommand} />}
+      {installCommand && (
+        <InstallFromCli
+          label="Install in Enclave"
+          command={installCommand}
+          note={
+            extension.source.ref
+              ? undefined
+              : "Without --ref, Enclave follows the repository's default branch, and later updates follow it too."
+          }
+        />
+      )}
     </div>
   );
 }
 
-function SkillApprovalCard({
+// Its own card rather than the shared ApprovalCard: with no installConfigs
+// there is no tool section to render, so the shared component's whole body
+// would be dead weight here.
+function SandboxExtensionApprovalCard({
   approval,
   org,
-  getTool,
 }: {
-  approval: SkillApproval;
+  approval: SandboxExtensionApproval;
   org: Organization | undefined;
-  getTool: (id: string) => Tool | undefined;
 }) {
   const badge = orgBadge(org, {
     fallbackId: approval.organizationId,
@@ -92,7 +116,7 @@ function SkillApprovalCard({
   });
   return (
     <div className="bg-background border border-border rounded-lg p-4 mb-3">
-      <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
+      <div className="flex items-center gap-2 text-sm flex-wrap">
         <span
           className={`inline-flex text-xs px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/20 cursor-help ${
             badge.inferred ? "border-dashed" : ""
@@ -103,32 +127,6 @@ function SkillApprovalCard({
         </span>
         <span className="text-muted-foreground">Approved: {approval.date}</span>
       </div>
-      {approval.installConfigs.map((config, j) => {
-        const tool = getTool(config.tool);
-        return (
-          <div
-            key={j}
-            className="mt-2 p-3 bg-card border border-border rounded-md text-sm"
-          >
-            {tool && (
-              <div className="font-medium text-muted-foreground mb-1">
-                Tool: {tool.name}
-              </div>
-            )}
-            {sanitizeUrl(config.installUrl) && (
-              <div>
-                <a
-                  href={sanitizeUrl(config.installUrl)}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Install
-                </a>
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }

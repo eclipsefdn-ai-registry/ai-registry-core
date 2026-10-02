@@ -36,6 +36,11 @@ import {
   type PluginEntry,
   type AgentEntry,
   type TrustEntry,
+  addSandboxExtensionApproval,
+  resolveSandboxExtensionTrust,
+  type SandboxExtensionApprovalData,
+  type SandboxExtensionEntry,
+  type PendingSandboxExtension,
 } from "./consolidate.js";
 
 function emptyOutput(): ConsolidatedOutput {
@@ -46,6 +51,8 @@ function emptyOutput(): ConsolidatedOutput {
     skills: [],
     plugins: [],
     agents: [],
+    sandboxTools: [],
+    sandboxFeatures: [],
   };
 }
 
@@ -285,7 +292,7 @@ describe("enrichWithRegistryData", () => {
     assert.equal(entry.mcpRegistryVerified, true);
   });
 
-  it("sets version to latestVersion on approvals without a pinned version", () => {
+  it("leaves version unset on approvals that gave none", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",
@@ -308,10 +315,13 @@ describe("enrichWithRegistryData", () => {
       latestVersion: "3.1.0",
     });
 
-    assert.equal(entry.approvals[0].version, "3.1.0");
+    // The registry's latest belongs to the entry. Written into the approval
+    // it would look like a version the organization named.
+    assert.equal("version" in entry.approvals[0], false);
+    assert.equal(entry.latestVersion, "3.1.0");
   });
 
-  it("preserves pinned version on approvals that already have one", () => {
+  it("keeps the version an approval gave", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",
@@ -708,6 +718,154 @@ describe("addSkillApproval", () => {
     );
     assert.equal(output.skills.length, 1);
     assert.equal(output.skills[0].source.path, "skills/*");
+  });
+
+  it("preserves an explicit source.ref on the created entry", () => {
+    const output = emptyOutput();
+    addSkillApproval(
+      {
+        ...skillApproval,
+        source: { ...skillApproval.source, ref: "1.2.0" },
+      },
+      "acme",
+      output,
+    );
+
+    assert.equal(output.skills[0].source.ref, "1.2.0");
+  });
+
+  it("keeps the first-collected source when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output);
+    addSkillApproval(
+      {
+        ...skillApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.skills.length, 1);
+    assert.deepEqual(output.skills[0].source, skillApproval.source);
+  });
+
+  it("still records both approvals when sources differ", () => {
+    const output = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output);
+    addSkillApproval(
+      {
+        ...skillApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.skills[0].approvals.length, 2);
+    assert.equal(output.skills[0].approvals[0].organizationId, "acme");
+    assert.equal(output.skills[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("does not warn when a second vendor's source matches exactly", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(skillApproval, "acme", output);
+      addSkillApproval(skillApproval, "other-org", output);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 0);
+  });
+
+  it("warns when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(skillApproval, "acme", output);
+      addSkillApproval(
+        {
+          ...skillApproval,
+          source: { url: "https://github.com/other/fork.git" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-skill/);
+  });
+
+  it("warns when a second vendor's source has a different ref", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(
+        {
+          ...skillApproval,
+          source: { ...skillApproval.source, ref: "1.0.0" },
+        },
+        "acme",
+        output,
+      );
+      addSkillApproval(
+        {
+          ...skillApproval,
+          source: { ...skillApproval.source, ref: "2.0.0" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-skill/);
+  });
+
+  it("does not warn when two approvals build an equal array path from different objects", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(
+        {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/repo.git",
+            path: ["skills/a", "skills/b"],
+          },
+        },
+        "acme",
+        output,
+      );
+      addSkillApproval(
+        {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/repo.git",
+            path: ["skills/a", "skills/b"],
+          },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 0);
   });
 });
 
@@ -2098,12 +2256,13 @@ describe("addApproval — genericConfig", () => {
       {
         serverId: "io.example/foo",
         date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
+        config: { type: "streamable-http", url: "https://mcp.example.com" },
       },
       "eclipsesource",
       output,
     );
     assert.deepEqual(output.mcp[0].approvals[0].genericConfig, {
+      type: "streamable-http",
       url: "https://mcp.example.com",
     });
   });
@@ -2129,7 +2288,7 @@ describe("addApproval — genericConfig", () => {
       {
         serverId: "io.example/foo",
         date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
+        config: { type: "streamable-http", url: "https://mcp.example.com" },
         installConfigs: [{ tool: "theia-ide", config: "derived" }],
       },
       "theia",
@@ -2152,7 +2311,7 @@ describe("addApproval — genericConfig", () => {
       {
         serverId: "io.example/foo",
         date: "2026-08-05",
-        config: { url: "https://mcp.example.com" },
+        config: { type: "streamable-http", url: "https://mcp.example.com" },
         installConfigs: [
           { tool: "theia-ide", config: { servers: { custom: {} } } },
         ],
@@ -2177,7 +2336,7 @@ describe("pickWinningGenericConfig", () => {
       date,
       configHash: "abc",
       installConfigs: [],
-      genericConfig: { url },
+      genericConfig: { type: "streamable-http", url },
     };
   }
 
@@ -2192,6 +2351,7 @@ describe("pickWinningGenericConfig", () => {
       "https://a.example.com",
     );
     assert.deepEqual(pickWinningGenericConfig([only], "io.example/foo"), {
+      type: "streamable-http",
       url: "https://a.example.com",
     });
   });
@@ -2201,7 +2361,7 @@ describe("pickWinningGenericConfig", () => {
     const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
     assert.deepEqual(
       pickWinningGenericConfig([older, newer], "io.example/foo"),
-      { url: "https://b.example.com" },
+      { type: "streamable-http", url: "https://b.example.com" },
     );
   });
 
@@ -2210,7 +2370,7 @@ describe("pickWinningGenericConfig", () => {
     const newer = candidate("vendor-b", "2026-06-01", "https://b.example.com");
     assert.deepEqual(
       pickWinningGenericConfig([older, newer], "io.example/foo", "vendor-a"),
-      { url: "https://a.example.com" },
+      { type: "streamable-http", url: "https://a.example.com" },
     );
   });
 });
@@ -2234,7 +2394,10 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-01",
           configHash: "xyz",
           installConfigs: [],
-          genericConfig: { url: "https://mcp.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+          },
         },
         {
           organizationId: "theia",
@@ -2270,14 +2433,20 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-01",
           configHash: "abc",
           installConfigs: [{ tool: "theia-ide", config: "derived" }],
-          genericConfig: { url: "https://theias-own.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://theias-own.example.com",
+          },
         },
         {
           organizationId: "eclipsesource",
           date: "2026-08-05",
           configHash: "xyz",
           installConfigs: [],
-          genericConfig: { url: "https://newer-vendor.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://newer-vendor.example.com",
+          },
         },
       ],
     });
@@ -2307,17 +2476,18 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-01",
           configHash: "abc",
           installConfigs: [{ tool: "theia-ide", config: "derived" }],
-          genericConfig: {
-            url: "https://mcp.example.com",
-            headers: { Authorization: "Bearer x", "X-Extra": "y" },
-          },
+          // Theia speaks no WebSocket transport, so this cannot be derived.
+          genericConfig: { type: "ws", url: "wss://mcp.example.com" },
         },
         {
           organizationId: "eclipsesource",
           date: "2026-08-05",
           configHash: "xyz",
           installConfigs: [],
-          genericConfig: { url: "https://newer-vendor.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://newer-vendor.example.com",
+          },
         },
       ],
     });
@@ -2407,7 +2577,10 @@ describe("resolveMcpCrossVendorConfigs", () => {
           date: "2026-08-05",
           configHash: "abc",
           installConfigs: [{ tool: "unregistered-tool", config: "derived" }],
-          genericConfig: { url: "https://mcp.example.com" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+          },
         },
       ],
     });
@@ -2473,7 +2646,10 @@ describe("resolveMcpTrust", () => {
           date: "2026-08-04",
           configHash: "abc",
           installConfigs: [],
-          genericConfig: { url: "https://review-guard.example.com/mcp" },
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://review-guard.example.com/mcp",
+          },
         },
       ],
     });
@@ -3121,5 +3297,280 @@ describe("expandMarketplaceApprovals", () => {
     } finally {
       cleanup();
     }
+  });
+});
+
+// --- Sandbox extensions ---
+
+describe("addSandboxExtensionApproval", () => {
+  const approvalData: SandboxExtensionApprovalData = {
+    sandboxExtensionId: "io.github.acme/kits",
+    date: "2026-09-09",
+    source: { url: "https://github.com/acme/kits.git" },
+  };
+
+  it("records a pending repository rather than a published entry", () => {
+    const pending: PendingSandboxExtension[] = [];
+    addSandboxExtensionApproval(approvalData, "acme", pending);
+
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0].sandboxExtensionId, "io.github.acme/kits");
+    assert.equal(pending[0].source.url, "https://github.com/acme/kits.git");
+    assert.equal(pending[0].approvals.length, 1);
+    assert.equal(pending[0].approvals[0].organizationId, "acme");
+  });
+
+  // Sandbox extension approvals carry no installConfigs at all — nothing about
+  // installing one is tool-specific.
+  it("produces an approval with no installConfigs field", () => {
+    const pending: PendingSandboxExtension[] = [];
+    addSandboxExtensionApproval(approvalData, "acme", pending);
+
+    assert.ok(!("installConfigs" in pending[0].approvals[0]));
+  });
+
+  it("merges approvals from several vendors onto one repository", () => {
+    const pending: PendingSandboxExtension[] = [];
+    addSandboxExtensionApproval(approvalData, "acme", pending);
+    addSandboxExtensionApproval(approvalData, "other-org", pending);
+
+    assert.equal(pending.length, 1);
+    assert.deepEqual(
+      pending[0].approvals.map((a) => a.organizationId),
+      ["acme", "other-org"],
+    );
+  });
+
+  it("keeps different repositories apart", () => {
+    const pending: PendingSandboxExtension[] = [];
+    addSandboxExtensionApproval(approvalData, "acme", pending);
+    addSandboxExtensionApproval(
+      {
+        sandboxExtensionId: "io.github.other/kits",
+        date: "2026-09-09",
+        source: { url: "https://github.com/other/kits.git" },
+      },
+      "acme",
+      pending,
+    );
+
+    assert.equal(pending.length, 2);
+  });
+
+  it("keeps the first-collected source when vendors disagree", () => {
+    const pending: PendingSandboxExtension[] = [];
+    addSandboxExtensionApproval(approvalData, "acme", pending);
+    addSandboxExtensionApproval(
+      { ...approvalData, source: { url: "https://github.com/fork/kits.git" } },
+      "other-org",
+      pending,
+    );
+
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0].source.url, "https://github.com/acme/kits.git");
+    assert.equal(pending[0].approvals.length, 2);
+  });
+
+  it("produces a stable configHash", () => {
+    const a: PendingSandboxExtension[] = [];
+    const b: PendingSandboxExtension[] = [];
+    addSandboxExtensionApproval(approvalData, "acme", a);
+    addSandboxExtensionApproval(approvalData, "acme", b);
+
+    assert.equal(a[0].approvals[0].configHash, b[0].approvals[0].configHash);
+  });
+
+  it("produces a different configHash when the ref changes", () => {
+    const a: PendingSandboxExtension[] = [];
+    const b: PendingSandboxExtension[] = [];
+    addSandboxExtensionApproval(approvalData, "acme", a);
+    addSandboxExtensionApproval(
+      { ...approvalData, source: { ...approvalData.source, ref: "v1.2.0" } },
+      "acme",
+      b,
+    );
+
+    assert.notEqual(a[0].approvals[0].configHash, b[0].approvals[0].configHash);
+  });
+});
+
+describe("resolveSandboxExtensionTrust", () => {
+  function entry(
+    sandboxExtensionId: string,
+    kind: "sandbox" | "mixin",
+    approvals: SandboxExtensionEntry["approvals"],
+  ): SandboxExtensionEntry {
+    return {
+      sandboxExtensionId,
+      kind,
+      name: "Test",
+      extensionName: sandboxExtensionId.split("/").pop()!,
+      description: "",
+      source: { url: "https://github.com/acme/kits.git", path: "tools/test" },
+      contentHash: "abc123abc123",
+      approvals,
+    };
+  }
+
+  const trusts: TrustEntry[] = [{ org: "acme", trustedOrg: "google" }];
+
+  // One approval yields both kinds, so the single trust flag has to reach both
+  // published lists.
+  it("derives approvals across both kinds", () => {
+    const output = emptyOutput();
+    output.sandboxTools = [
+      entry("io.github.g/kits/tools/a", "sandbox", [
+        { organizationId: "google", date: "2026-09-09", configHash: "h1" },
+      ]),
+    ];
+    output.sandboxFeatures = [
+      entry("io.github.g/kits/features/b", "mixin", [
+        { organizationId: "google", date: "2026-09-09", configHash: "h1" },
+      ]),
+    ];
+
+    resolveSandboxExtensionTrust(output, trusts);
+
+    assert.equal(output.sandboxTools[0].approvals.length, 2);
+    assert.equal(output.sandboxFeatures[0].approvals.length, 2);
+    assert.equal(output.sandboxTools[0].approvals[1].organizationId, "acme");
+    assert.equal(output.sandboxTools[0].approvals[1].viaTrust, "google");
+    assert.equal(output.sandboxTools[0].approvals[1].configHash, "h1");
+  });
+
+  it("does not add a derived approval when the org already approved directly", () => {
+    const output = emptyOutput();
+    output.sandboxTools = [
+      entry("io.github.g/kits/tools/a", "sandbox", [
+        { organizationId: "google", date: "2026-09-09", configHash: "h1" },
+        { organizationId: "acme", date: "2026-09-01", configHash: "h2" },
+      ]),
+    ];
+
+    resolveSandboxExtensionTrust(output, trusts);
+
+    assert.equal(output.sandboxTools[0].approvals.length, 2);
+  });
+
+  it("does not chain through another trust-derived approval", () => {
+    const output = emptyOutput();
+    output.sandboxTools = [
+      entry("io.github.g/kits/tools/a", "sandbox", [
+        {
+          organizationId: "google",
+          date: "2026-09-09",
+          configHash: "h1",
+          viaTrust: "someone-else",
+        },
+      ]),
+    ];
+
+    resolveSandboxExtensionTrust(output, trusts);
+
+    assert.equal(output.sandboxTools[0].approvals.length, 1);
+  });
+
+  it("leaves entries the trusted org never approved alone", () => {
+    const output = emptyOutput();
+    output.sandboxTools = [
+      entry("io.github.g/kits/tools/a", "sandbox", [
+        {
+          organizationId: "someone-else",
+          date: "2026-09-09",
+          configHash: "h1",
+        },
+      ]),
+    ];
+
+    resolveSandboxExtensionTrust(output, trusts);
+
+    assert.equal(output.sandboxTools[0].approvals.length, 1);
+  });
+});
+
+describe("addOrganization — sandbox extension trust", () => {
+  it("collects a sandboxExtensions trust entry", () => {
+    const output = emptyOutput();
+    const sandboxExtensionTrusts: TrustEntry[] = [];
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "d",
+        website: "https://acme.test",
+        trusts: [{ org: "google", artifactTypes: { sandboxExtensions: {} } }],
+      },
+      output,
+      [],
+      [],
+      [],
+      [],
+      sandboxExtensionTrusts,
+    );
+
+    assert.deepEqual(sandboxExtensionTrusts, [
+      { org: "acme", trustedOrg: "google" },
+    ]);
+  });
+
+  it("ignores other artifact types' trust flags", () => {
+    const output = emptyOutput();
+    const sandboxExtensionTrusts: TrustEntry[] = [];
+    addOrganization(
+      {
+        id: "acme",
+        name: "Acme",
+        description: "d",
+        website: "https://acme.test",
+        trusts: [{ org: "google", artifactTypes: { skills: {} } }],
+      },
+      output,
+      [],
+      [],
+      [],
+      [],
+      sandboxExtensionTrusts,
+    );
+
+    assert.deepEqual(sandboxExtensionTrusts, []);
+  });
+});
+
+describe("buildOrgEntryView — sandbox extensions", () => {
+  // The org view is the only scoped file sandbox extensions appear in: with no
+  // installConfigs there is nothing for the per-tool view to scope by.
+  it("filters entries by approving organization without needing installConfigs", () => {
+    const entries: SandboxExtensionEntry[] = [
+      {
+        sandboxExtensionId: "io.github.g/kits/tools/a",
+        kind: "sandbox",
+        name: "A",
+        extensionName: "a",
+        description: "",
+        source: { url: "https://github.com/g/kits.git", path: "tools/a" },
+        contentHash: "aaaaaaaaaaaa",
+        approvals: [
+          { organizationId: "acme", date: "2026-09-09", configHash: "h1" },
+        ],
+      },
+      {
+        sandboxExtensionId: "io.github.g/kits/tools/b",
+        kind: "sandbox",
+        name: "B",
+        extensionName: "b",
+        description: "",
+        source: { url: "https://github.com/g/kits.git", path: "tools/b" },
+        contentHash: "bbbbbbbbbbbb",
+        approvals: [
+          { organizationId: "other", date: "2026-09-09", configHash: "h2" },
+        ],
+      },
+    ];
+
+    const view = buildOrgEntryView("acme", entries);
+    assert.deepEqual(
+      view.map((e) => e.sandboxExtensionId),
+      ["io.github.g/kits/tools/a"],
+    );
   });
 });

@@ -10,13 +10,16 @@ import {
   validateVendorFiles,
   validateApproval,
   validateOrganization,
+  validateSkillApproval,
   validatePluginApproval,
   validateMarketplaceApproval,
+  validateSandboxExtensionApproval,
   readApprovalDir,
   validateSimpleApprovals,
   type SkillApprovalEntry,
   type PluginApprovalEntry,
   type AgentApprovalEntry,
+  type SandboxExtensionApprovalEntry,
   type VendorValidationResult,
   type ValidationResult,
 } from "./validate.js";
@@ -581,6 +584,65 @@ describe("validateVendorData — skill approvals", () => {
   });
 });
 
+describe("validateSkillApproval — source.ref", () => {
+  function skillApprovalData(ref?: string) {
+    return {
+      skillId: "io.example/my-skill",
+      date: "2026-06-01",
+      source: {
+        url: "https://github.com/example/skills.git",
+        path: "skills/my-skill",
+        ...(ref !== undefined ? { ref } : {}),
+      },
+    };
+  }
+
+  it("accepts an approval with no ref", () => {
+    const result = validateSkillApproval(skillApprovalData());
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a branch name as ref", () => {
+    const result = validateSkillApproval(skillApprovalData("main"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a tag as ref", () => {
+    const result = validateSkillApproval(skillApprovalData("v1.2.0"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a full commit SHA as ref", () => {
+    const result = validateSkillApproval(skillApprovalData("a".repeat(40)));
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects an empty ref", () => {
+    const result = validateSkillApproval(skillApprovalData(""));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a shell command separator", () => {
+    const result = validateSkillApproval(skillApprovalData("main;rm -rf ~"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a space", () => {
+    const result = validateSkillApproval(skillApprovalData("my ref"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a backtick", () => {
+    const result = validateSkillApproval(skillApprovalData("`touch /tmp/x`"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref starting with a hyphen", () => {
+    const result = validateSkillApproval(skillApprovalData("-x"));
+    assert.equal(result.valid, false);
+  });
+});
+
 // --- Plugin approval validation ---
 
 function pluginApproval(
@@ -683,6 +745,60 @@ describe("validatePluginApproval — source.path pattern", () => {
   it("accepts a literal name that merely starts with two dots", () => {
     const result = validatePluginApproval(pluginApprovalData("..hidden"));
     assert.equal(result.valid, true);
+  });
+});
+
+describe("validatePluginApproval — source.ref pattern", () => {
+  function pluginApprovalDataWithRef(ref: string) {
+    return {
+      pluginId: "io.example/my-plugin",
+      date: "2026-08-01",
+      source: {
+        url: "https://github.com/example/plugins.git",
+        ref,
+      },
+    };
+  }
+
+  it("accepts a branch name as ref", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("main"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a tag as ref", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("v1.2.0"));
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts a full commit SHA as ref", () => {
+    const result = validatePluginApproval(
+      pluginApprovalDataWithRef("a".repeat(40)),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a ref with a shell command separator", () => {
+    const result = validatePluginApproval(
+      pluginApprovalDataWithRef("main;rm -rf ~"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a space", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("my ref"));
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a backtick", () => {
+    const result = validatePluginApproval(
+      pluginApprovalDataWithRef("`touch /tmp/x`"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref starting with a hyphen", () => {
+    const result = validatePluginApproval(pluginApprovalDataWithRef("-x"));
+    assert.equal(result.valid, false);
   });
 });
 
@@ -1055,7 +1171,7 @@ describe("validateApproval — root config and derived marker", () => {
     const result = validateApproval({
       serverId: "io.example/foo",
       date: "2026-08-05",
-      config: { url: "https://mcp.example.com" },
+      config: { type: "streamable-http", url: "https://mcp.example.com" },
     });
     assert.equal(result.valid, true);
   });
@@ -1064,7 +1180,7 @@ describe("validateApproval — root config and derived marker", () => {
     const result = validateApproval({
       serverId: "io.example/foo",
       date: "2026-08-05",
-      config: { command: "npx", args: ["-y", "pkg"] },
+      config: { type: "stdio", command: "npx", args: ["-y", "pkg"] },
     });
     assert.equal(result.valid, true);
   });
@@ -1083,10 +1199,10 @@ describe("validateApproval — root config and derived marker", () => {
       serverId: "io.example/foo",
       date: "2026-08-05",
       config: {
-        type: "http",
+        type: "streamable-http",
         url: "https://mcp.example.com",
-        headers: { Authorization: "Bearer abc" },
-        oauth: { scopes: "read write", clientId: "abc123" },
+        headers: { Authorization: "Bearer ${MY_TOKEN}" },
+        oauth: { scopes: ["read", "write"], clientId: "abc123" },
       },
     });
     assert.equal(result.valid, true);
@@ -1124,7 +1240,11 @@ describe("validateApproval — root config and derived marker", () => {
     const result = validateApproval({
       serverId: "io.example/foo",
       date: "2026-08-05",
-      config: { command: "npx", headers: { Authorization: "Bearer abc" } },
+      config: {
+        type: "stdio",
+        command: "npx",
+        headers: { Authorization: "Bearer abc" },
+      },
     });
     assert.equal(result.valid, false);
   });
@@ -1134,6 +1254,118 @@ describe("validateApproval — root config and derived marker", () => {
       serverId: "io.example/foo",
       date: "2026-08-05",
       config: { type: "stdio", url: "https://mcp.example.com" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a root config with no type — every branch requires it", () => {
+    assert.equal(
+      validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { url: "https://mcp.example.com" },
+      }).valid,
+      false,
+    );
+    assert.equal(
+      validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: { command: "npx" },
+      }).valid,
+      false,
+    );
+  });
+
+  // "http" is the mcp.json spelling of Streamable HTTP. The registry keeps one
+  // canonical value and leaves translation to the per-tool transforms.
+  it('rejects "http" as a type value', () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "http", url: "https://mcp.example.com" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts cwd on the local branch", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "node", cwd: "${PLUGIN_ROOT}/dist" },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects non-string env values", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "npx", env: { PORT: 8080 } },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts a ${VAR} clientSecret but rejects a literal one", () => {
+    const withConfig = (clientSecret: string) => ({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        oauth: { clientId: "abc", clientSecret },
+      },
+    });
+    assert.equal(validateApproval(withConfig("${MY_SECRET}")).valid, true);
+    assert.equal(validateApproval(withConfig("${MY_SECRET:-x}")).valid, true);
+    assert.equal(validateApproval(withConfig("s3cr3t")).valid, false);
+    assert.equal(validateApproval(withConfig("<clientSecret>")).valid, false);
+  });
+
+  // HTTP header names are case-insensitive, so these are one header with two
+  // values — a transform can only pick one and drop or duplicate the other.
+  it("rejects header names that collide case-insensitively", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        headers: {
+          Authorization: "Bearer ${A}",
+          AUTHORIZATION: "Bearer ${B}",
+        },
+      },
+    });
+    assert.equal(result.valid, false);
+    assert.ok(
+      result.errors.some((e) => e.includes("same HTTP header")),
+      `expected a same-HTTP-header error, got: ${result.errors.join("; ")}`,
+    );
+  });
+
+  it("allows header names that differ by more than case", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        headers: { Authorization: "Bearer ${A}", "X-Api-Key": "${B}" },
+      },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects oauth on the ws branch — WebSocket auth is header-only", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "ws",
+        url: "wss://mcp.example.com",
+        oauth: { clientId: "abc" },
+      },
     });
     assert.equal(result.valid, false);
   });
@@ -1444,6 +1676,7 @@ function freshVendorResult(): VendorValidationResult {
     pluginApprovals: [],
     agentApprovals: [],
     marketplaceApprovals: [],
+    sandboxExtensionApprovals: [],
   };
 }
 
@@ -1509,5 +1742,187 @@ describe("validateSimpleApprovals", () => {
     );
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("bad-tool")));
+  });
+});
+
+// --- Sandbox extension approval validation ---
+
+function sandboxExtensionApproval(
+  sandboxExtensionId = "io.github.acme/kits",
+): SandboxExtensionApprovalEntry {
+  return {
+    file: sandboxExtensionId.replace(/\//g, "--") + ".json",
+    data: {
+      sandboxExtensionId,
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git" },
+    },
+  };
+}
+
+describe("validateSandboxExtensionApproval", () => {
+  it("accepts an approval with just an id, date, and repository", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxExtensionApproval().data,
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("accepts an optional ref", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git", ref: "v1.2.0" },
+    });
+    assert.equal(result.valid, true);
+  });
+
+  // The approval names a repository, and consolidation finds the extensions
+  // inside it by convention — a path would suggest a control the schema
+  // doesn't actually offer.
+  it("rejects a source path", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: {
+        url: "https://github.com/acme/kits.git",
+        path: "tools/openclaw",
+      },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  // Nothing about installing a sandbox extension is tool-specific, so an
+  // approval that names a tool is stating something the registry can't publish.
+  it("rejects installConfigs", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git" },
+      installConfigs: [{ tool: "enclave" }],
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a missing source", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects an empty ref", () => {
+    const result = validateSandboxExtensionApproval({
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git", ref: "" },
+    });
+    assert.equal(result.valid, false);
+  });
+});
+
+// The ref is printed into the `enclave ... --ref <ref>` command the website
+// offers to copy, so it gets the same pattern as skill and plugin refs.
+describe("validateSandboxExtensionApproval — source.ref pattern", () => {
+  function sandboxApprovalDataWithRef(ref: string) {
+    return {
+      sandboxExtensionId: "io.github.acme/kits",
+      date: "2026-09-09",
+      source: { url: "https://github.com/acme/kits.git", ref },
+    };
+  }
+
+  it("accepts a full commit SHA as ref", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("a".repeat(40)),
+    );
+    assert.equal(result.valid, true);
+  });
+
+  it("rejects a ref with a shell command separator", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("main;rm -rf ~"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a space", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("my ref"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref with a backtick", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("`touch /tmp/x`"),
+    );
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects a ref starting with a hyphen", () => {
+    const result = validateSandboxExtensionApproval(
+      sandboxApprovalDataWithRef("-x"),
+    );
+    assert.equal(result.valid, false);
+  });
+});
+
+describe("validateVendorData — sandbox extension approvals", () => {
+  it("collects a valid approval", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [sandboxExtensionApproval()],
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.sandboxExtensionApprovals.length, 1);
+  });
+
+  it("fails on a duplicate sandboxExtensionId", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [
+        sandboxExtensionApproval(),
+        {
+          file: "io.github.acme--kits-copy.json",
+          data: {
+            sandboxExtensionId: "io.github.acme/kits",
+            date: "2026-09-10",
+            source: { url: "https://github.com/acme/other.git" },
+          },
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("sandboxExtensionId")));
+  });
+
+  it("warns when the filename doesn't match the id", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [
+        { ...sandboxExtensionApproval(), file: "kits.json" },
+      ],
+    });
+    assert.equal(result.valid, true);
+    assert.ok(
+      result.warnings.some((w) => w.includes("io.github.acme--kits.json")),
+    );
+  });
+
+  it("fails when the approval fails schema validation", () => {
+    const result = validateVendorData(validOrg, [], {
+      sandboxExtensionApprovals: [
+        {
+          file: "bad.json",
+          data: { sandboxExtensionId: "io.github.acme/kits" } as never,
+        },
+      ],
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("returns an empty list when the vendor has none", () => {
+    const result = validateVendorData(validOrg, []);
+    assert.deepEqual(result.sandboxExtensionApprovals, []);
   });
 });

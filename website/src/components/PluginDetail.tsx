@@ -8,30 +8,29 @@ import type {
 } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
-import { cliSource } from "../cliSource";
-import { InstallFromCli } from "./InstallFromCli";
+import { sourceTreeUrl } from "../cliSource";
+import { pluginsCommand } from "../installCommand";
+import { sourceLinkTitle } from "../approvedTarget";
+import { InstallFromCli, InstallFromCliUnavailable } from "./InstallFromCli";
+import { ApprovedTarget } from "./ApprovedTarget";
 
 export function PluginDetail({
   plugin,
   getOrg,
   getTool,
   onBack,
+  generatedAt,
 }: {
   plugin: Plugin;
   getOrg: (id: string) => Organization | undefined;
   getTool: (id: string) => Tool | undefined;
   onBack: () => void;
+  generatedAt?: string;
 }) {
-  const sourceRef = plugin.source.ref ?? "main";
-  const sourceUrl = plugin.source.path
-    ? `${plugin.source.url.replace(/\.git$/, "")}/tree/${sourceRef}/${plugin.source.path}`
-    : `${plugin.source.url.replace(/\.git$/, "")}/tree/${sourceRef}`;
-  // The plugins CLI takes a source and nothing else, so a plugin stored in a
-  // subdirectory resolves by discovery rather than by path. The CLI also has
-  // no flag to pin a ref/tag — it always installs from the default branch,
-  // so a pinned plugin's install command necessarily diverges from the
-  // version/hash shown above.
-  const installCommand = `npx plugins add ${cliSource(plugin.source.url)}`;
+  const sourceUrl = sourceTreeUrl(plugin.source);
+  // Undefined whenever the approval names a ref, which the plugins CLI can't
+  // target yet; see pluginsCommand.
+  const installCommand = pluginsCommand(plugin);
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -48,14 +47,15 @@ export function PluginDetail({
         <span className="text-muted-foreground font-mono text-xs">
           {plugin.pluginId}
         </span>
+        <ApprovedTarget entry={plugin} generatedAt={generatedAt} />
+        {/* Labelled as the manifest's, and printed as published: nothing ties
+            it to the ref, and a plugin pinned to 2.6.0 can declare 1.0.0. */}
         {plugin.version && (
-          <span className="text-muted-foreground text-xs">
-            v{plugin.version}
-          </span>
-        )}
-        {plugin.source.ref && (
-          <span className="text-muted-foreground text-xs">
-            Pinned to: {plugin.source.ref}
+          <span
+            className="text-muted-foreground text-xs cursor-help"
+            title="What plugin.json declares at the commit this entry's hash was computed at, which is separate from any ref the approval names."
+          >
+            plugin.json version {plugin.version}
           </span>
         )}
         <span className="text-muted-foreground text-xs">
@@ -66,6 +66,7 @@ export function PluginDetail({
             href={sanitizeUrl(sourceUrl)}
             target="_blank"
             rel="noopener noreferrer"
+            title={sourceLinkTitle(plugin.source.commit)}
             className="text-primary hover:underline text-sm"
           >
             Source
@@ -123,14 +124,16 @@ export function PluginDetail({
         ))}
       </div>
 
-      <InstallFromCli
-        command={installCommand}
-        note={
-          plugin.source.ref
-            ? `This plugin pins ${plugin.source.ref}; the plugins CLI has no way to request a specific ref and always installs from the default branch.`
-            : undefined
-        }
-      />
+      {installCommand ? (
+        <InstallFromCli command={installCommand} />
+      ) : (
+        <InstallFromCliUnavailable>
+          Installing the approved version isn't currently possible with{" "}
+          <code>npx plugins add</code>. This approval names{" "}
+          <code>{plugin.source.ref}</code>, and the plugins CLI always installs
+          from the repository's default branch.
+        </InstallFromCliUnavailable>
+      )}
     </div>
   );
 }

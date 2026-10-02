@@ -2,15 +2,16 @@
 name: implement-registry-client
 description: >
   Implement an AI Registry client in an agent, IDE, or development tool.
-  Use when adding registry support for MCP servers, Agent Skills, Agent Plugins, or A2A agents,
-  or when a tool needs to browse, install, update, or verify registry-approved artifacts.
+  Use when adding registry support for MCP servers, Agent Skills, Agent Plugins, A2A agents,
+  or sandbox extensions, or when a tool needs to browse, install, update, or verify
+  registry-approved artifacts.
 ---
 
 # Implement an AI Registry client
 
 A client reads the registry, shows users which artifacts their organizations endorsed, and installs them.
 
-Implement any subset of the four artifact types.
+Implement any subset of the artifact types.
 
 ## What the registry vouches for
 
@@ -18,24 +19,25 @@ The registry records that a named organization **endorsed** an artifact on a dat
 
 It does not test, audit, sandbox, or certify anything. Endorsement is per organization, not a registry-wide certification. A client can present its per-tool list as its own and never name another organization, or it can show the endorsement chain behind each artifact. Both are valid; the second gives the user something to evaluate.
 
-Four limits shape everything below:
+Five limits shape everything below:
 
 - MCP servers are described by configuration, not by content. The registry publishes the command or URL to run. Nothing in the feed covers the server's code, and that code can change under a stable command at any time.
-- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push. Skill sources are referenced by repository URL and path with no commit pin, so the hash is the only pin available. Plugin sources can additionally carry an optional `source.ref` (a git tag or branch) pinning a specific revision instead of tracking the default branch — check for it before cloning, and clone that ref rather than HEAD.
+- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push, and `source.commit`, the commit that run checked out and hashed. Both can also carry an optional `source.ref` (a git tag, branch, or full commit SHA) naming the revision the organization endorsed instead of the default branch. The ref says what was endorsed and the commit says what was hashed, so fetch `source.commit` to verify the hash. With no `source.ref`, the endorsement follows the default branch and `source.commit` moves with it on every run. Each entry also carries `latestCommit` and `latestHash`, what the source ships at the same path now, whenever consolidation could find that out. They show when a pinned endorsement has fallen behind its source, and they are never something to install. See [what the source ships now](references/staying-current.md#what-the-source-ships-now).
 - Agents carry a content hash too, but of a single fetched Agent Card JSON file, not a directory — there is no path to pin.
+- Sandbox extensions carry a content hash of their directory, a `source.commit`, and `latestCommit` and `latestHash`, all the same way. They can also name a revision: `source.ref` holds a git tag, branch, or full commit SHA when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
 - Withdrawing an endorsement removes the entry from the feed, but so does a source that was briefly unreachable when consolidation ran. Nothing in the data separates the two, so there is no revocation signal a client can act on. See [Disappearing entries](#disappearing-entries).
 
 ## The data
 
 Base URL: `https://ai.open-vsx.org/api/v1/`
 
-| Endpoint                                                 | What it gives you                                                                                                                     |
-| :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
-| `tools/<tool-id>.json`                                   | Artifacts endorsed for your tool, with other tools' install configs stripped                                                          |
-| `orgs/<org-id>.json`                                     | Artifacts endorsed by one organization, across every tool, full install configs kept                                                  |
-| `organizations.json`                                     | Organization identity: name, description, website, colour                                                                             |
-| `mcp.json`, `skills.json`, `plugins.json`, `agents.json` | Every endorsed artifact of one type, across every tool, full install configs kept — each a single-key object, e.g. `{ "mcp": [...] }` |
-| `all.json`                                               | Everything, unfiltered                                                                                                                |
+| Endpoint                                                                                                | What it gives you                                                                                                                                         |
+| :------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tools/<tool-id>.json`                                                                                  | Artifacts endorsed for your tool, with other tools' install configs stripped — no sandbox extensions, which have no install configs                       |
+| `orgs/<org-id>.json`                                                                                    | Artifacts endorsed by one organization, across every tool, full install configs kept                                                                      |
+| `organizations.json`                                                                                    | Organization identity: name, description, website, colour                                                                                                 |
+| `mcp.json`, `skills.json`, `plugins.json`, `agents.json`, `sandbox-tools.json`, `sandbox-features.json` | Every endorsed artifact of one type, across every tool, full install configs kept — each keyed by its type, e.g. `{ "generatedAt": "...", "mcp": [...] }` |
+| `all.json`                                                                                              | Everything, unfiltered                                                                                                                                    |
 
 `tools/<tool-id>.json` is all you need to browse and install. Add `organizations.json` if you want to name the endorsing organizations, since the per-tool view carries `organizationId` strings and nothing else about them.
 
@@ -53,13 +55,15 @@ Both decide who the user trusts. Bind them in product code and keep them out of 
 
 Fetch on startup, cache in memory, and refetch when the user asks or before an update check. A fetch that fails leaves the previous state intact: **failure to reach the registry is not evidence that anything changed.** Keep an empty response and a failed request distinct, because they mean opposite things.
 
+Every file carries `generatedAt`, an ISO 8601 timestamp of when the consolidation run that produced it started. Everything in the file was read from its source after that, so it dates the whole file. Show it next to anything you derive from `latestCommit` or `latestHash`.
+
 ## Core
 
 Every artifact type follows the same five steps.
 
 ### 1. Read the entries you handle
 
-Top-level keys are `organizations`, `tools`, `mcp`, `skills`, `plugins`, and `agents`. New keys may appear, so ignore what you do not implement.
+Top-level keys are `organizations`, `tools`, `mcp`, `skills`, `plugins`, `agents`, `sandboxTools`, and `sandboxFeatures`, next to the `generatedAt` timestamp. New keys may appear, so ignore what you do not implement.
 
 ### 2. Resolve endorsements
 
@@ -131,10 +135,11 @@ The registry publishes configuration. Install means writing that configuration w
 - `mcpRegistryVerified` means the server is listed in the Anthropic MCP registry. It says nothing about the server's behaviour or safety.
 - `publisherClaimedBy` names an organization that claims to publish the server, not merely to endorse it. Show it distinctly from endorsement if you show it at all.
 - Content hashing does not apply here. `configHash` covers the approval, and update detection uses it.
+- `approvals[].version`, when present, is the MCP registry version the organization reviewed. It doesn't pin what runs, the config does, so never present it as the installed version.
 
 ## Agent Skills
 
-The registry points at a skill's source; it does not host it. Install means downloading `source.path` from `source.url` into wherever your tool keeps skills.
+The registry points at a skill's source; it does not host it. Install means downloading `source.path` from `source.url` at `source.commit` into wherever your tool keeps skills. `source.ref`, where set, is the revision the organization endorsed. With no `source.ref`, the default branch is what was endorsed and what a later update will follow.
 
 ```json
 {
@@ -143,9 +148,12 @@ The registry points at a skill's source; it does not host it. Install means down
   "description": "Review code changes for correctness.",
   "source": {
     "url": "https://github.com/anthropics/skills.git",
-    "path": "skills/code-review"
+    "path": "skills/code-review",
+    "commit": "3f9a1c07d2b84e6a5c1f0e9d8b7a6c5d4e3f2a1b"
   },
   "contentHash": "7c1e4b9d02af",
+  "latestCommit": "3f9a1c07d2b84e6a5c1f0e9d8b7a6c5d4e3f2a1b",
+  "latestHash": "7c1e4b9d02af",
   "approvals": [
     {
       "organizationId": "example-org",
@@ -158,7 +166,11 @@ The registry points at a skill's source; it does not host it. Install means down
 
 **Verify what you downloaded against `contentHash` before installing.** Recompute the hash over the downloaded tree using the algorithm in [`references/content-hash.md`](references/content-hash.md) and compare.
 
-On a mismatch, tell the user the source has changed since the organization endorsed it, name the organization and the date, and let them install anyway with an explicit choice. For a skill, or a plugin with no `source.ref`, a mismatch is expected for up to a day after any upstream commit, because consolidation runs daily and the source has no commit pin — this transient case doesn't apply to a plugin with a pinned `ref`, where a mismatch means the pinned revision's content itself changed (a force-push, or the tag was moved) and won't resolve on its own. Either way it's also what a compromised source looks like, and the user is the one who gets to weigh that.
+Fetch at `source.commit`, not at the branch or tag it came from, and never at `latestCommit`. It is published on every skill and plugin, pinned or not, and a tree fetched there should match `contentHash` exactly, so a mismatch at that commit is never upstream drift: the source is serving something other than what was hashed, or your hash implementation disagrees with the reference. If the commit can't be fetched, because history was rewritten or the host won't serve a bare SHA, fall back to `source.ref` or the default branch, where a mismatch is expected for up to a day after an upstream commit on a branch, since consolidation runs daily.
+
+If you hand the download to another tool, such as a CLI, rather than fetching yourself, that tool has to reach the endorsed revision. One that only clones the default branch installs something other than what was endorsed whenever `source.ref` is set, and a branch ref counts: the tool would clone the default branch, not the one named. So decide on the ref being present, not on whether it pins. Where the tool can't reach it, offer no install through it and say why, rather than a command that silently drops the ref. What you hand over does depend on whether it pins. For a pin, hand over `source.commit` rather than the tag, since a tag can be moved after it was hashed and a commit can't. A branch goes over by name, so the tool's own updates keep following it. As of this writing, the `skills` CLI (1.7.0) takes a ref, a full commit SHA included, as `owner/repo#<ref>`, and the `plugins` CLI (1.3.4) takes none.
+
+On a mismatch you can't explain that way, tell the user the source has changed since the organization endorsed it, name the organization and the date, and let them install anyway with an explicit choice. It's also what a compromised source looks like, and the user is the one who gets to weigh that.
 
 Record the hash you computed, not the one from the feed. The recorded hash is the baseline for drift detection, and a baseline the local content never matched detects nothing.
 
@@ -174,9 +186,12 @@ An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.js
   "name": "BigQuery Data Analytics",
   "version": "1.2.0",
   "source": {
-    "url": "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git"
+    "url": "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+    "commit": "8c2e4f6a0b1d3c5e7f9a2b4c6d8e0f1a3b5c7d9e"
   },
   "contentHash": "5b8ad3f0e174",
+  "latestCommit": "8c2e4f6a0b1d3c5e7f9a2b4c6d8e0f1a3b5c7d9e",
+  "latestHash": "5b8ad3f0e174",
   "containedSkills": [
     {
       "name": "query-builder",
@@ -203,7 +218,7 @@ The plugin root is a boundary that agent-plugins.org builds on. Files must resol
 
 Keeping plugins whole also means plugins and standalone artifacts coexist. The same skill can appear twice in a client, once on its own and once inside a plugin, with different endorsements and different content. That is not a duplicate to merge, and merging them would assert an equivalence the registry never published.
 
-Verify `contentHash` over the downloaded plugin directory exactly as for skills, using the same algorithm.
+Download at `source.commit` and verify `contentHash` over the plugin directory exactly as for skills, using the same algorithm.
 
 ### Where the registry stops
 
@@ -247,6 +262,44 @@ There is no plugin-root or skill-folder equivalent to download. Install means re
 
 Endorsement attaches to the agent as a whole, the same as for plugins: there is nothing smaller inside an Agent Card to endorse independently.
 
+## Sandbox extensions
+
+A sandbox extension configures an agent sandbox: the container an agent runs inside, or a capability layered into one. Two lists carry them, separated by their install verb rather than by their shape — `sandboxTools` holds `kind: sandbox` **tool extensions** (a runnable agent, with its entrypoint, network policy and credentials) and `sandboxFeatures` holds `kind: mixin` **feature extensions** (a capability such as a CLI or a language toolchain).
+
+```json
+{
+  "sandboxExtensionId": "io.github.eclipse-enclave/enclave-extensions/tools/openclaw",
+  "kind": "sandbox",
+  "name": "OpenClaw",
+  "extensionName": "openclaw",
+  "description": "OpenClaw personal assistant.",
+  "source": {
+    "url": "https://github.com/eclipse-enclave/enclave-extensions.git",
+    "path": "tools/openclaw",
+    "ref": "v1.2.0",
+    "commit": "b7d9f1a3c5e7092b4d6f8a0c2e4f6a8b0d2c4e6f"
+  },
+  "contentHash": "9f2c1ba7d340",
+  "latestCommit": "e4a6c8b0d2f4061a3c5e7b9d1f3a5c7e9b1d3f50",
+  "latestHash": "9f2c1ba7d340",
+  "approvals": [{ "organizationId": "example-org", "date": "2026-09-09" }]
+}
+```
+
+Here the default branch has moved past `v1.2.0`, but not in this extension's directory: `latestCommit` differs, `latestHash` still matches, and the endorsement is current.
+
+**An extension is code that runs as root at container build and start time.** It can install packages, run install and startup scripts, widen the sandbox's network allowlist, declare credentials it may hold, seed files into the user's project directory, and turn off the agent's own approval prompts. Say what it can do before installing one.
+
+The registry does not publish those capabilities today, and the description is not a substitute for them. Derive them from the extension's own `spec.yaml` once you have the directory, or defer to a host that does — the Enclave CLI prints a capability summary from the staged content before it writes anything.
+
+- `source.path` points at the extension's own directory inside the repository. Its last segment equals `extensionName`, and both equal the `name` in the spec: the registry publishes nothing where those disagree.
+- `extensionName` is the identity, the way a skill's frontmatter name is. Two extensions of the same kind with the same name collide no matter which directories they occupy.
+- `name` is a display title, taken from the spec's `displayName`. Do not address an extension by it.
+- Approvals carry no `installConfigs` — nothing about installing an extension is tool-specific — so sandbox extensions appear in `orgs/<org-id>.json` but never in `tools/<tool-id>.json`.
+- The registry publishes only extensions found at `tools/<name>/` and `features/<name>/` in a repository root. A host may accept other layouts; an endorsement here never covers one.
+
+Install means downloading `source.path` from `source.url` at `source.commit`, verifying it against `contentHash` exactly as for a skill, and placing it where your sandbox host keeps extensions. `source.ref`, where set, is the revision the organization endorsed. With no `source.ref`, the default branch is what was endorsed and what a later update will follow.
+
 ## Disappearing entries
 
 An installed artifact vanishing from the feed can mean an organization withdrew its endorsement. It can also mean consolidation skipped the entry because its source was briefly unreachable, or a vendor retargeted the approval, or an id was renamed. The data does not distinguish them.
@@ -257,7 +310,7 @@ Removing artifacts automatically deletes working installations whenever a source
 
 ## Going further
 
-- [Staying current](references/staying-current.md), on detecting and applying updates
+- [Staying current](references/staying-current.md), on detecting and applying updates, and on telling when a source has moved past its endorsement
 - [Detecting tampering](references/detecting-tampering.md), on local drift against the recorded hash
 - [Deep links](references/deep-links.md), on handling `installUrl` safely
 - [Content hash](references/content-hash.md), the algorithm byte for byte
@@ -271,10 +324,13 @@ Removing artifacts automatically deletes working installations whenever a source
 - [ ] Keep a failed fetch distinct from an empty response, and change nothing on failure
 - [ ] Ignore fields you do not recognise rather than rejecting the document
 - [ ] Pick an install config by `date` descending and `organizationId` ascending
-- [ ] Verify `contentHash` before installing a skill, plugin, or agent, and let the user override an explicit mismatch warning
+- [ ] Verify `contentHash` before installing anything that has one, and let the user override an explicit mismatch warning
+- [ ] Download skills, plugins, and sandbox extensions at `source.commit`, so a hash mismatch means changed content rather than a newer commit
+- [ ] Hand installation to another tool only if it can reach `source.ref`, and offer nothing rather than a command that drops it
 - [ ] Record provenance for everything you install, and never overwrite what you did not
 - [ ] Offer adoption when a local slot is already occupied
 - [ ] Install plugins whole, keyed by `pluginId`, and load from inside the plugin root
+- [ ] Tell the user what a sandbox extension can do before installing it — it runs as root at build and start time
 - [ ] Surface artifacts missing from the feed without removing them
 
 **If you show endorsing organizations**
@@ -285,8 +341,17 @@ Removing artifacts automatically deletes working installations whenever a source
 
 **If you implement updates**
 
-- [ ] Use `configHash` for MCP servers and `contentHash` for skills, plugins, and agents
+- [ ] Use `configHash` for MCP servers and `contentHash` for every other type
 - [ ] Preserve user-supplied configuration across an update
+
+**If you show whether an endorsement is current**
+
+- [ ] Compare `latestHash` with `contentHash`, never `latestCommit` with `source.commit`
+- [ ] Treat a missing `latestHash` as unknown rather than behind
+- [ ] Word a difference without a direction, since the default branch can be behind a pinned tag
+- [ ] State the endorsed revision and any change together, and never call a pinned endorsement outdated or stale
+- [ ] Show `generatedAt` next to anything derived from the latest fields
+- [ ] Never install from `latestCommit` or verify a download against `latestHash`
 
 **If you implement deep links**
 

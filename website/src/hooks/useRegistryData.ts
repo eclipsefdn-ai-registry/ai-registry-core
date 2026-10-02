@@ -43,11 +43,18 @@ interface OrgsData {
 // Shape of both tools/<tool-id>.json and orgs/<org-id>.json — the per-org
 // file carries full, unstripped install configs (see buildOrgEntryView), but
 // otherwise matches the per-tool file's shape, so one type serves both.
+//
+// The sandbox keys are optional because only the per-org file has them: a
+// sandbox extension approval carries no install configs, so there is nothing
+// for the per-tool view to scope by.
 interface ScopedData {
+  generatedAt: RegistryData["generatedAt"];
   mcp: RegistryData["mcp"];
   skills: RegistryData["skills"];
   plugins: RegistryData["plugins"];
   agents: RegistryData["agents"];
+  sandboxTools?: RegistryData["sandboxTools"];
+  sandboxFeatures?: RegistryData["sandboxFeatures"];
 }
 
 // Shared by useToolRegistryData and useOrgRegistryData: both fetch one
@@ -83,12 +90,15 @@ function useScopedRegistryData(
         const orgsData = (await orgsRes.json()) as OrgsData;
 
         setData({
+          generatedAt: scopedData.generatedAt,
           organizations: orgsData.organizations,
           tools: orgsData.tools,
           mcp: scopedData.mcp,
           skills: scopedData.skills ?? [],
           plugins: scopedData.plugins ?? [],
           agents: scopedData.agents ?? [],
+          sandboxTools: scopedData.sandboxTools ?? [],
+          sandboxFeatures: scopedData.sandboxFeatures ?? [],
         });
         setLoading(false);
       })

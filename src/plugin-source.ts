@@ -1,13 +1,26 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  readFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
-import { resolve, join, dirname, sep } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   discoverSkillPaths,
   parseSkillFrontmatter,
   computeContentHash,
 } from "./skill-source.js";
+import {
+  resolveInsideRepo,
+  cloneAtRef,
+  checkedOutCommit,
+  recordLatest,
+  type RemoteBranchesLookup,
+} from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +52,7 @@ export interface PluginMetadata extends PluginManifestFields {
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
   contentHash: string;
+  commit: string;
 }
 
 // --- plugin.json parsing ---
@@ -147,7 +161,7 @@ function clonePluginRepo(
   pluginPath: string | undefined,
   tmpDir: string,
   ref?: string,
-): { repoRoot: string; pluginDir: string } {
+): { repoRoot: string; pluginDir: string; commit: string } {
   const cloneDir = join(
     tmpDir,
     `plugin-${pluginCloneKey(sourceUrl, pluginPath, ref)}`,
@@ -160,33 +174,11 @@ function clonePluginRepo(
   // re-cloning if it's already there; the key guarantees it already has
   // exactly the right content checked out. Mirrors skill-source.ts's
   // cloneSkillFolder guard.
-  if (!existsSync(cloneDir)) {
-    const token = process.env.GH_TOKEN;
-    const repoUrl = token
-      ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
-      : sourceUrl;
-
-    try {
-      const cloneArgs = [
-        "clone",
-        "--depth",
-        "1",
-        "--filter=blob:none",
-        "--sparse",
-      ];
-      // --branch accepts a tag or branch name, not an arbitrary commit sha —
-      // callers are responsible for only ever passing a ref of that kind
-      // (see marketplace-source.ts, which skips sha-only entries entirely).
-      if (ref) {
-        cloneArgs.push("--branch", ref);
-      }
-      cloneArgs.push(repoUrl, cloneDir);
-      execFileSync("git", cloneArgs, { stdio: "pipe" });
-    } catch {
-      throw new Error(
-        `Failed to clone ${sourceUrl}${ref ? ` at ref "${ref}"` : ""}`,
-      );
-    }
+  let commit: string;
+  if (existsSync(cloneDir)) {
+    commit = checkedOutCommit(cloneDir);
+  } else {
+    commit = cloneAtRef(sourceUrl, cloneDir, ref);
 
     // Unlike a skill source (a single SKILL.md file at the target path), a
     // plugin needs its whole directory subtree (skills/**, mcp.json)
@@ -219,27 +211,13 @@ function clonePluginRepo(
     }
   }
 
-  // Defense-in-depth on top of the schema's traversal check: resolve()
-  // normalizes "."/".." per POSIX rules, so a pluginPath that somehow still
-  // resolves outside cloneDir (e.g. into a sibling vendor's clone directory
-  // under the same tmp parent) must not be silently followed. Resolve
-  // cloneDir too before comparing — resolve(cloneDir, pluginPath) is always
-  // absolute, but cloneDir itself (built from the caller's tmpDir) isn't
-  // guaranteed to be, so comparing against it directly would be unreliable.
-  const resolvedCloneDir = resolve(cloneDir);
-  const pluginDir = pluginPath
-    ? resolve(cloneDir, pluginPath)
-    : resolvedCloneDir;
-  if (
-    pluginDir !== resolvedCloneDir &&
-    !pluginDir.startsWith(resolvedCloneDir + sep)
-  ) {
-    throw new Error(
-      `Plugin path "${pluginPath}" escapes the cloned repository`,
-    );
-  }
+  const pluginDir = resolveInsideRepo(
+    cloneDir,
+    pluginPath ?? ".",
+    "Plugin path",
+  );
 
-  return { repoRoot: cloneDir, pluginDir };
+  return { repoRoot: cloneDir, pluginDir, commit };
 }
 
 export function fetchPluginManifest(
@@ -254,7 +232,7 @@ export function fetchPluginManifest(
     mkdirSync(dir, { recursive: true });
   }
 
-  const { repoRoot, pluginDir } = clonePluginRepo(
+  const { repoRoot, pluginDir, commit } = clonePluginRepo(
     sourceUrl,
     sourcePath,
     dir,
@@ -292,19 +270,33 @@ export function fetchPluginManifest(
 
   const contentHash = computeContentHash(pluginDir);
 
-  return { ...manifest, containedSkills, containedMcpServers, contentHash };
+  return {
+    ...manifest,
+    containedSkills,
+    containedMcpServers,
+    contentHash,
+    commit,
+  };
 }
 
 // --- Enrichment (called by consolidate.ts) ---
 
-export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
+/**
+ * `remote`, when given, also sets latestCommit and latestHash on every entry
+ * (see recordLatest in git-source.ts). Without it they are left unset.
+ */
+export function enrichPluginMetadata(
+  plugins: PluginEntry[],
+  remote?: RemoteBranchesLookup,
+): PluginEntry[] {
   if (plugins.length === 0) return plugins;
 
   console.log("Enriching plugins with source metadata...\n");
 
-  const tmpDir = resolve(ROOT, ".tmp-plugins");
-  if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
-  mkdirSync(tmpDir, { recursive: true });
+  // A unique directory per call, for the reason enrichSandboxExtensions
+  // gives: two overlapping runs sharing one fixed path would each delete the
+  // clones the other is reading.
+  const tmpDir = mkdtempSync(resolve(ROOT, ".tmp-plugins-"));
 
   const enriched: PluginEntry[] = [];
 
@@ -324,11 +316,22 @@ export function enrichPluginMetadata(plugins: PluginEntry[]): PluginEntry[] {
         entry.homepage = metadata.homepage;
         entry.keywords = metadata.keywords;
         entry.contentHash = metadata.contentHash;
+        entry.source = { ...entry.source, commit: metadata.commit };
         entry.containedSkills = metadata.containedSkills;
         entry.containedMcpServers = metadata.containedMcpServers;
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
+        if (remote) {
+          recordLatest(
+            entry,
+            entry.pluginId,
+            metadata,
+            () =>
+              fetchPluginManifest(entry.source.url, entry.source.path, tmpDir),
+            remote,
+          );
+        }
         enriched.push(entry);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

@@ -42,7 +42,7 @@ Example: Plugin ID `io.github.gemini-cli-extensions/bigquery-data-analytics` bec
 - **pluginId** (required): Reverse-domain identifier for the plugin (e.g., `io.github.gemini-cli-extensions/bigquery-data-analytics`).
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
 - **source** (required): Object with `url` (git repo URL) and optionally `path` — the directory within the repo containing `plugin.json`. Omit `path` if the plugin is at the repository root. Unlike skill approvals, this does not support globs or arrays — one approval targets exactly one plugin directory.
-  - **ref** (optional): Git ref (tag or branch name) to check out instead of the repository's default branch. Does not support arbitrary commit SHAs. Omit to always track the default branch.
+  - **ref** (optional): Git ref (tag, branch name, or full commit SHA) to check out instead of the repository's default branch. Omit to always track the default branch.
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools.
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
   - **installUrl**: Deep-link URL for one-click install (optional). **Omit if the tool declares `pluginInstallUrlPrefix` in `organization.json`** — consolidation generates it automatically as `prefix + pluginId`. Set it explicitly only when the tool has no prefix or you need a non-standard URL.
@@ -93,6 +93,8 @@ During consolidation, the whole plugin directory (not just `plugin.json`) is fet
 - `containedSkills` — discovered from `skills/*/SKILL.md`, each with `name`, `description`, and `path`.
 - `containedMcpServers` — discovered from `mcp.json`'s `mcpServers` map, each with `name` and `transport`.
 - `contentHash` — a hash covering the whole plugin directory, so it changes whenever any contained file changes.
+- `source.commit` — the commit that was checked out and hashed.
+- `latestCommit`, `latestHash` — what the source ships at the same path now. With a `ref` pinning a tag or commit, a differing `latestHash` shows that the source has moved past the approval. Without a ref, or with a branch, they equal `source.commit` and `contentHash`.
 
 You do not need to enumerate any of this in the approval file — it's populated automatically from the source.
 

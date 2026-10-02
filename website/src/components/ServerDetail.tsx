@@ -32,11 +32,7 @@ export function ServerDetail({
         <span className="text-muted-foreground font-mono text-xs">
           {server.serverId}
         </span>
-        {server.latestVersion && (
-          <span className="text-muted-foreground">
-            Latest: {server.latestVersion}
-          </span>
-        )}
+        <McpRegistryVersion server={server} />
       </div>
 
       <div>
@@ -57,16 +53,38 @@ export function ServerDetail({
   );
 }
 
-// Minimal shape any artifact type's approval can satisfy — MCP's Approval
-// has every field here plus version/genericConfig, which other approval
-// types can simply omit since both are optional.
+// Minimal shape any artifact type's approval can satisfy — genericConfig is
+// MCP's alone, and optional, so other approval types simply omit it. No
+// version: an MCP approval's is informational and never shown per card, see
+// McpRegistryVersion.
 interface ApprovalCardApproval {
   organizationId: string;
   date: string;
   configHash: string;
   installConfigs: InstallConfig[];
-  version?: string;
   genericConfig?: Record<string, unknown>;
+}
+
+/**
+ * The newest version the MCP registry lists for a server, labelled as the
+ * registry's. It is registry metadata, like the name and description, and
+ * says nothing about what an approval runs: that is its configuration, which
+ * can start whatever a package manager or a remote URL serves at the time.
+ * Printed as published, since some registry versions already carry a "v".
+ *
+ * Shared by ServerDetail and ToolPage's server detail, whose headers otherwise
+ * duplicate each other, so the label can't drift between them.
+ */
+export function McpRegistryVersion({ server }: { server: McpServer }) {
+  if (!server.latestVersion) return null;
+  return (
+    <span
+      className="text-muted-foreground cursor-help"
+      title="The newest version the MCP registry lists for this server. What runs is set by each approval's configuration below."
+    >
+      MCP registry: {server.latestVersion}
+    </span>
+  );
 }
 
 function defaultApprovedTitle(org: Organization): string {
@@ -104,11 +122,6 @@ export function ApprovalCard({
           {badge.text}
         </span>
         <span className="text-muted-foreground">Approved: {approval.date}</span>
-        {approval.version && (
-          <span className="text-muted-foreground">
-            Version: {approval.version}
-          </span>
-        )}
       </div>
       {approval.genericConfig && serverId && (
         <GenericConfigView

@@ -6,10 +6,28 @@ import type {
   Skill,
   Plugin,
   Agent,
+  SandboxExtension,
   Tool,
 } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { INFERRED_DISCLAIMER } from "../orgBadge";
+
+// Every artifact type's approvals count the same way, so the artifact lists
+// are summed through one helper rather than one reduce apiece — a seventh
+// type should not mean a seventh copy of the same three lines.
+function countApprovals(
+  orgId: string,
+  artifactLists: { approvals: { organizationId: string }[] }[][],
+): number {
+  return artifactLists
+    .flat()
+    .reduce(
+      (count, artifact) =>
+        count +
+        artifact.approvals.filter((a) => a.organizationId === orgId).length,
+      0,
+    );
+}
 
 export function OrgList({
   organizations,
@@ -17,6 +35,8 @@ export function OrgList({
   skills,
   plugins,
   agents,
+  sandboxTools,
+  sandboxFeatures,
   getToolsForOrg,
 }: {
   organizations: Organization[];
@@ -24,6 +44,8 @@ export function OrgList({
   skills: Skill[];
   plugins: Plugin[];
   agents: Agent[];
+  sandboxTools: SandboxExtension[];
+  sandboxFeatures: SandboxExtension[];
   getToolsForOrg: (orgId: string) => Tool[];
 }) {
   if (organizations.length === 0) {
@@ -37,32 +59,14 @@ export function OrgList({
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {organizations.map((org) => {
-        const approvalCount =
-          servers.reduce(
-            (count, s) =>
-              count +
-              s.approvals.filter((a) => a.organizationId === org.id).length,
-            0,
-          ) +
-          skills.reduce(
-            (count, s) =>
-              count +
-              s.approvals.filter((a) => a.organizationId === org.id).length,
-            0,
-          ) +
-          plugins.reduce(
-            (count, p) =>
-              count +
-              p.approvals.filter((a) => a.organizationId === org.id).length,
-            0,
-          ) +
-          agents.reduce(
-            (count, a) =>
-              count +
-              a.approvals.filter((appr) => appr.organizationId === org.id)
-                .length,
-            0,
-          );
+        const approvalCount = countApprovals(org.id, [
+          servers,
+          skills,
+          plugins,
+          agents,
+          sandboxTools,
+          sandboxFeatures,
+        ]);
         const tools = getToolsForOrg(org.id);
 
         return (

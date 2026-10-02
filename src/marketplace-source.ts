@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { authenticatedRepoUrl } from "./git-source.js";
 
 // --- Types ---
 
@@ -236,10 +237,7 @@ function cloneMarketplaceRepo(sourceUrl: string, tmpDir: string): string {
   );
 
   if (!existsSync(cloneDir)) {
-    const token = process.env.GH_TOKEN;
-    const repoUrl = token
-      ? sourceUrl.replace("https://", `https://x-access-token:${token}@`)
-      : sourceUrl;
+    const repoUrl = authenticatedRepoUrl(sourceUrl);
 
     try {
       execFileSync(

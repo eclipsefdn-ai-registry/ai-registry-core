@@ -2,44 +2,98 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://ai.open-vsx.org/schemas/mcp-server-config.schema.json",
   "title": "MCP Server Config",
-  "description": "Generic, tool-agnostic connection info for an MCP server — a remote URL or a local (stdio) command, with optional auth. Derived from the emerging de-facto standard shape used by mcp.json-style client configs (e.g. Claude Code, VS Code, and similar derivatives), which wrap a per-server entry like this one under an outer \"mcpServers\"/\"servers\" collection keyed by server name — this schema deliberately omits that wrapper; it describes one server, not a wrapped collection. Per-tool derivation (including the outer wrapper) is implemented as a registered transform function, not part of this schema — see ai-registry-core/src/mcp-config-templates/.",
+  "description": "Generic, tool-agnostic connection info for one MCP server — a remote URL or a local (stdio) command, with optional auth. Two placeholder conventions apply, and they mean different things: ${VAR} / ${VAR:-default} is a reference something else resolves (from the environment, or by prompting) at install/connect time, used for headers, env, oauth.clientSecret and cwd — secrets MUST be written this way, never as literals; <name> is a value a human has to choose, used for args and other free strings, and nothing resolves it automatically. Per-tool derivation (including the outer mcpServers/servers wrapper, and any rewriting a target tool needs) is implemented as a registered transform function, not part of this schema — see ai-registry-core/src/mcp-config-templates/.",
   "oneOf": [
     {
+      "title": "Remote HTTP/SSE server",
       "type": "object",
-      "required": ["url"],
+      "required": ["type", "url"],
       "additionalProperties": false,
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["http", "sse", "ws"],
-          "description": "Remote transport. Matches Claude Code's type values. Defaults to \"http\" (Streamable HTTP) if omitted."
+          "enum": ["streamable-http", "sse"],
+          "description": "Remote transport. \"streamable-http\" matches the MCP spec name for the transport; \"sse\" is supported for legacy servers. Note that mcp.json-style client configs (Claude Code, VS Code and derivatives) spell Streamable HTTP as \"http\" — that spelling is deliberately not accepted here, so the registry has exactly one canonical value; translating to a tool's own spelling is a transform's job."
         },
         "url": { "type": "string", "format": "uri" },
         "headers": {
           "type": "object",
           "additionalProperties": { "type": "string" },
-          "description": "Static header-based auth, e.g. {\"Authorization\": \"Bearer <token>\"}."
+          "description": "Static header-based auth, e.g. {\"Authorization\": \"Bearer ${MY_TOKEN}\"}. Token values must be ${VAR} references, never literal secrets."
         },
         "oauth": {
           "type": "object",
           "additionalProperties": false,
+          "description": "OAuth 2.1 configuration. Presence (even as an empty object) signals the server supports/expects OAuth; omission means header-based or no auth. Only valid for HTTP-based transports; WebSocket is header-only. Redirect/callback handling is client-specific and deliberately not part of this schema.",
           "properties": {
-            "authServerMetadataUrl": { "type": "string", "format": "uri" },
-            "scopes": { "type": "string" },
-            "clientId": { "type": "string" }
+            "clientId": {
+              "type": "string",
+              "description": "Pre-registered OAuth client ID. Omit to let the client attempt Dynamic Client Registration / CIMD. Note: a clientId bound to an exact-match redirect URI at the provider may not work from every client."
+            },
+            "clientSecret": {
+              "type": "string",
+              "pattern": "^\\$\\{[A-Za-z_][A-Za-z0-9_]*(:-[^}]*)?\\}$",
+              "description": "Client secret for confidential clients. MUST be a ${VAR} reference; literal secrets are rejected."
+            },
+            "scopes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "OAuth scopes to request, one token per entry. Transforms join with a space where the target client expects an RFC 6749 §3.3 scope string."
+            },
+            "authServerMetadataUrl": {
+              "type": "string",
+              "format": "uri",
+              "description": "URL of the authorization server metadata document (RFC 8414 or OIDC discovery), overriding the default discovery chain. Maps to Theia's oauth.authorizationServer."
+            },
+            "resource": {
+              "type": "string",
+              "format": "uri",
+              "description": "Resource indicator (RFC 8707) sent in the authorization request, for servers that require it."
+            }
           }
         }
       }
     },
     {
+      "title": "Remote WebSocket server",
       "type": "object",
-      "required": ["command"],
+      "required": ["type", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "ws",
+          "description": "WebSocket transport (legacy/push use cases). Authentication is header-only; OAuth is not supported on this transport."
+        },
+        "url": { "type": "string", "format": "uri" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Static header-based auth, e.g. {\"Authorization\": \"Bearer ${MY_TOKEN}\"}. Token values must be ${VAR} references, never literal secrets."
+        }
+      }
+    },
+    {
+      "title": "Local stdio server",
+      "type": "object",
+      "required": ["type", "command"],
       "additionalProperties": false,
       "properties": {
         "type": { "const": "stdio" },
         "command": { "type": "string" },
-        "args": { "type": "array", "items": { "type": "string" } },
-        "env": { "type": "object" }
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Arguments passed to the command. Values a user has to choose are written as <name> placeholders, e.g. \"--prebuilt=<database>\"; ${VAR} references belong in env, not here."
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Environment variables for the server process. Secret values must be ${VAR} references, never literal secrets."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the server process. Relative paths resolve against the workspace root; ${PLUGIN_ROOT}/${PLUGIN_DATA} references resolve against the plugin installation/data directory."
+        }
       }
     }
   ]

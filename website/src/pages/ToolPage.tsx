@@ -2,7 +2,10 @@ import { useState, useMemo } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Search, ArrowLeft } from "lucide-react";
 import { useToolRegistryData } from "../hooks/useRegistryData";
-import { InstallConfigView } from "../components/ServerDetail";
+import {
+  InstallConfigView,
+  McpRegistryVersion,
+} from "../components/ServerDetail";
 import { McpVerificationBadge } from "../components/McpVerificationBadge";
 import { OrgBadges } from "../components/OrgBadges";
 import { NotFoundPage } from "./NotFoundPage";
@@ -336,11 +339,7 @@ function ToolServerDetail({
         <span className="text-muted-foreground font-mono text-xs">
           {server.serverId}
         </span>
-        {server.latestVersion && (
-          <span className="text-muted-foreground">
-            Latest: {server.latestVersion}
-          </span>
-        )}
+        <McpRegistryVersion server={server} />
       </div>
 
       {toolApproval && (
@@ -370,11 +369,6 @@ function ToolServerDetail({
               <span className="text-muted-foreground">
                 Approved: {toolApproval.date}
               </span>
-              {toolApproval.version && (
-                <span className="text-muted-foreground">
-                  Version: {toolApproval.version}
-                </span>
-              )}
             </div>
             {toolApproval.installConfigs.map((config, j) => (
               <InstallConfigView key={j} config={config} getTool={getTool} />
