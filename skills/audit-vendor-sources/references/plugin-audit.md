@@ -17,7 +17,14 @@ point, though: this runs weekly, so a missed finding this week is caught next we
 
 1. **Load the cache** — read `cache/plugin-sources.json`. For each vendor: known GitHub orgs to
    search, sources already approved (skip these), and previously rejected candidates (skip
-   re-verifying unless `lastChecked` is more than ~90 days old).
+   re-verifying unless `lastChecked` is more than ~90 days old). **Exception: a rejection whose
+   reason is "no root `plugin.json`, only `.claude-plugin`/`.codex-plugin`" does _not_ inherit that
+   ~90-day skip — re-check it every run.** Vendors add an agent-plugins.org manifest to an existing
+   repo, and the check is one cheap fetch
+   (`curl -s https://raw.githubusercontent.com/<owner>/<repo>/<default-branch>/plugin.json`).
+   `atlassian-labs/twg-plugins` went from README-documented exclusion to a conformant root
+   `plugin.json` between 2026-09-18 and 2026-10-02; `org:JetBrains`, rejected 2026-09-11 as
+   shipping no codex-format manifests at all, now ships three.
 2. **For each vendor in `vendors.json`** (parallelizable — dispatch one subagent per vendor for
    the research step, since vendors are fully independent; keep branch/commit work in the
    dispatching thread so git state stays predictable), do the following:
@@ -75,9 +82,41 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        formats or test data, never a real agent-plugins.org plugin (`.plugin/` and
        `.github/plugin/` confirmed as this kind of wrapper/duplicate location in
        `atlassian/forge-skills`, 2026-09-18).
-     - For everything else, open the file before treating it as a candidate. A genuine
-       agent-plugins.org `plugin.json` has top-level `name`/`description` (and usually
-       `version`); if it doesn't look like that shape, it's not one.
+     - For everything else, open the file and check it against the **actual published
+       schema**, not against a general impression of its shape. Fetch
+       `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json` (verified 2026-10-04 —
+       1.0.0 is still the only version; 1.1.0/2.0.0/`latest` all 404, so "they target a newer
+       spec" is not an available explanation):
+
+       ```
+       required:             ["$schema", "name"]
+       additionalProperties: false
+       allowed:              $schema, name, version, description, author, homepage,
+                             repository, license, keywords, extensions
+       ```
+
+       Two failure modes matter most. **A missing `$schema` is disqualifying on its own** —
+       it is required. And **top-level `skills`, `agents`, `hooks`, `mcpServers` or similar
+       are forbidden**: the spec's `extensions` object ("client-specific manifest data keyed
+       by reverse-domain extension namespace") exists precisely so client-specific content
+       nests under e.g. `extensions["com.github.copilot"]` instead. A manifest with the right
+       "feel" — name, description, version, author, homepage, keywords — can still fail both
+       tests; `github/spec-kit-copilot` and `github/actions-migrations-via-copilot` did
+       exactly that on 2026-10-04.
+
+       **Do not rely on `npm run validate-vendor` to catch this.** `plugin-source.ts` only
+       requires that a `plugin.json` exists and reads its fields defensively; nothing
+       validates the fetched manifest against the agent-plugins.org schema, so a
+       non-conformant plugin approval currently passes green. This check is manual until
+       that gap is closed.
+
+     - **A vendor-native plugin format is not a broken agent-plugins.org plugin, and there is
+       nothing to report upstream.** GitHub Copilot's plugin format (root or
+       `.github/plugin/` manifests with top-level `skills`/`agents`/`hooks`) is a parallel
+       ecosystem, exactly like `.claude-plugin/` and `.codex-plugin/` — GitHub never claims
+       agent-plugins.org conformance for it, publishes no `$schema`, and runs its own
+       marketplace format. Filing a conformance issue against such a repo would be reading
+       our spec into someone else's format; just record it as out of scope and move on.
      - For a `marketplace.json` hit: open it. The disqualifying shape is a **single entry** whose
        source resolves back to the marketplace file's own repo — `"local"`, a bare string path,
        `"source":"git-subdir"` (seen in `awslabs/startups`, 2026-09-18), or `"source":"url"`
@@ -95,13 +134,24 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `.claude-plugin`/`.codex-plugin` tool-specific manifests with no agent-plugins.org manifest
        at all (see `awslabs/agent-plugins`, rejected 2026-09-12 on exactly this — the marketplace
        file's shape alone is not sufficient evidence, since it doesn't guarantee the entries
-       underneath are actually agent-plugins.org-conformant).
+       underneath are actually agent-plugins.org-conformant). When that check reveals the repo is
+       really a **skills catalog** (no root `plugin.json` anywhere, a canonical `skills/` dir
+       underneath), the right outcome isn't just "skip the marketplace" — hand the repo to the
+       skill pass, since the hit is genuine evidence of a publishable artifact in the other
+       category (`docker/skills`, 2026-10-02). Say so explicitly in the report when the run is
+       scoped to plugins only, or the finding is lost.
+     - A multi-entry index can still be a **duplicate** rather than a new marketplace: check
+       whether its entries are the same plugins an already-approved marketplace fans out, and
+       whether the entries are git submodules vendoring already-approved repos (check
+       `.gitmodules`) — both seen 2026-10-02 in `GoogleCloudPlatform/data-cloud-plugins` and
+       `google/skills#plugins/cloud/data-cloud`.
      - A marketplace entry's `source` field can be either a bare string (e.g.
        `"./plugins/google-cloud-developer"`) or an object (e.g. `{"source":"url", ...}`) — a
        hand-rolled parser that only handles one shape will silently truncate the entry list (hit
        this 2026-09-18 on `google/skills`'s marketplace file). Prefer letting
        `npm run validate-vendor` do the resolution/duplicate-detection rather than hand-parsing,
        or handle both shapes explicitly if you must parse it yourself.
+
    - **Verify every remaining candidate** against `conventions.md`'s checklist. Anything that
      doesn't clearly clear the bar goes to the reject pile with a one-line reason; it does not
      become an approval, and does not get asked about.
@@ -121,6 +171,7 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      `containedSkills` discovery looks one level down for `skills/*/SKILL.md` and won't find
      anything in this case, so validation will misleadingly report "0 skills" even though the
      plugin is entirely skills. Not a blocker, just don't mistake it for a real content problem.
+
 3. **Write back `cache/plugin-sources.json`** with all vendor updates from the previous step.
 4. **Report a summary**: per vendor — branch created (if any) and files added, candidates
    rejected and why, or "skipped: dirty working tree" / "nothing new". This is a staged proposal;

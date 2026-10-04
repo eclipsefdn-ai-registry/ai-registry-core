@@ -56,6 +56,30 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `anthropics/claude-code`, `anthropics/knowledge-work-plugins`) still makes its nested
        `SKILL.md` files tool-packaging detail, not general-purpose published skills, just for a
        different reason (packaging, not duplication) — reject rather than approve.
+       **Boundary: the test is where the `SKILL.md` sits, not whether a tool-specific manifest
+       exists somewhere in the repo.** A dedicated vendor skills-catalog repo routinely carries
+       `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/` and even
+       `.agents/plugins/marketplace.json` wrappers _layered over_ a canonical root-level `skills/`
+       directory — those are per-tool distribution adapters generated from the same hand-authored
+       files, and the `skills/*` catalog stays approvable (`docker/skills`,
+       `JetBrains/rider-skills`, `JetBrains/teamcity-skills`, and the already-approved
+       `Kotlin/kotlin-agent-skills`, all confirmed 2026-10-02). The exclusion applies when the
+       `SKILL.md` lives _inside a plugin root that isn't the repo root_ (`plugin/skills/*`,
+       `plugins/<name>/skills/*`, `extensions/<name>/skills/*`, `hermes-plugin/skills/*`), or when
+       the repo is primarily a product/tooling repo that happens to bundle skills. Two tells for
+       the approvable case: `skills/` is the source of truth the manifests are derived from, and
+       the README offers a tool-agnostic install (`npx skills add …`, "copy the skill folder into
+       wherever your agent looks for skills") alongside the plugin route. A root-level manifest is
+       not automatically the benign case either — a repo-root `.codex-plugin/plugin.json` declaring
+       `"skills": "./skills/"` makes the whole repo the plugin and that `skills/` dir its contained
+       skills (`openai/snap-o`, `openai/openai-developers-for-cursor`, 2026-10-02), so check
+       whether a manifest at the _same_ level claims the directory before treating it as a
+       standalone catalog.
+     - Watch for one skill set published across several **per-tool sibling repos** — the repo-level
+       analogue of the near-identical-sibling-directories rule below. `openai/plugins#plugins/openai-developers`,
+       `openai/openai-developers-for-claude` and `openai/openai-developers-for-cursor` all ship the
+       same six skills (2026-10-02); reject the per-tool repackagings rather than picking one
+       arbitrarily.
      - Reject by path alone: anything under `test/`, `fixtures/`, or `examples/` — these are
        rarely a real, user-facing skill.
      - Reject repo-internal maintainer/dev-workflow skill folders — `SKILL.md` files under
@@ -77,7 +101,36 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        source generator (internal file paths, the framework's own unit/snapshot/integration test
        suite, diagnostic-ID conventions) — approved 2026-09-18, caught and reverted the same day
        only by reading the full body, not the description. Always read past the frontmatter before
-       approving a skill in this exclusion class.
+       approving a skill in this exclusion class. **`.agents/skills/` is a strong prior, not a
+       blanket exclusion** — check for the one product skill hiding inside an otherwise-internal
+       directory (`NVIDIA/elements#.agents/skills/elements`, the public design-system skill among
+       four internal authoring-convention skills, 2026-10-02), and conversely treat a root-level
+       `skills/` dir in a product repo as a positive signal worth checking even when that repo's
+       `.agents/skills/` is entirely internal (`NVIDIA/OpenShell`: 4 customer-facing product skills
+       under `skills/`, 17 repo-internal workflow skills under `.agents/skills/`).
+     - **Reject a skill whose dependency on unshipped files is permanent — not merely one that
+       references them.** Consolidation hashes and installs only the approved folder, so always
+       list that folder's contents against what `SKILL.md` actually needs. But "routes outside
+       the folder" is _not_ the test on its own; the distinction is whether the skill can get
+       itself into a working state. Two worked examples from 2026-10-02, decided opposite ways:
+       - **Approvable** — `openai/redcard#codex-skill/redcard` ships `SKILL.md`, `agents/` and
+         `scripts/` but no `runtime/` payload. Its installer _detects_ the missing payload by
+         name, `SKILL.md` documents the one-time bootstrap (`./scripts/install-codex-skill.sh`),
+         and the installer is explicitly required to "never retain a dependency on the source
+         repo". The gap is closed at install time and then gone.
+       - **Not approvable** — `anthropics/code-migration-kit-with-claude-code#skill` is a lone
+         69-line `SKILL.md` that routes every step into repo-root `prompts/`, `scripts/` and
+         `templates/` for the whole workflow's duration, with no detection and no recovery —
+         only an unresolved `(set [kit path] when installing this skill)` placeholder. It is a
+         pointer into a repo you must separately obtain and keep, not a distributable artifact.
+
+       So: install-time bootstrap with detection and a documented recovery path is fine; a
+       permanent runtime dependency on files that never ship is not. A related sub-signal worth
+       checking at the same time: a README saying "Reference code … companion to the blog post …
+       not actively maintained. Issues and PRs are not monitored" marks a whole class of vendor
+       blog-companion kits (verified on the above). These repos are _not_ archived, so the MCP
+       pass's archived check has no equivalent here.
+
      - **When the candidate is a glob/array covering many skills at once, checking that a couple
        of them have well-formed frontmatter is not the same as verifying the class — sample
        several skill bodies spread across the glob, not just one or two.** This matters most when
@@ -91,6 +144,19 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        tooling — because the original pass confirmed frontmatter shape across the glob without
        reading enough of the actual bodies to notice every single one was this exclusion class,
        not just a few. Reverted in full.
+       **Size the batch from the directory listing, not from the search-hit count** — GitHub code
+       search under-reports files in large repos: `filename:SKILL.md org:NVIDIA` returned 2 of the
+       8 skills actually present in `NVIDIA/dgx-spark-playbooks#nvidia/station-ai-skills/assets/skills/`
+       and 3 of 9 in `NVIDIA/nvshmem#skills/` (2026-10-02). `gh api repos/<owner>/<repo>/contents/<dir>`
+       (core API, cheap) is the authoritative count, and without it an "I read all of them" claim
+       is simply false.
+     - **Triage a very large vendor org by repo, not by hit.** `filename:SKILL.md org:anthropics`
+       returns ~692 hits — individually unreadable. Page the search and aggregate
+       (`--jq '.items[].repository.full_name' | sort | uniq -c | sort -rn`), then triage each
+       _repo_ once via `gh api repos/<o>/<r>/git/trees/HEAD?recursive=1` filtered to
+       `SKILL.md|.claude-plugin/`. A root `.claude-plugin/marketplace.json` is a single decisive
+       signal that the whole repo is a Claude-Code-native bundle, disposing of every `SKILL.md` in
+       it at once (killed 7 repos / ~500 hits in one pass, 2026-10-02).
      - Reject "deprecated compatibility redirect" stubs — a `SKILL.md` with well-formed
        frontmatter whose body explicitly says the skill moved/is deprecated (seen 6x in one repo,
        `awslabs/mcp`'s aurora-dsql-mcp-server skills, 2026-09-18) has no canonical content to
@@ -113,6 +179,7 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        location to avoid double-approving identical content under two skillIds.
      - For everything else, open the `SKILL.md` and confirm it has real YAML frontmatter with
        `name`/`description` — a stray file that merely happens to be named `SKILL.md` isn't one.
+
    - **Verify every remaining candidate** against `conventions.md`'s checklist, **including its
      same-org-family rule** — a repo under a product/ecosystem org that merely sounds affiliated
      with the vendor (e.g. `Kotlin` for JetBrains) is load-bearing here exactly as it is for
@@ -129,9 +196,23 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      examples), rather than one file per skill folder. One file per _distinct source repo_, same as
      `create-inferred-vendor`'s rule. `mkdir -p skills/` first if the vendor repo has no prior skill
      approvals. Branch, commit, and validate per `conventions.md`.
+     **A skill can be a whole repo, with `SKILL.md` at the root** — the approval then omits
+     `source.path` entirely, which the schema supports (proven against
+     `gitlab.com/gitlab-org/ci-cd/gitlab-ci-skill` and `.../github-actions-to-gitlab-ci`,
+     2026-10-02). Worth searching for deliberately: a root-level skill repo is invisible to any
+     `skills/`-prefixed path grep, only to a `SKILL.md` match at depth 0.
+     **A vendor can keep only a `SKILL-template.md` on the default branch and assemble the real
+     `SKILL.md` files onto a release branch** (`google/perfetto`'s `ai-agents` branch). Since
+     ai-registry-core#123 the skill schema has `source.ref` (tag, branch, or full commit SHA), so
+     this shape _is_ approvable — pin the approval to that branch rather than rejecting it. It was
+     rejected on 2026-10-02 for lacking a `ref` field that had in fact landed on `main` days
+     earlier; re-evaluate it. Note the general trap: core gains schema capabilities between runs,
+     so confirm a "the schema can't express this" rejection against the current schema file rather
+     than against what a previous run's cache says.
    - **Update the vendor's cache entry** — confirmed `githubOrgs`, `lastChecked` = today, newly
      approved sources appended to `knownSources.skills` (one entry per resolved path, even when
      grouped into a single approval file), new rejections appended with reason and date.
+
 3. **Write back `cache/skill-sources.json`** with all vendor updates from the previous step.
 4. **Report a summary**: per vendor — branch created (if any) and files added, candidates
    rejected and why, or "skipped: dirty working tree" / "nothing new". This is a staged proposal;

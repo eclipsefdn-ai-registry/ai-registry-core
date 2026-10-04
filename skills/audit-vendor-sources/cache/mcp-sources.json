@@ -22,7 +22,7 @@
   },
   "anthropic": {
     "githubOrgs": ["anthropics"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "mcpServers": []
     },
@@ -38,16 +38,59 @@
         "type": "mcpServer",
         "reason": "bundled inside non-approvable Claude-Code-native plugins, not standalone self-published servers.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.anthropics",
+        "type": "mcpServer",
+        "reason": "Zero results — Anthropic has registered no server in its own namespace as of 2026-10-02.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://docs.claude.com/en/docs/agents-and-tools/remote-mcp-servers",
+        "type": "mcpServer",
+        "reason": "Anthropic's own remote-MCP catalog page explicitly states the listed servers are third-party and 'not owned, operated, or endorsed by Anthropic' — not a self-published server family.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "npm scope:@anthropic-ai",
+        "type": "mcpServer",
+        "reason": "Scope contains only SDKs and Claude Code/Agent SDK native binaries; no MCP server package.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "claude mcp serve (Claude Code CLI)",
+        "type": "mcpServer",
+        "reason": "A mode of the Claude Code CLI exposing its own tools, not a separately published standalone server artifact; no registry entry and no distinct package.",
+        "checkedAt": "2026-10-02"
       }
     ]
   },
   "openai": {
     "githubOrgs": ["openai"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "mcpServers": ["com.openai/docs-mcp"]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "https://github.com/openai/codex (codex-rs/codex-mcp)",
+        "type": "mcpServer",
+        "reason": "Codex's MCP code is client-side/framework plumbing; OpenAI does not document Codex itself as a published, connectable server.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/openai/mcp-extensions",
+        "type": "mcpServer",
+        "reason": "SDK/framework building block for embedding MCP into ChatGPT plugins; no fixed connectable config.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/openai/tunnel-client",
+        "type": "mcpServer",
+        "reason": "A client that tunnels the user's own private MCP servers; its plugins/tunnel-mcp/.mcp.json is Codex plugin packaging.",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "aws": {
     "githubOrgs": ["aws", "awslabs"],
@@ -72,7 +115,7 @@
   },
   "google": {
     "githubOrgs": ["google", "googleapis", "googlemaps"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "mcpServers": [
         "com.googleapis/agent-registry",
@@ -120,10 +163,79 @@
         "io.github.google/clasp-mcp",
         "goog.workspace-developer/developer-tools",
         "io.github.googleapis/mcp-toolbox",
-        "io.github.googlemaps/platform-ai"
+        "io.github.googlemaps/platform-ai",
+        "com.googleapis/agent-search",
+        "com.googleapis/apache-kafka",
+        "com.googleapis/apache-spark",
+        "com.googleapis/api-keys",
+        "com.googleapis/app-topology",
+        "com.googleapis/bigquery-migration",
+        "com.googleapis/cloud-location-finder",
+        "com.googleapis/cloud-product-registry",
+        "com.googleapis/cx-agent-studio",
+        "com.googleapis/database-center",
+        "com.googleapis/database-insights",
+        "com.googleapis/database-migration-service",
+        "com.googleapis/data-lineage",
+        "com.googleapis/error-reporting",
+        "com.googleapis/filestore",
+        "com.googleapis/firebase-sql-connect",
+        "com.googleapis/gcloud-cli",
+        "com.googleapis/gemini-cloud-assist",
+        "com.googleapis/home",
+        "com.googleapis/knowledge-catalog",
+        "com.googleapis/netapp-volumes",
+        "com.googleapis/network-intelligence-center",
+        "com.googleapis/oracle-database",
+        "com.googleapis/org-policy",
+        "com.googleapis/policy-assist",
+        "com.googleapis/policy-troubleshooter",
+        "com.googleapis/recommender",
+        "com.googleapis/security-command-center",
+        "com.googleapis/security-command-center-management",
+        "com.googleapis/service-health",
+        "com.googleapis/unified-maintenance",
+        "com.googleapis.composer/mcp"
       ]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "https://aiplatform.googleapis.com/mcp/*",
+        "type": "mcpServer",
+        "reason": "Gemini Enterprise Agent Platform — no single connectable endpoint (9 toolsets x every region).",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://securesourcemanager.REGION.rep.googleapis.com/mcp/*",
+        "type": "mcpServer",
+        "reason": "Secure Source Manager — per-region endpoint only, no single connectable URL.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://cloudasset.googleapis.com/mcp (Policy Analyzer)",
+        "type": "mcpServer",
+        "reason": "Identical endpoint to the already-approved com.googleapis/cloud-asset-inventory.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://mapscodeassist.googleapis.com/mcp",
+        "type": "mcpServer",
+        "reason": "Identical endpoint to the already-approved io.github.googlemaps/platform-ai.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "io.github.googleapis/genai-toolbox",
+        "type": "mcpServer",
+        "reason": "Old registry name of the already-approved io.github.googleapis/mcp-toolbox.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "io.github.GoogleCloudPlatform/gemini-cloud-assist-mcp",
+        "type": "mcpServer",
+        "reason": "Org not GitHub-verified; the product is covered by the catalogue-page entry com.googleapis/gemini-cloud-assist.",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "eclipsesource": {
     "githubOrgs": [],
@@ -150,44 +262,96 @@
   },
   "jetbrains": {
     "githubOrgs": ["JetBrains", "Kotlin"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
-      "mcpServers": []
+      "mcpServers": ["com.jetbrains/mcp-server", "io.klibs/mcp-server"]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "io.github.mrfentmen/jetbrains-mcp",
+        "type": "mcpServer",
+        "reason": "Third-party JetBrains Marketplace scraper, not vendor-published.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/hexana.git#plugins/hexana/.claude-plugin/mcp.json",
+        "type": "mcpServer",
+        "reason": "Claude Code plugin-bundled server, command is ${CLAUDE_PLUGIN_ROOT}-relative, no standalone connectable config.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/context.git (jbcontext MCP)",
+        "type": "mcpServer",
+        "reason": "No published mcpServers connection block found; mcp/ holds only tool-description text for the proprietary CLI's own MCP mode.",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "atlassian": {
-    "githubOrgs": ["atlassian"],
-    "lastChecked": "2026-09-18",
+    "githubOrgs": ["atlassian", "atlassian-labs"],
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "mcpServers": [
         "com.atlassian/atlassian-mcp-server",
         "com.atlassian/trello-mcp-server"
       ]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "https://github.com/atlassian-labs/mcp-compressor.git",
+        "type": "mcpServer",
+        "reason": "MCP proxy/library that shrinks another server's tool surface — no fixed connectable endpoint of its own, config is per-wrapped-backend; framework building-block exclusion.",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
-      "mcpServers": ["com.gitlab/mcp"]
+      "mcpServers": ["com.gitlab/mcp", "com.gitlab/lazy-mcp"]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "com.mcparmory/gitlab",
+        "type": "mcpServer",
+        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "io.github.crunchtools/gitlab",
+        "type": "mcpServer",
+        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "io.github.detailobsessed/efficient-gitlab",
+        "type": "mcpServer",
+        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "github": {
     "githubOrgs": ["github"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "mcpServers": ["io.github.github/github-mcp-server"]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "https://github.com/mcp",
+        "type": "mcpServer",
+        "reason": "Open aggregator registry of third-party servers, not a GitHub self-published server (same exclusion class as docker/mcp-registry).",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "docker": {
     "githubOrgs": ["docker"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
-      "mcpServers": ["com.docker/hub-mcp"]
+      "mcpServers": ["com.docker/hub-mcp", "com.docker/dhi-mcp"]
     },
     "rejected": [
       {
@@ -201,12 +365,30 @@
         "type": "mcpServer",
         "reason": "Official Docker MCP Registry catalog — open-submission per its own README (community PRs accepted for both Docker-built and self-provided images); an aggregator of mostly third-party servers, not a single self-published Docker server, and doesn't fit the marketplace schema either.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/docker/mcp-gateway.git",
+        "type": "mcpServer",
+        "reason": "Aggregating proxy over the open-submission docker/mcp-registry catalog — its tool surface is per-deployment (depends on which catalog servers the user enables), not a fixed first-party server; same exclusion class as a framework building block.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/docker/docker-agent.git#serve-mcp",
+        "type": "mcpServer",
+        "reason": "`docker agent serve mcp` exposes a user's own agent over MCP — a framework capability with no fixed command/URL, not a Docker-published server.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/docker/labs-ai-tools-for-devs.git",
+        "type": "mcpServer",
+        "reason": "prompts/mcp/readmes/* are third-party server configs Docker packaged; repo is deprecated in favour of the MCP Toolkit.",
+        "checkedAt": "2026-10-02"
       }
     ]
   },
   "nvidia": {
     "githubOrgs": ["NVIDIA"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "mcpServers": [
         "com.nvidia.ngc.nsight.copilot.api/cuda-docs",

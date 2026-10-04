@@ -16,7 +16,7 @@
   },
   "anthropic": {
     "githubOrgs": ["anthropics"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "skills": ["https://github.com/anthropics/skills.git#skills/*"]
     },
@@ -44,14 +44,92 @@
         "type": "skill",
         "reason": "SKILL.md files exist but are nested inside Claude-Code-native (.claude-plugin/plugin.json) plugin bundles — tool-specific plugin-packaged content, not standalone Agent Skills.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/anthropics/code-migration-kit-with-claude-code.git",
+        "type": "skill",
+        "reason": "skill/ contains only SKILL.md; its instructions depend on prompts/, scripts/, templates/, README.md, CLAUDE.md outside the skill folder — not a self-contained Agent Skill. Repo also self-declares 'Reference code … not actively maintained' blog companion.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/claude-cookbooks.git",
+        "type": "skill",
+        "reason": "skills/custom_skills/* are tutorial companions to notebooks/01-03 with sample_data; applying-brand-guidelines is a fictional 'Acme Corporation' demo. .claude/skills/cookbook-audit is repo-internal maintainer tooling.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/k12-teacher-skills.git",
+        "type": "skill",
+        "reason": "SKILL.md files nested under plugin/.claude-plugin/plugin.json — Claude-Code-native plugin bundle.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/defending-code-reference-harness.git",
+        "type": "skill",
+        "reason": ".claude/skills/* slash commands coupled to this repo's own harness ('open this repo in Claude Code'); README says not maintained and points to the hosted Claude Security product.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/cwc-workshops.git",
+        "type": "skill",
+        "reason": "Code-with-Claude conference workshop lab material; mostly .claude/skills/.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/claude-agent-sdk-demos.git",
+        "type": "skill",
+        "reason": "Demo apps; SKILL.md only under per-demo .claude/skills/.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/launch-your-agent.git",
+        "type": "skill",
+        "reason": "Workshop repo; .claude/skills/ internal workflow only.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/claude-quickstarts.git",
+        "type": "skill",
+        "reason": "managed-agents/*/skill.md is lowercase (not a valid SKILL.md) and is quickstart example material.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/claude-plugins-community.git",
+        "type": "skill",
+        "reason": "Community-contributed third-party plugins (testdino, quickdesign, eli5), not Anthropic-authored; also .claude-plugin bundles.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "anthropics org .claude-plugin marketplace repos (claude-for-legal, financial-services, commerce-agents, healthcare, oncall-kit, claude-tag-plugins, claude-for-financial-advisors)",
+        "type": "skill",
+        "reason": "Root .claude-plugin/marketplace.json — all SKILL.md are Claude-Code-native plugin packaging, same class as the 2026-09-18 claude-code/life-sciences rejections.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/skills.git#template",
+        "type": "skill",
+        "reason": "Skill template scaffold, no canonical content.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "anthropic-sdk-{python,typescript,ruby,java}#examples/greeting-SKILL.md",
+        "type": "skill",
+        "reason": "Example file, not a skill folder.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/uplifting-biomolecular-modeling.git",
+        "type": "skill",
+        "reason": "Only hit is a vendored third-party path (torch/vendor/tangermeme/_skills).",
+        "checkedAt": "2026-10-02"
       }
     ]
   },
   "openai": {
     "githubOrgs": ["openai"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
-      "skills": []
+      "skills": ["https://github.com/openai/redcard.git#codex-skill/redcard"]
     },
     "rejected": [
       {
@@ -89,6 +167,60 @@
         "type": "skill",
         "reason": "skills bundled inside individual Codex-native (.codex-plugin only) plugin packages — tool-specific packaging content, not standalone published skills.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "openai/{openai-agents-js,openai-go,openai-ruby,openai-guardrails-python,openai-guardrails-js}.git#.agents/skills",
+        "type": "skill",
+        "reason": "Repo-internal maintainer/release tooling; near-exact mirrors of the already-rejected openai-agents-python set.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/openai/snap-o.git#skills",
+        "type": "skill",
+        "reason": "Contained skills of the repo-root .codex-plugin bundle (its plugin.json declares \"skills\": \"./skills/\").",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/openai/openai-developers-for-cursor.git#skills",
+        "type": "skill",
+        "reason": "Contained skills of the repo-root .cursor-plugin bundle; also a per-tool duplicate of openai/plugins#plugins/openai-developers/skills.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "openai/{openai-developers-for-claude,codex-plugin-cc}.git#plugins/*/skills",
+        "type": "skill",
+        "reason": "Claude Code-native plugin packaging.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "openai/{codex-security,mcp-extensions,tunnel-client}.git#plugins/*/skills",
+        "type": "skill",
+        "reason": "Codex-native plugin packaging.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/openai/community-plugins.git#plugins/*/skills",
+        "type": "skill",
+        "reason": "Third-party-authored entries in an open-submission community marketplace.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/openai/codex.git#codex-rs/skills/src/assets/samples",
+        "type": "skill",
+        "reason": "Sample assets compiled into the Codex binary.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/openai/build-hours.git#24-api-codex/skills",
+        "type": "skill",
+        "reason": "Workshop/demo material.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "openai/{openai-agents-js,openai-cookbook,openai-agents-python}.git#examples/**",
+        "type": "skill",
+        "reason": "Rejected by path (examples/).",
+        "checkedAt": "2026-10-02"
       }
     ]
   },
@@ -137,17 +269,58 @@
   },
   "google": {
     "githubOrgs": ["google", "googleworkspace"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "skills": [
         "https://github.com/google/skills.git#skills/ads/*",
         "https://github.com/google/skills.git#skills/analytics/*",
         "https://github.com/google/skills.git#skills/cloud/*",
         "https://github.com/google/skills.git#skills/developers/*",
-        "https://github.com/google/skills.git#skills/identity/*"
+        "https://github.com/google/skills.git#skills/identity/*",
+        "https://github.com/google/meridian.git#skills/*",
+        "https://github.com/google/mcp-security.git#extensions/google-secops/skills/*",
+        "https://github.com/google/adk-python.git#src/google/adk/integrations/bigquery/skills/bigquery-ai-ml",
+        "https://github.com/google/adk-python.git#src/google/adk/integrations/bigquery/skills/bigquery-graph"
       ]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "https://github.com/google/capsem.git#skills/*",
+        "type": "skill",
+        "reason": "Repo-internal dev-workflow skills (dev-just, dev-cache, release-process, …).",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "google/{adk-python,adk-go,adk-docs,adk-kotlin,adk-recipes}.git#.agents/skills/*",
+        "type": "skill",
+        "reason": "Contributor workflow for the ADK repos themselves.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "google/{adk-go#examples/skills,adk-java#core/src/test/resources/skills,adk-js#tests/integration/skills}",
+        "type": "skill",
+        "reason": "Examples / test fixtures.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/google/rust-skills.git",
+        "type": "skill",
+        "reason": "Only frozen eval packages under evals/.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/google/agents-cli.git#skills/*",
+        "type": "skill",
+        "reason": "Contained skills of the already-approved io.github.google/agents-cli plugin.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/google/perfetto.git#ai/skills/perfetto",
+        "type": "skill",
+        "reason": "Only SKILL-template.md on the default branch; the real SKILL.md files exist solely on the ai-agents release branch. REVISIT: rejected on the belief that the skill schema has no ref field, but source.ref (tag/branch/SHA) landed in core #123 before this run — this is approvable pinned to that branch and should be re-evaluated next run.",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "eclipsesource": {
     "githubOrgs": [],
@@ -174,9 +347,34 @@
   },
   "jetbrains": {
     "githubOrgs": ["JetBrains", "Kotlin"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
-      "skills": []
+      "skills": [
+        "https://github.com/JetBrains/rider-skills.git#skills/debugging-code",
+        "https://github.com/JetBrains/rider-skills.git#skills/finding-tests",
+        "https://github.com/JetBrains/rider-skills.git#skills/navigating-code",
+        "https://github.com/JetBrains/rider-skills.git#skills/refactoring-code",
+        "https://github.com/JetBrains/rider-skills.git#skills/ue-code-authoring",
+        "https://github.com/JetBrains/rider-skills.git#skills/ue-live-debugging",
+        "https://github.com/JetBrains/rider-skills.git#skills/ue-test-authoring",
+        "https://github.com/JetBrains/teamcity-skills.git#skills/teamcity-cli",
+        "https://github.com/JetBrains/teamcity-skills.git#skills/teamcity-first-green-build",
+        "https://github.com/JetBrains/teamcity-skills.git#skills/teamcity-intellij",
+        "https://github.com/JetBrains/datalore-skills.git#skills/datalore-notebook",
+        "https://github.com/JetBrains/context.git#skills/blast-radius",
+        "https://github.com/JetBrains/context.git#skills/context-install",
+        "https://github.com/JetBrains/context.git#skills/context-integrate",
+        "https://github.com/JetBrains/context.git#skills/context-research",
+        "https://github.com/JetBrains/context.git#skills/context-review",
+        "https://github.com/JetBrains/context.git#skills/context-search",
+        "https://github.com/JetBrains/context.git#skills/dependency-search",
+        "https://github.com/JetBrains/context.git#skills/org-search",
+        "https://github.com/JetBrains/youtrack-apps.git#skills/youtrack-apps-skill",
+        "https://github.com/JetBrains/klibs-io.git#skills/kmp-libraries-expert",
+        "https://github.com/JetBrains/phpstorm-claude-marketplace.git#skills/php-code-review",
+        "https://github.com/JetBrains/phpstorm-claude-marketplace.git#skills/php-project-guide",
+        "https://github.com/JetBrains/phpstorm-claude-marketplace.git#skills/upgrade-php"
+      ]
     },
     "rejected": [
       {
@@ -202,25 +400,98 @@
         "type": "skill",
         "reason": "same as kotlinx-rpc — Kotlin org, no JetBrains attribution signal.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/JetBrains/teamcity-skills.git#skills/migrate-to-teamcity",
+        "type": "skill",
+        "reason": "Identical skill already approved via JetBrains/teamcity-cli#skills/*; excluded from the array to avoid two skillIds for the same content.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "org:JetBrains .agents/skills/* + .claude/skills/* (intellij-community, MPS, kotlin, ideavim, Exposed, koog, youtrackdb, kotlin-web-site, ij-perf-report-aggregator, aspire-plugin, compose-swing-ui)",
+        "type": "skill",
+        "reason": "Repo-internal contributor/maintainer tooling; confirmed again this run, same class as the 2026-09-21 revert.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/junie-extensions.git#extensions/*/skills/*",
+        "type": "skill",
+        "reason": "Junie extension bundles (.junie-extension/marketplace.json); SKILL.md nested inside an extension root, tool packaging, and several extensions cover third-party topics (context7, redis, laravel).",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/go-modern-guidelines.git#plugin/skills/use-modern-go",
+        "type": "skill",
+        "reason": "Nested inside a plugin root.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/hexana.git#plugins/hexana/skills/wasm-inspector",
+        "type": "skill",
+        "reason": "Nested inside a plugin root.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/junie.git#hermes-plugin/skills/junie",
+        "type": "skill",
+        "reason": "Nested inside a plugin root.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/thinkrail.git#packages/*/skills/*",
+        "type": "skill",
+        "reason": "Product workflow packages of the thinkrail IDE, not a published skills catalog.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/MPS.git#plugins/mcp-tools/resources/jetbrains/mps/agents/mcp/skills/*",
+        "type": "skill",
+        "reason": "Bundled resources shipped inside the MPS IDE plugin.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/koog.git#integration-tests/src/jvmTest/resources/skills/weather-retrieval",
+        "type": "skill",
+        "reason": "Test fixture.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/android.git#automation/sponge-scripts/skill.md",
+        "type": "skill",
+        "reason": "Lowercase filename, internal automation.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/Kotlin/KmpTestData.git#skills/swift-support/skill.md",
+        "type": "skill",
+        "reason": "Lowercase filename in a test-data repo.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/skills.git (beyond debugging-code/refactoring-code)",
+        "type": "skill",
+        "reason": "README attribution table re-read 2026-10-02; remaining JetBrains-labelled rows are mirrors of Kotlin/kotlin-agent-skills and JetBrains/teamcity-cli, already approved at their canonical source.",
+        "checkedAt": "2026-10-02"
       }
     ]
   },
   "atlassian": {
-    "githubOrgs": ["atlassian"],
-    "lastChecked": "2026-09-18",
+    "githubOrgs": ["atlassian", "atlassian-labs"],
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "skills": [
         "https://github.com/atlassian/trello-mcp-server.git#skills/trello-use",
         "https://github.com/atlassian/twg-cli.git#skills/*",
         "https://github.com/atlassian/forge-skills.git#skills/* (covered via plugin containedSkills, not standalone)",
-        "https://github.com/atlassian/atlassian-mcp-server.git#skills/* (covered via plugin containedSkills, not standalone)"
+        "https://github.com/atlassian/atlassian-mcp-server.git#skills/* (covered via plugin containedSkills, not standalone)",
+        "https://github.com/atlassian-labs/twg-plugins.git#skills/twg-setup (covered via plugin containedSkills, not standalone)"
       ]
     },
     "rejected": []
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "skills": [
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/authoring-skills",
@@ -246,17 +517,92 @@
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/smart-rebase",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/stack-changes",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/video-takeaways",
-        "https://gitlab.com/gitlab-org/ai/skills.git#skills/write-large-file"
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/write-large-file",
+        "https://gitlab.com/gitlab-org/ci-cd/gitlab-ci-skill.git#",
+        "https://gitlab.com/gitlab-org/ci-cd/github-actions-to-gitlab-ci.git#",
+        "https://gitlab.com/gitlab-org/ai/lazy-mcp.git#skills/lazy-mcp-cli",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/adr-review",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/postgresai",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/prep-review",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/prep-start",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/rust-compile-memory",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/rust-unsafe-ffi-review",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/story-creator",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/story-reviewer",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/threat-model-review"
       ]
     },
-    "rejected": []
+    "rejected": [
+      {
+        "url": "https://gitlab.com/gitlab-org/ai-powered/ai-framework/skills",
+        "type": "skill",
+        "reason": "Team-internal: 'Reusable agent skills for the GitLab AI Framework team'.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/database-team/skills",
+        "type": "skill",
+        "reason": "Team-internal engineering workflow collection.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/search-team/ai/skills",
+        "type": "skill",
+        "reason": "Team-internal engineering workflow collection.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/geo-team/geo-engineer-skill",
+        "type": "skill",
+        "reason": "Team-internal engineering workflow skill.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/ai-engineering/agent-foundations/agentic-productivity",
+        "type": "skill",
+        "reason": "Internal 'agentic configs, skills, agents and workflows' sharing repo.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/editor-extensions/experiments/skills",
+        "type": "skill",
+        "reason": "Experiments namespace, not a published artifact.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/editor-extensions/experiments/skill-test",
+        "type": "skill",
+        "reason": "Experiments namespace, test project.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/editor-extensions/experiments/duo-skills-mcp",
+        "type": "skill",
+        "reason": "Experiments namespace, not a published artifact.",
+        "checkedAt": "2026-10-02"
+      }
+    ]
   },
   "github": {
     "githubOrgs": ["github"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "skills": [
-        "https://github.com/github/copilot-plugins.git#plugins/spark/skills/spark-app-template"
+        "https://github.com/github/copilot-plugins.git#plugins/spark/skills/spark-app-template",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/actionlint",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/azure-devops-migration",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/bamboo-migration",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/bitbucket-migration",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/circleci-migration",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/droneci-migration",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/gitlab-migration",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/jenkins-migration",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/migration-core",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/reusable-workflow-patterns",
+        "https://github.com/github/actions-migrations-via-copilot.git#plugin/skills/travisci-migration",
+        "https://github.com/github/copilot-advanced-security-plugin.git#skills/dependency-scanning",
+        "https://github.com/github/copilot-advanced-security-plugin.git#skills/secret-scanning",
+        "https://github.com/github/gh-stack.git#skills/gh-stack"
       ]
     },
     "rejected": [
@@ -271,16 +617,77 @@
         "type": "skill",
         "reason": "community-contributed per repo's own README, fails authorship bar (all skills/*/SKILL.md, 30 files checked).",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/github/gh-aw.git",
+        "type": "skill",
+        "reason": "Root SKILL.md is a 10-line pointer stub; .github/skills/* (~50) is overwhelmingly repo-internal dev tooling (developer-release, go-linters, pr-finisher); agentic-workflows is a router scoped to \"this repository\"; .squad/templates/skills/* and .claude/skills/* are templates/internal. Excluded wholesale rather than narrowed on a partial sample.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "github/{gh-aw-firewall,gh-aw-harness,gh-aw-mcpg,gh-aw-threat-detection}.git",
+        "type": "skill",
+        "reason": "Repo-internal maintainer/dev-workflow skills under .claude/skills and .agents/skills.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/github/codeql.git#.github/skills/bazel",
+        "type": "skill",
+        "reason": "Repo-internal Bazel build conventions for editing that repo.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "github/{copilot-sdk,copilot-sdk-java}.git#.github/skills",
+        "type": "skill",
+        "reason": "Repo-internal (agentic-workflows, sdk-java-e2e-test, documentation-coverage).",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/github/spec-kit.git#.github/skills/add-community-extension",
+        "type": "skill",
+        "reason": "Maintainer catalog workflow (processing submission issues).",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "github/{copilot-cli-for-beginners,copilot-app-for-beginners,copilot-billing-preview}.git",
+        "type": "skill",
+        "reason": "Training-course samples / internal workflow skills.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "github/{github-well-architected,rust-gems}.git#.github/skills",
+        "type": "skill",
+        "reason": "Internal editorial-review / dependency-update skills.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/github/spec-kit-copilot.git#skills/*",
+        "type": "skill",
+        "reason": "10 customer-facing speckit-* skills, but the repo-root plugin.json declares \"skills\": \"skills/\", making them that plugin's contained skills rather than a standalone catalog; bodies are bound to the plugin itself (speckit-init: \"Because this is the Copilot plugin, always scaffold Copilot in skills mode\", --integration copilot). Tool packaging, same basis as Claude-Code-/Codex-native bundles. Approved in the first pass of the 2026-10-02 run and dropped on review before the PR.",
+        "checkedAt": "2026-10-02"
       }
     ]
   },
   "docker": {
     "githubOrgs": ["docker"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "skills": [
         "https://github.com/docker/model-runner.git#cmd/cli/commands/skills/docker-model-runner",
-        "https://github.com/docker/sbx-kits-contrib.git#skills/kit-author"
+        "https://github.com/docker/sbx-kits-contrib.git#skills/kit-author",
+        "https://github.com/docker/skills.git#skills/docker-agent-config",
+        "https://github.com/docker/skills.git#skills/docker-agent-deploy",
+        "https://github.com/docker/skills.git#skills/docker-agent-run",
+        "https://github.com/docker/skills.git#skills/docker-build-strategies",
+        "https://github.com/docker/skills.git#skills/docker-compose-patterns",
+        "https://github.com/docker/skills.git#skills/docker-destructive-guardrails",
+        "https://github.com/docker/skills.git#skills/docker-project-foundations",
+        "https://github.com/docker/skills.git#skills/docker-sandboxes-env",
+        "https://github.com/docker/skills.git#skills/docker-sandboxes-kits",
+        "https://github.com/docker/skills.git#skills/docker-sandboxes-lifecycle",
+        "https://github.com/docker/skills.git#skills/docker-sandboxes-network-credentials",
+        "https://github.com/docker/sandbox-kit-spec.git#skills/create-kit-v3",
+        "https://github.com/docker/sandbox-kit-spec.git#skills/migrate-kit-to-v3"
       ]
     },
     "rejected": [
@@ -313,12 +720,24 @@
         "type": "skill",
         "reason": "plugins/beta-mcp-skills/skills/mcp-server-yaml-creator/SKILL.md — bundled inside a Claude Code-specific 'beta' plugin in a repo already rejected as non-agent-plugins.org format; no standalone-skill signal.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/docker/sandbox-kit-spec.git#examples/review-skill/content",
+        "type": "skill",
+        "reason": "Sample data under examples/ — reject-by-path.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/docker/skills.git#.agents/skills",
+        "type": "skill",
+        "reason": "Symlink mirror of the canonical root skills/ directory (gh contents API returns a string blob, not a listing); approving it would double-approve identical content.",
+        "checkedAt": "2026-10-02"
       }
     ]
   },
   "nvidia": {
     "githubOrgs": ["NVIDIA"],
-    "lastChecked": "2026-09-18",
+    "lastChecked": "2026-10-02",
     "knownSources": {
       "skills": [
         "https://github.com/NVIDIA/Megatron-LM.git#skills/mcore-migrate-gpt-to-hybrid",
@@ -327,7 +746,29 @@
         "https://github.com/NVIDIA/NemoClaw.git#.agents/skills/nemoclaw-skills-guide",
         "https://github.com/NVIDIA/SkillSpector.git#skills/*",
         "https://github.com/NVIDIA/TensorRT.git#.agents/skills/*",
-        "https://github.com/NVIDIA/TensorRT-LLM.git#.claude/skills/trtllm-serve-config-guide"
+        "https://github.com/NVIDIA/TensorRT-LLM.git#.claude/skills/trtllm-serve-config-guide",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-collect-performance-data",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-configure-nic-pe-mapping",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-docs",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-enable-tma",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-get-started",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-install",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-select-remote-transport",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-troubleshoot-and-report-bugs",
+        "https://github.com/NVIDIA/nvshmem.git#skills/nvshmem-tune-performance",
+        "https://github.com/NVIDIA/OpenShell.git#skills/debug-inference",
+        "https://github.com/NVIDIA/OpenShell.git#skills/debug-openshell-cluster",
+        "https://github.com/NVIDIA/OpenShell.git#skills/generate-sandbox-policy",
+        "https://github.com/NVIDIA/OpenShell.git#skills/openshell-cli",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/dgx-diagnose",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/dgx-station",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/dgx-station-diagnose",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/dgx-station-inference",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/dgx-station-mig",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/mig-configure",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/sglang-setup",
+        "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/station-ai-skills/assets/skills/vllm-setup",
+        "https://github.com/NVIDIA/elements.git#.agents/skills/elements"
       ]
     },
     "rejected": [
@@ -390,6 +831,60 @@
         "type": "skill",
         "reason": "personal account self-describing as 'AI agent skills published by NVIDIA' — not under the NVIDIA org.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/NVIDIA/simready-foundation.git#(skills|.agents|.claude|.codex)/skills/*",
+        "type": "skill",
+        "reason": "35 SKILL.md files, but the same skill names are mirrored across skills/, .agents/skills/, .claude/skills/ and .codex/skills/ — colliding leaf names would produce duplicate skillIds; sampled body (add-validator) directs the agent to the repo's own AGENTS.md and nv_core/sr_specs internals. Mixed and duplicated; excluded rather than narrowed on a partial sample.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/flashdreams.git#skills/*",
+        "type": "skill",
+        "reason": "All 3 skills repo-internal: flashdreams-integrations is a contributor map of the flashdreams codebase ('where code belongs'), plus python-docstring-style and validate-performance-quality.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/OpenShell.git#.agents/skills/*",
+        "type": "skill",
+        "reason": "17 repo-internal workflow skills (create-github-pr, triage-issue, review-security-issue, sync-agent-infra, sbom, watch-github-actions, build-from-issue, create-rfc...). The customer-facing skills/* in the same repo were approved instead.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/elements.git#.agents/skills/* (minus elements)",
+        "type": "skill",
+        "reason": "The directory holds 24 skills, not 5 — GitHub code search under-reported it (same trap documented for nvshmem/dgx-spark-playbooks this run; size from gh api contents, not search hits). Only .agents/skills/elements (the public NVIDIA Elements design-system skill, Apache-2.0) was approved. Siblings read and confirmed internal to developing the Elements repo: authoring-components (required 10-file structure, wireit cache), troubleshooting (elementIsStable timeouts, flaky tests, Git LFS, port conflicts), authoring-documentation, authoring-projects, authoring-typescript, agent-availability-report. The rest of the 24 was not individually classified and is excluded rather than guessed; REVISIT guidance-api-design and guidance-webgpu-performance individually next run.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/NeMo-Relay.git#.agents/skills/*",
+        "type": "skill",
+        "reason": "All 5 internal: maintain-ci, prepare-code-freeze, update-project-version, add-binding-feature, review-doc-style.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/NeMo-Fabric.git#*",
+        "type": "skill",
+        "reason": ".agents/skills/* are internal (create-release-tag, maintain-packaging); examples/* excluded by path; skills/nemo-fabric-integrate is already covered by the approved NVIDIA/skills#skills/* catalog glob.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/nemoclaw-community.git#*",
+        "type": "skill",
+        "reason": "Community-contribution repo; all 11 hits under examples/recipes, examples/demos, or a *-contributor-examples skill.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/dgx-spark-playbooks.git#nvidia/playbook-healthcare-agent/assets/skills/molecular-viz",
+        "type": "skill",
+        "reason": "Demo asset for one playbook, bound to hardcoded /sandbox/clinical-intelligence/scripts/ paths; not reusable product guidance. The station-ai-skills assets in the same repo were approved.",
+        "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/NVIDIA/SkillEvaluator.git#(src|tests)/**",
+        "type": "skill",
+        "reason": "Remaining hits are src/skillevaluator/tier3/reference_skills/* and tests/fixtures/*; the repo's skills/* are already approved.",
+        "checkedAt": "2026-10-02"
       }
     ]
   }
