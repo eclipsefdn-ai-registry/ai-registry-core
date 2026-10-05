@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 const BASE_URL = "https://registry.modelcontextprotocol.io/v0.1";
 
 // The registry fails a small share of requests, with a 500 ("Failed to get
@@ -94,7 +96,7 @@ async function getWithRetry(
       `  Retrying ${url} (attempt ${String(attempt + 1)} of ${String(MAX_ATTEMPTS)}): ${problem}`,
     );
     const delayMs = retryDelayMs * 2 ** (attempt - 1) * (0.5 + Math.random());
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    await sleep(delayMs);
   }
 }
 

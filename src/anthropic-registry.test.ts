@@ -1,5 +1,6 @@
 import { describe, it, mock, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { setTimeout as sleep } from "node:timers/promises";
 import { lookupServer, lookupServers } from "./anthropic-registry.js";
 
 const NO_DELAY = { retryDelayMs: 0 };
@@ -212,7 +213,7 @@ function serveAll(delayMs: (serverId: string) => number): {
     calls.push(serverId);
     inFlight++;
     maxInFlight = Math.max(maxInFlight, inFlight);
-    await new Promise((resolve) => setTimeout(resolve, delayMs(serverId)));
+    await sleep(delayMs(serverId));
     inFlight--;
     return serverId.endsWith("/bad") ? status(400) : versions(serverId);
   });
@@ -255,7 +256,7 @@ describe("lookupServers", () => {
       /HTTP 400 for io\.example\/bad/,
     );
     // Let the lookups already in flight finish before counting.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await sleep(50);
     assert.equal(calls.length, 8);
   });
 });
