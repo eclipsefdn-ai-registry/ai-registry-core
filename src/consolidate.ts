@@ -10,7 +10,10 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { validateVendorFiles } from "./validate.js";
-import { lookupServer, type ServerLookupResult } from "./anthropic-registry.js";
+import {
+  lookupServers,
+  type ServerLookupResult,
+} from "./anthropic-registry.js";
 import { enrichSkillMetadata } from "./skill-source.js";
 import {
   enrichPluginMetadata,
@@ -1334,8 +1337,8 @@ async function enrichRegistryMetadata(
 ): Promise<void> {
   console.log("Enriching with Anthropic MCP registry metadata...\n");
 
-  const results = await Promise.all(
-    output.mcp.map((entry) => lookupServer(entry.serverId)),
+  const results = await lookupServers(
+    output.mcp.map((entry) => entry.serverId),
   );
 
   for (let i = 0; i < output.mcp.length; i++) {
