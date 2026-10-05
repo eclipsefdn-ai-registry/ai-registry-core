@@ -2,30 +2,27 @@ import { ArrowLeft } from "lucide-react";
 import type { Skill, Organization, Tool, SkillApproval } from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
-import { cliSource, repoWebUrl } from "../cliSource";
+import { sourceTreeUrl } from "../cliSource";
+import { skillsCommand } from "../installCommand";
+import { sourceLinkTitle } from "../approvedTarget";
 import { InstallFromCli } from "./InstallFromCli";
+import { ApprovedTarget } from "./ApprovedTarget";
 
 export function SkillDetail({
   skill,
   getOrg,
   getTool,
   onBack,
+  generatedAt,
 }: {
   skill: Skill;
   getOrg: (id: string) => Organization | undefined;
   getTool: (id: string) => Tool | undefined;
   onBack: () => void;
+  generatedAt?: string;
 }) {
-  const repoUrl = repoWebUrl(skill.source.url);
-  const sourceUrl = skill.source.path
-    ? `${repoUrl}/tree/main/${skill.source.path}`
-    : repoUrl;
-  // A repository holding several skills needs --skill to pick this one; when
-  // the skill is the repository root there is nothing to disambiguate. The
-  // flag matches on the SKILL.md frontmatter name, which is what `name` is.
-  const installCommand = `npx skills add ${cliSource(skill.source.url)}${
-    skill.source.path ? ` --skill ${skill.name}` : ""
-  }`;
+  const sourceUrl = sourceTreeUrl(skill.source);
+  const installCommand = skillsCommand(skill);
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -42,6 +39,7 @@ export function SkillDetail({
         <span className="text-muted-foreground font-mono text-xs">
           {skill.skillId}
         </span>
+        <ApprovedTarget entry={skill} generatedAt={generatedAt} />
         <span className="text-muted-foreground text-xs">
           Hash: {skill.contentHash}
         </span>
@@ -50,6 +48,7 @@ export function SkillDetail({
             href={sanitizeUrl(sourceUrl)}
             target="_blank"
             rel="noopener noreferrer"
+            title={sourceLinkTitle(skill.source.commit)}
             className="text-primary hover:underline text-sm"
           >
             Source
@@ -71,7 +70,7 @@ export function SkillDetail({
         ))}
       </div>
 
-      <InstallFromCli command={installCommand} />
+      {installCommand && <InstallFromCli command={installCommand} />}
     </div>
   );
 }

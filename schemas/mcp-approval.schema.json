@@ -19,7 +19,7 @@
     },
     "version": {
       "type": "string",
-      "description": "Pinned server version (e.g., 1.0.1). Omit to use the latest version from the MCP registry."
+      "description": "Informational: the MCP registry version the organization reviewed (e.g., 1.0.1). It doesn't decide what runs, config and installConfigs do, and nothing fills it in when it is omitted."
     },
     "config": {
       "$ref": "mcp-server-config.schema.json",

@@ -292,7 +292,7 @@ describe("enrichWithRegistryData", () => {
     assert.equal(entry.mcpRegistryVerified, true);
   });
 
-  it("sets version to latestVersion on approvals without a pinned version", () => {
+  it("leaves version unset on approvals that gave none", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",
@@ -315,10 +315,13 @@ describe("enrichWithRegistryData", () => {
       latestVersion: "3.1.0",
     });
 
-    assert.equal(entry.approvals[0].version, "3.1.0");
+    // The registry's latest belongs to the entry. Written into the approval
+    // it would look like a version the organization named.
+    assert.equal("version" in entry.approvals[0], false);
+    assert.equal(entry.latestVersion, "3.1.0");
   });
 
-  it("preserves pinned version on approvals that already have one", () => {
+  it("keeps the version an approval gave", () => {
     const entry: McpEntry = {
       serverId: "io.example/server",
       name: "io.example/server",
@@ -715,6 +718,154 @@ describe("addSkillApproval", () => {
     );
     assert.equal(output.skills.length, 1);
     assert.equal(output.skills[0].source.path, "skills/*");
+  });
+
+  it("preserves an explicit source.ref on the created entry", () => {
+    const output = emptyOutput();
+    addSkillApproval(
+      {
+        ...skillApproval,
+        source: { ...skillApproval.source, ref: "1.2.0" },
+      },
+      "acme",
+      output,
+    );
+
+    assert.equal(output.skills[0].source.ref, "1.2.0");
+  });
+
+  it("keeps the first-collected source when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output);
+    addSkillApproval(
+      {
+        ...skillApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.skills.length, 1);
+    assert.deepEqual(output.skills[0].source, skillApproval.source);
+  });
+
+  it("still records both approvals when sources differ", () => {
+    const output = emptyOutput();
+    addSkillApproval(skillApproval, "acme", output);
+    addSkillApproval(
+      {
+        ...skillApproval,
+        source: { url: "https://github.com/other/fork.git" },
+      },
+      "other-org",
+      output,
+    );
+
+    assert.equal(output.skills[0].approvals.length, 2);
+    assert.equal(output.skills[0].approvals[0].organizationId, "acme");
+    assert.equal(output.skills[0].approvals[1].organizationId, "other-org");
+  });
+
+  it("does not warn when a second vendor's source matches exactly", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(skillApproval, "acme", output);
+      addSkillApproval(skillApproval, "other-org", output);
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 0);
+  });
+
+  it("warns when a second vendor's source differs", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(skillApproval, "acme", output);
+      addSkillApproval(
+        {
+          ...skillApproval,
+          source: { url: "https://github.com/other/fork.git" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-skill/);
+  });
+
+  it("warns when a second vendor's source has a different ref", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(
+        {
+          ...skillApproval,
+          source: { ...skillApproval.source, ref: "1.0.0" },
+        },
+        "acme",
+        output,
+      );
+      addSkillApproval(
+        {
+          ...skillApproval,
+          source: { ...skillApproval.source, ref: "2.0.0" },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 1);
+    assert.match(String(warnCalls[0][0]), /io\.example\/my-skill/);
+  });
+
+  it("does not warn when two approvals build an equal array path from different objects", () => {
+    const output = emptyOutput();
+    const warnCalls: unknown[][] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnCalls.push(args);
+    try {
+      addSkillApproval(
+        {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/repo.git",
+            path: ["skills/a", "skills/b"],
+          },
+        },
+        "acme",
+        output,
+      );
+      addSkillApproval(
+        {
+          skillId: "io.example",
+          date: "2026-06-01",
+          source: {
+            url: "https://github.com/example/repo.git",
+            path: ["skills/a", "skills/b"],
+          },
+        },
+        "other-org",
+        output,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    assert.equal(warnCalls.length, 0);
   });
 });
 

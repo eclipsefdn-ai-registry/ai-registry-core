@@ -4,7 +4,7 @@ description: >
   Generate sandbox extension approval files for the AI Registry.
   Use this when a user wants to approve the sandbox tool and feature extensions
   in a git repository from their vendor repository.
-argument-hint: "<source-url> [ref] — the git repo URL holding the extensions, and an optional tag or branch"
+argument-hint: "<source-url> [ref] — the git repo URL holding the extensions, and an optional tag, branch, or commit SHA"
 ---
 
 # AI Registry — Sandbox Extension Approval Generator
@@ -47,8 +47,8 @@ whatever the default branch becomes.
 
 ## Your Workflow
 
-1. **Identify the repository** — The user provides a git repository URL, and optionally a tag
-   or branch.
+1. **Identify the repository** — The user provides a git repository URL, and optionally a tag,
+   branch, or commit SHA.
 2. **Read the extensions** — Clone the repository (at the ref, if given) and list the
    directories under `tools/` and `features/`. Read each `spec.yaml` and report the `kind`,
    `name`, `displayName` and `description` to the user, along with what each one does at
@@ -87,9 +87,9 @@ Example: `io.github.eclipse-enclave/enclave-extensions` becomes
   repository path.
 - **date** (required): Today's date in ISO format (YYYY-MM-DD).
 - **source** (required): Object with `url` (git repo URL) and optionally `ref`.
-  - **ref**: A git tag or branch to read and hash instead of the default branch. A commit SHA
-    is not supported — the clone uses `--branch`, which takes a tag or branch only. Omit `ref`
-    to follow the default branch, which is also what `enclave add` does with no `--ref`.
+  - **ref**: A git tag, branch, or full commit SHA to read and hash instead of the default
+    branch. Omit `ref` to follow the default branch, which is also what `enclave add` does
+    with no `--ref`.
   - There is **no** `path`. The two directory prefixes are the convention.
 - **installConfigs**: not part of this schema. Nothing about installing a sandbox extension is
   tool-specific, so an approval is the organization, the date, and the hash. The website builds

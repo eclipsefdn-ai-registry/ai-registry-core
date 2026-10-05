@@ -5,7 +5,13 @@ import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { computeContentHash } from "./skill-source.js";
-import { authenticatedRepoUrl, resolveInsideRepo } from "./git-source.js";
+import {
+  resolveInsideRepo,
+  cloneAtRef,
+  checkedOutCommit,
+  needsDefaultBranchFetch,
+  type RemoteBranchesLookup,
+} from "./git-source.js";
 import type {
   SandboxExtensionEntry,
   PendingSandboxExtension,
@@ -109,29 +115,13 @@ function cloneSandboxRepo(
   sourceUrl: string,
   tmpDir: string,
   ref?: string,
-): string {
+): { cloneDir: string; commit: string } {
   const cloneDir = join(tmpDir, `sandbox-${sandboxCloneKey(sourceUrl, ref)}`);
-  if (existsSync(cloneDir)) return cloneDir;
-
-  const repoUrl = authenticatedRepoUrl(sourceUrl);
-
-  const cloneArgs = ["clone", "--depth", "1", "--filter=blob:none", "--sparse"];
-  // --branch accepts a tag or branch name, not an arbitrary commit sha. The
-  // schema can't tell those apart, so a commit-only ref fails the clone and
-  // the whole approval is skipped with the message below — the same outcome as
-  // any other unreachable source, and visible rather than silently ignored.
-  if (ref) cloneArgs.push("--branch", ref);
-  cloneArgs.push(repoUrl, cloneDir);
-
-  try {
-    execFileSync("git", cloneArgs, { stdio: "pipe" });
-  } catch {
-    throw new Error(
-      `Failed to clone ${sourceUrl}${ref ? ` at ref "${ref}"` : ""}`,
-    );
+  if (existsSync(cloneDir)) {
+    return { cloneDir, commit: checkedOutCommit(cloneDir) };
   }
 
-  return cloneDir;
+  return { cloneDir, commit: cloneAtRef(sourceUrl, cloneDir, ref) };
 }
 
 // --- Discovery ---
@@ -162,6 +152,16 @@ export interface DiscoveredExtension {
 }
 
 /**
+ * Which spec document, if any, the directory at `dirPath` carries. Reads only
+ * tree metadata, so nothing needs to be materialized first.
+ */
+function findSpecFile(cloneDir: string, dirPath: string): string | undefined {
+  return SPEC_FILENAMES.find(
+    (f) => lsTree(cloneDir, ["HEAD", `${dirPath}/${f}`]).length > 0,
+  );
+}
+
+/**
  * List the extension directories under `tools/` and `features/`, in the order
  * a reader would expect (features before tools, then alphabetical), along with
  * the kind their prefix fixes and which spec file they carry.
@@ -182,9 +182,7 @@ export function discoverSandboxExtensions(cloneDir: string): {
       `${dir}/`,
     ])) {
       if (childPath.split("/").pop()!.startsWith(".")) continue;
-      const specFile = SPEC_FILENAMES.find(
-        (f) => lsTree(cloneDir, ["HEAD", `${childPath}/${f}`]).length > 0,
-      );
+      const specFile = findSpecFile(cloneDir, childPath);
       if (specFile) discovered.push({ path: childPath, kind, specFile });
     }
   }
@@ -315,12 +313,14 @@ function entryFor(
   pending: PendingSandboxExtension,
   extension: DiscoveredExtension,
   metadata: SandboxExtensionMetadata,
+  commit: string,
 ): SandboxExtensionEntry {
   const source: SandboxExtensionEntry["source"] = {
     url: pending.source.url,
     path: extension.path,
   };
   if (pending.source.ref !== undefined) source.ref = pending.source.ref;
+  source.commit = commit;
 
   return {
     sandboxExtensionId: `${pending.sandboxExtensionId}/${extension.path}`,
@@ -335,12 +335,103 @@ function entryFor(
 }
 
 /**
+ * Sets latestCommit and latestHash on every extension one approved repository
+ * yielded. It works like git-source.ts's recordLatest, but decides once per
+ * repository, since its extensions were all resolved at the same commit.
+ *
+ * When the default branch does have to be read, only the paths this approval
+ * published are looked up there, each by the spec check discovery makes per
+ * directory, and materialized in one call. Discovery itself is not run again:
+ * it would also scan the default branch for stray spec files and warn about
+ * them, and those warnings would describe the default branch, not the ref
+ * that was approved.
+ *
+ * A failure costs an extension only these two fields.
+ */
+function recordLatest(
+  pending: PendingSandboxExtension,
+  published: SandboxExtensionEntry[],
+  resolvedCommit: string,
+  tmpDir: string,
+  remote: RemoteBranchesLookup,
+): void {
+  if (published.length === 0) return;
+
+  const warn = (id: string, err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `  WARNING: ${id} — could not tell what the default branch ships now, published without latestCommit/latestHash`,
+    );
+    console.warn(`    ${message}`);
+  };
+
+  let tip: { cloneDir: string; commit: string } | undefined;
+  try {
+    if (needsDefaultBranchFetch(pending.source, resolvedCommit, remote)) {
+      tip = cloneSandboxRepo(pending.source.url, tmpDir);
+    }
+  } catch (err) {
+    warn(pending.sandboxExtensionId, err);
+    return;
+  }
+
+  if (!tip) {
+    for (const entry of published) {
+      entry.latestCommit = resolvedCommit;
+      entry.latestHash = entry.contentHash;
+    }
+    return;
+  }
+
+  const { cloneDir, commit } = tip;
+  const atTip = published.map((entry) => ({
+    entry,
+    specFile: findSpecFile(cloneDir, entry.source.path),
+  }));
+  materializeExtensions(
+    cloneDir,
+    atTip.filter((e) => e.specFile).map((e) => e.entry.source.path),
+  );
+
+  for (const { entry, specFile } of atTip) {
+    try {
+      if (!specFile) {
+        throw new Error(
+          `no spec file at "${entry.source.path}" on the default branch`,
+        );
+      }
+      const { contentHash } = fetchSandboxExtensionMetadata(cloneDir, {
+        path: entry.source.path,
+        kind: entry.kind,
+        specFile,
+      });
+      entry.latestCommit = commit;
+      entry.latestHash = contentHash;
+      if (contentHash !== entry.contentHash) {
+        console.log(
+          `  Latest hash: ${entry.sandboxExtensionId} — ${contentHash} (default branch)`,
+        );
+      }
+    } catch (err) {
+      warn(entry.sandboxExtensionId, err);
+    }
+  }
+}
+
+/**
  * Expand every approved repository into its individual extensions, split by
  * kind. A repository that can't be cloned is skipped whole; a single extension
  * that fails its checks is skipped on its own, so one bad spec never costs a
  * repository its other extensions.
+ *
+ * `remote`, when given, also sets latestCommit and latestHash on every entry
+ * (see recordLatest). Consolidation passes one. Vendor validation, which
+ * reuses this function, doesn't, so it does no extra network work.
  */
-export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
+export function enrichSandboxExtensions(
+  pending: PendingSandboxExtension[],
+  remote?: RemoteBranchesLookup,
+): {
   sandboxTools: SandboxExtensionEntry[];
   sandboxFeatures: SandboxExtensionEntry[];
 } {
@@ -360,8 +451,13 @@ export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
   try {
     for (const entry of pending) {
       let cloneDir: string;
+      let commit: string;
       try {
-        cloneDir = cloneSandboxRepo(entry.source.url, tmpDir, entry.source.ref);
+        ({ cloneDir, commit } = cloneSandboxRepo(
+          entry.source.url,
+          tmpDir,
+          entry.source.ref,
+        ));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.warn(`  WARNING: ${entry.sandboxExtensionId} — skipped`);
@@ -393,13 +489,15 @@ export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
       }
       materializeExtensions(cloneDir, safePaths);
 
+      const published: SandboxExtensionEntry[] = [];
       for (const extension of discovered) {
         try {
           const metadata = fetchSandboxExtensionMetadata(cloneDir, extension);
-          const enriched = entryFor(entry, extension, metadata);
+          const enriched = entryFor(entry, extension, metadata, commit);
           (metadata.kind === "sandbox" ? sandboxTools : sandboxFeatures).push(
             enriched,
           );
+          published.push(enriched);
           console.log(`  Enriched: ${enriched.sandboxExtensionId}`);
           console.log(`    Name: ${enriched.name}`);
           console.log(`    Hash: ${enriched.contentHash}`);
@@ -411,6 +509,8 @@ export function enrichSandboxExtensions(pending: PendingSandboxExtension[]): {
           console.warn(`    ${message}`);
         }
       }
+
+      if (remote) recordLatest(entry, published, commit, tmpDir, remote);
     }
   } finally {
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });

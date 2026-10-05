@@ -341,6 +341,8 @@ https://ai.open-vsx.org/api/v1/
 | [`organizations.json`](https://ai.open-vsx.org/api/v1/organizations.json) | All organizations and their tools                                                                                                                                                                                 |
 | `tools/<tool-id>.json`                                                    | Per-tool view — servers, skills, plugins, and agents approved for that tool, with install configs for other tools stripped. Sandbox extensions have no install configs and appear in `orgs/<org-id>.json` instead |
 
+Every file carries `generatedAt`, the time the consolidation run that produced it started.
+
 Schemas are also available at `/schemas/` (e.g., [`mcp-approval.schema.json`](https://ai.open-vsx.org/schemas/mcp-approval.schema.json), [`skill-approval.schema.json`](https://ai.open-vsx.org/schemas/skill-approval.schema.json), [`plugin-approval.schema.json`](https://ai.open-vsx.org/schemas/plugin-approval.schema.json), [`agent-approval.schema.json`](https://ai.open-vsx.org/schemas/agent-approval.schema.json), [`sandbox-extension-approval.schema.json`](https://ai.open-vsx.org/schemas/sandbox-extension-approval.schema.json)).
 
 A tool integration typically fetches `organizations.json` + its own `tools/<tool-id>.json`. See the [client implementation guidance](skills/implement-registry-client/SKILL.md) for what to do with them: resolving approvals, showing who approved an artifact, verifying content, installing, and keeping it current.
@@ -350,11 +352,13 @@ A tool integration typically fetches `organizations.json` + its own `tools/<tool
 The consolidation pipeline follows a build-or-nothing approach:
 
 1. **Collect** — Clone all vendor repos and validate their data. Any failure (repo unreachable, invalid data) fails the build.
-2. **Enrich MCP** — Look up each server in the Anthropic MCP registry. Registry errors (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`, then falls back to any vendor-supplied `metadata`/`selfPublished` (see [Vendor-supplied metadata](#vendor-supplied-metadata-for-servers-not-in-the-anthropic-registry)). Two different vendors self-attesting as publisher for the same server is treated the same as a registry error — it fails the build.
+2. **Enrich MCP** — Look up each server in the Anthropic MCP registry, a few at a time. A request that fails with a server error, a rate limit, or a network error is retried with backoff. Registry errors that persist through the retries (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`, then falls back to any vendor-supplied `metadata`/`selfPublished` (see [Vendor-supplied metadata](#vendor-supplied-metadata-for-servers-not-in-the-anthropic-registry)). Two different vendors self-attesting as publisher for the same server is treated the same as a registry error — it fails the build.
 3. **Enrich Skills** — Fetch each skill's source via sparse git checkout to extract metadata and compute a content hash. Unreachable sources are skipped with a warning — the skill is omitted from the output until its source is reachable again.
 4. **Enrich Plugins** — Fetch each plugin's directory via sparse git checkout to read its manifest, enumerate contained skills and MCP servers, and compute a content hash. Unreachable sources are skipped with a warning — the plugin is omitted from the output until its source is reachable again.
 5. **Enrich Agents** — Fetch each agent's `agent_card.json` over HTTP to extract name/description and compute a content hash. Unreachable sources are skipped with a warning — the agent is omitted from the output until its source is reachable again.
 6. **Write & Deploy** — Only reached if the previous steps succeed.
+
+Skills, plugins, and sandbox extensions also record what their source ships at the same path now (`latestCommit`, `latestHash`). For one pinned to a tag or commit, a difference there is what shows that the source has moved past the pin. If it can't be found out, those two fields are left out. The entry is never dropped for it.
 
 If collection or MCP enrichment fails, the build stops and the previous deployment stays live.
 

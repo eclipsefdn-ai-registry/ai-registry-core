@@ -21,10 +21,24 @@ export function cliSource(url: string): string {
 }
 
 /**
- * The browsable base of a source repository, for building `/tree/<ref>/<path>`
- * links. Shared by every detail view so a normalization fix reaches all of
- * them at once.
+ * A browsable link to an entry's source at `source.commit`, the commit its
+ * contentHash was computed at, so the page opens on exactly what was hashed
+ * rather than on whatever the branch holds by the time someone clicks. Falls
+ * back to the ref, and to HEAD for a path with neither, for feeds that predate
+ * `source.commit`.
+ *
+ * `/tree/<revision>/<path>` is GitHub's form. GitLab accepts it too, which
+ * covers every host the registry holds sources on.
  */
-export function repoWebUrl(url: string): string {
-  return normalizeRepoUrl(url);
+export function sourceTreeUrl(source: {
+  url: string;
+  path?: string;
+  ref?: string;
+  commit?: string;
+}): string {
+  const base = normalizeRepoUrl(source.url);
+  const revision = source.commit ?? source.ref;
+  if (revision === undefined && !source.path) return base;
+  const path = source.path ? `/${source.path}` : "";
+  return `${base}/tree/${revision ?? "HEAD"}${path}`;
 }

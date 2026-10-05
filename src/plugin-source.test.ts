@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +11,11 @@ import {
   pluginCloneKey,
   stripPathPrefix,
   fetchPluginManifest,
+  enrichPluginMetadata,
 } from "./plugin-source.js";
+import { computeContentHash } from "./skill-source.js";
+import { remoteBranchesLookup } from "./git-source.js";
+import type { PluginEntry } from "./consolidate.js";
 
 // --- normalizePluginPath ---
 
@@ -274,6 +278,186 @@ describe("fetchPluginManifest with ref", () => {
       assert.equal(metadata.version, "1.0.0");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("checks out a full commit SHA", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-sha-test-"));
+    const sourceDir = mkdtempSync(join(tmpdir(), "plugin-sha-src-"));
+    try {
+      execSync("git init -b main", { cwd: sourceDir, stdio: "pipe" });
+      execSync('git config user.email "test@test.com"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      execSync('git config user.name "Test"', {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      writeFileSync(
+        join(sourceDir, "plugin.json"),
+        JSON.stringify({ name: "pinned-commit", version: "1.0.0" }),
+      );
+      execSync("git add -A && git commit -m pinned", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+      const sha = execSync("git rev-parse HEAD", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      })
+        .toString()
+        .trim();
+
+      writeFileSync(
+        join(sourceDir, "plugin.json"),
+        JSON.stringify({ name: "on-main", version: "2.0.0" }),
+      );
+      execSync("git add -A && git commit -m main", {
+        cwd: sourceDir,
+        stdio: "pipe",
+      });
+
+      const metadata = fetchPluginManifest(
+        `file://${sourceDir}`,
+        undefined,
+        tmpDir,
+        sha,
+      );
+      assert.equal(metadata.name, "pinned-commit");
+      assert.equal(metadata.version, "1.0.0");
+      assert.equal(metadata.commit, sha);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- enrichPluginMetadata latestCommit and latestHash ---
+
+describe("enrichPluginMetadata latest", () => {
+  function git(dir: string, command: string): string {
+    return execSync(`git ${command}`, { cwd: dir, stdio: "pipe" })
+      .toString()
+      .trim();
+  }
+
+  function initRepo(): string {
+    const dir = mkdtempSync(join(tmpdir(), "plugin-latest-src-"));
+    git(dir, "init -b main");
+    git(dir, 'config user.email "test@test.com"');
+    git(dir, 'config user.name "Test"');
+    return dir;
+  }
+
+  function commitAll(dir: string, message: string): string {
+    git(dir, "add -A");
+    git(dir, `commit -m ${message}`);
+    return git(dir, "rev-parse HEAD");
+  }
+
+  function writeManifest(
+    dir: string,
+    path: string,
+    name: string,
+    version: string,
+  ): void {
+    mkdirSync(join(dir, path), { recursive: true });
+    writeFileSync(
+      join(dir, path, "plugin.json"),
+      JSON.stringify({ name, version }),
+    );
+  }
+
+  function entry(
+    pluginId: string,
+    url: string,
+    path?: string,
+    ref?: string,
+  ): PluginEntry {
+    const source: PluginEntry["source"] = { url };
+    if (path !== undefined) source.path = path;
+    if (ref !== undefined) source.ref = ref;
+    return {
+      pluginId,
+      name: pluginId,
+      description: "",
+      source,
+      contentHash: "",
+      containedSkills: [],
+      containedMcpServers: [],
+      approvals: [],
+    };
+  }
+
+  it("compares each pinned plugin's own directory, not the repository", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/a", "a", "1.0.0");
+      writeManifest(sourceDir, "plugins/b", "b", "1.0.0");
+      const tagged = commitAll(sourceDir, "v1");
+      git(sourceDir, "tag v1.0.0");
+      writeManifest(sourceDir, "plugins/b", "b", "1.1.0");
+      const tip = commitAll(sourceDir, "b-moved");
+
+      const url = `file://${sourceDir}`;
+      const [a, b, tracking] = enrichPluginMetadata(
+        [
+          entry("io.example/a", url, "plugins/a", "v1.0.0"),
+          entry("io.example/b", url, "plugins/b", "v1.0.0"),
+          entry("io.example/b-tracking", url, "plugins/b"),
+        ],
+        remoteBranchesLookup(),
+      );
+
+      assert.equal(a.source.commit, tagged);
+      assert.equal(a.latestCommit, tip);
+      assert.equal(a.latestHash, a.contentHash);
+
+      assert.equal(b.latestCommit, tip);
+      assert.notEqual(b.latestHash, b.contentHash);
+      assert.equal(
+        b.latestHash,
+        computeContentHash(join(sourceDir, "plugins/b")),
+      );
+
+      assert.equal(tracking.latestCommit, tracking.source.commit);
+      assert.equal(tracking.latestHash, tracking.contentHash);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // Most pinned plugins in the wild sit at their repository's root, which is
+  // checked out whole rather than through a sparse path. The default branch's
+  // hash has to cover the same whole tree for the comparison to mean anything.
+  it("hashes a pinned root plugin across the whole default branch", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, ".", "root", "1.0.0");
+      mkdirSync(join(sourceDir, "skills", "helper"), { recursive: true });
+      writeFileSync(
+        join(sourceDir, "skills", "helper", "SKILL.md"),
+        "---\nname: helper\n---\n",
+      );
+      commitAll(sourceDir, "v1");
+      git(sourceDir, "tag v1.0.0");
+      writeFileSync(
+        join(sourceDir, "skills", "helper", "SKILL.md"),
+        "---\nname: helper\n---\nMore.\n",
+      );
+      commitAll(sourceDir, "helper-moved");
+
+      const [root] = enrichPluginMetadata(
+        [entry("io.example/root", `file://${sourceDir}`, undefined, "v1.0.0")],
+        remoteBranchesLookup(),
+      );
+      assert.notEqual(root.latestHash, root.contentHash);
+      assert.equal(root.latestHash, computeContentHash(sourceDir));
+    } finally {
       rmSync(sourceDir, { recursive: true, force: true });
     }
   });
