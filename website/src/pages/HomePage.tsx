@@ -16,7 +16,7 @@ import { SandboxExtensionList } from "../components/SandboxExtensionList";
 import { SandboxExtensionDetail } from "../components/SandboxExtensionDetail";
 import { BrowserTabsRow } from "../components/BrowserTabsRow";
 import type { BrowserTab } from "../browserTabs";
-import { filterByNameDescId } from "../filterArtifacts";
+import { filterByNameDescId, filterByOrg } from "../filterArtifacts";
 
 type Tab = BrowserTab;
 
@@ -34,6 +34,9 @@ const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
 export function HomePage() {
   const { data, error, loading } = useAllRegistryData();
   const [search, setSearch] = useState("");
+  // An organization id, or "" for all of them. That's also the value of the
+  // select's "All organizations" option.
+  const [orgFilter, setOrgFilter] = useState("");
   const [tab, setTab] = useState<Tab>("servers");
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedServerId = searchParams.get("server") ?? undefined;
@@ -46,59 +49,78 @@ export function HomePage() {
 
   const filteredServers = useMemo(() => {
     if (!data) return [];
-    return filterByNameDescId(data.mcp, search, (s) => s.serverId);
-  }, [data, search]);
+    return filterByNameDescId(
+      filterByOrg(data.mcp, orgFilter),
+      search,
+      (s) => s.serverId,
+    );
+  }, [data, search, orgFilter]);
 
   const filteredOrgs = useMemo(() => {
     if (!data) return [];
     const q = search.toLowerCase();
     return data.organizations.filter(
       (o) =>
-        o.name.toLowerCase().includes(q) ||
-        o.description.toLowerCase().includes(q),
+        (!orgFilter || o.id === orgFilter) &&
+        (o.name.toLowerCase().includes(q) ||
+          o.description.toLowerCase().includes(q)),
     );
-  }, [data, search]);
+  }, [data, search, orgFilter]);
 
   const filteredTools = useMemo(() => {
     if (!data) return [];
     const q = search.toLowerCase();
     return data.tools.filter(
-      (t) => t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q),
+      (t) =>
+        (!orgFilter || t.organizationId === orgFilter) &&
+        (t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)),
     );
-  }, [data, search]);
+  }, [data, search, orgFilter]);
 
   const filteredSkills = useMemo(() => {
     if (!data) return [];
-    return filterByNameDescId(data.skills ?? [], search, (s) => s.skillId);
-  }, [data, search]);
+    return filterByNameDescId(
+      filterByOrg(data.skills ?? [], orgFilter),
+      search,
+      (s) => s.skillId,
+    );
+  }, [data, search, orgFilter]);
 
   const filteredPlugins = useMemo(() => {
     if (!data) return [];
-    return filterByNameDescId(data.plugins ?? [], search, (p) => p.pluginId);
-  }, [data, search]);
+    return filterByNameDescId(
+      filterByOrg(data.plugins ?? [], orgFilter),
+      search,
+      (p) => p.pluginId,
+    );
+  }, [data, search, orgFilter]);
 
   const filteredAgents = useMemo(() => {
     if (!data) return [];
-    return filterByNameDescId(data.agents ?? [], search, (a) => a.agentId);
-  }, [data, search]);
+    return filterByNameDescId(
+      filterByOrg(data.agents ?? [], orgFilter),
+      search,
+      (a) => a.agentId,
+    );
+  }, [data, search, orgFilter]);
 
   const filteredSandboxTools = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      data.sandboxTools ?? [],
+      filterByOrg(data.sandboxTools ?? [], orgFilter),
       search,
       (e) => e.sandboxExtensionId,
     );
-  }, [data, search]);
+  }, [data, search, orgFilter]);
 
   const filteredSandboxFeatures = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      data.sandboxFeatures ?? [],
+      filterByOrg(data.sandboxFeatures ?? [], orgFilter),
       search,
       (e) => e.sandboxExtensionId,
     );
-  }, [data, search]);
+  }, [data, search, orgFilter]);
 
   if (error) {
     return (
@@ -228,6 +250,10 @@ export function HomePage() {
     organizations: { label: "Organizations", count: filteredOrgs.length },
   };
 
+  const orgOptions = [...data.organizations].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+
   return (
     <div>
       {/* Hero */}
@@ -248,8 +274,8 @@ export function HomePage() {
             from participating tool providers.
           </p>
 
-          <div className="w-full max-w-2xl mb-3">
-            <div className="relative">
+          <div className="w-full max-w-3xl mb-3 flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <input
                 type="search"
@@ -259,6 +285,20 @@ export function HomePage() {
                 className="w-full pl-12 h-14 text-base bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/50 placeholder:text-muted-foreground"
               />
             </div>
+            {/* scheme-dark so the native option list matches the dark theme */}
+            <select
+              aria-label="Filter by organization"
+              value={orgFilter}
+              onChange={(e) => setOrgFilter(e.target.value)}
+              className="sm:w-60 h-14 px-4 text-base text-left bg-card border border-border rounded-xl scheme-dark focus:outline-none focus:ring-2 focus:ring-ring/50"
+            >
+              <option value="">All organizations</option>
+              {orgOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <p className="text-sm text-muted-foreground mb-6">
