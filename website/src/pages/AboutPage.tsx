@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ApiPreviewNotice } from "../components/ApiPreviewNotice";
+import { InlineCode } from "../components/docs/Code";
 
 export function AboutPage() {
   return (
@@ -58,7 +59,7 @@ export function AboutPage() {
           , with support for additional artifact types planned for the future.
         </p>
         <p className="mb-3 leading-relaxed text-card-foreground">
-          Tool vendors maintain their own repositories with approval files for
+          Organizations maintain their own repositories with approval files for
           the AI artifacts they endorse. The central registry consolidates,
           validates, and enriches this data — making it available as a public
           API and this website.
@@ -70,11 +71,53 @@ export function AboutPage() {
       </section>
 
       <section className="mb-6">
-        <h2 className="text-xl font-semibold mt-8 mb-3">Get Involved</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-3">Ways to participate</h2>
         <p className="mb-3 leading-relaxed text-card-foreground">
-          If you are interested in participating in the AI Registry — whether by
-          contributing artifacts, consolidating artifacts as a vendor, or
-          adapting the registry for your tool — please{" "}
+          Every participating organization files the same thing: an{" "}
+          <InlineCode>organization.json</InlineCode> plus approval files for the
+          artifacts it stands behind. What differs is why. All three of these
+          are first-class uses of the registry.
+        </p>
+        <h3 className="font-semibold mt-5 mb-2">Provide a tool</h3>
+        <p className="mb-3 leading-relaxed text-card-foreground">
+          Declare your tools and give each approval an install configuration.
+          Your tool then reads its own feed at{" "}
+          <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> and offers users
+          exactly what you approved, ready to install.
+        </p>
+        <h3 className="font-semibold mt-5 mb-2">
+          Publish a whitelist for your organization
+        </h3>
+        <p className="mb-3 leading-relaxed text-card-foreground">
+          You do not need a tool of your own. Approve the artifacts you have
+          vetted and the registry publishes them at{" "}
+          <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> and on your
+          organization page — a list your people, and any client you point at
+          it, can rely on. The <InlineCode>tools</InlineCode> array is optional,
+          and leaving it out is a supported choice rather than a workaround.
+          Bear in mind that everything in the registry is public, so a list you
+          curate for internal use is published to everyone.
+        </p>
+        <h3 className="font-semibold mt-5 mb-2">Publish your own artifacts</h3>
+        <p className="mb-3 leading-relaxed text-card-foreground">
+          If you build MCP servers, skills, plugins, agents, or sandbox
+          extensions, approving them here lists them with their provenance and
+          their source attached to your organization. This takes the same shape
+          as a whitelist: no tools, no install configuration needed.
+        </p>
+        <p className="mb-3 leading-relaxed text-card-foreground">
+          Ready to register? See{" "}
+          <a
+            href="https://github.com/eclipsefdn-ai-registry/ai-registry-core#registering-an-organization"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Registering an organization
+          </a>{" "}
+          in the project README for the step-by-step process. For anything else
+          — adapting the registry for your tool, or a question the README does
+          not answer — please{" "}
           <a
             href="https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues"
             target="_blank"
@@ -84,18 +127,6 @@ export function AboutPage() {
             open an issue
           </a>{" "}
           on our GitHub repository. We will guide you through the process.
-        </p>
-        <p className="mb-3 leading-relaxed text-card-foreground">
-          Ready to register your organization as a tool provider? See{" "}
-          <a
-            href="https://github.com/eclipsefdn-ai-registry/ai-registry-core#becoming-a-vendor"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            Becoming a vendor
-          </a>{" "}
-          in the project README for the step-by-step process.
         </p>
       </section>
 
