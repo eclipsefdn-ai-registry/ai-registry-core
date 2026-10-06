@@ -245,7 +245,7 @@ export function HomePage() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
             Discover MCP servers, agent skills, agent plugins, A2A agents, and
             sandbox extensions, with transparent provenance and approval signals
-            from participating tool providers.
+            from participating organizations.
           </p>
 
           <div className="w-full max-w-2xl mb-3">
@@ -269,7 +269,7 @@ export function HomePage() {
             to="/about"
             className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
           >
-            Join as a tool provider
+            Join as an organization
           </Link>
         </div>
       </section>
