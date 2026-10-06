@@ -12,17 +12,27 @@ export function filterByNameDescId<
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// Keeps the entries an organization approved, the same test
+// Whether an organization passes the organization filter. Selecting none
+// means no filter, so then every organization does.
+export function passesOrgFilter(
+  orgIds: readonly string[],
+  orgId: string,
+): boolean {
+  return orgIds.length === 0 || orgIds.includes(orgId);
+}
+
+// Keeps the entries any of the organizations approved, the same test
 // buildOrgEntryView in src/consolidate.ts applies to write orgs/<id>.json, so
-// filtering the home page by an organization shows what its page lists. An
-// approval held via trust counts too: its organizationId is the trusting org.
-// No orgId means no filter.
-export function filterByOrg<
+// filtering the home page by one organization shows what its page lists, and
+// by several, what their pages list between them. An approval held via trust
+// counts too: its organizationId is the trusting org. No orgIds means no
+// filter.
+export function filterByOrgs<
   T extends { approvals: { organizationId: string }[] },
->(items: T[], orgId: string | undefined): T[] {
-  if (!orgId) return items;
+>(items: T[], orgIds: readonly string[]): T[] {
+  if (orgIds.length === 0) return items;
   return items.filter((item) =>
-    item.approvals.some((a) => a.organizationId === orgId),
+    item.approvals.some((a) => orgIds.includes(a.organizationId)),
   );
 }
 

@@ -11,7 +11,7 @@ import type {
 } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { INFERRED_DISCLAIMER } from "../orgBadge";
-import { filterByOrg } from "../filterArtifacts";
+import { filterByOrgs } from "../filterArtifacts";
 import { approvedArtifactsLabel } from "../approvedArtifacts";
 
 // Counts artifacts rather than approvals, through the same filter as the
@@ -23,7 +23,7 @@ function countApprovedArtifacts(
   orgId: string,
   artifactLists: { approvals: { organizationId: string }[] }[][],
 ): number {
-  return filterByOrg(artifactLists.flat(), orgId).length;
+  return filterByOrgs(artifactLists.flat(), [orgId]).length;
 }
 
 export function OrgList({

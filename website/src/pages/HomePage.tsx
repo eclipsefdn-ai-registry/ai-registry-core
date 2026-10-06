@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Search, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useAllRegistryData } from "../hooks/useRegistryData";
 import { ServerList } from "../components/ServerList";
 import { ServerDetail } from "../components/ServerDetail";
@@ -15,8 +15,13 @@ import { ToolList } from "../components/ToolList";
 import { SandboxExtensionList } from "../components/SandboxExtensionList";
 import { SandboxExtensionDetail } from "../components/SandboxExtensionDetail";
 import { BrowserTabsRow } from "../components/BrowserTabsRow";
+import { BrowserSearch } from "../components/BrowserSearch";
 import type { BrowserTab } from "../browserTabs";
-import { filterByNameDescId, filterByOrg } from "../filterArtifacts";
+import {
+  filterByNameDescId,
+  filterByOrgs,
+  passesOrgFilter,
+} from "../filterArtifacts";
 
 type Tab = BrowserTab;
 
@@ -34,9 +39,9 @@ const SEARCH_PLACEHOLDERS: Record<Tab, string> = {
 export function HomePage() {
   const { data, error, loading } = useAllRegistryData();
   const [search, setSearch] = useState("");
-  // An organization id, or "" for all of them. That's also the value of the
-  // select's "All organizations" option.
-  const [orgFilter, setOrgFilter] = useState("");
+  // The organizations picked in the search filters. None picked means all of
+  // them.
+  const [orgFilter, setOrgFilter] = useState<readonly string[]>([]);
   const [tab, setTab] = useState<Tab>("servers");
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedServerId = searchParams.get("server") ?? undefined;
@@ -50,7 +55,7 @@ export function HomePage() {
   const filteredServers = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      filterByOrg(data.mcp, orgFilter),
+      filterByOrgs(data.mcp, orgFilter),
       search,
       (s) => s.serverId,
     );
@@ -61,7 +66,7 @@ export function HomePage() {
     const q = search.toLowerCase();
     return data.organizations.filter(
       (o) =>
-        (!orgFilter || o.id === orgFilter) &&
+        passesOrgFilter(orgFilter, o.id) &&
         (o.name.toLowerCase().includes(q) ||
           o.description.toLowerCase().includes(q)),
     );
@@ -72,7 +77,7 @@ export function HomePage() {
     const q = search.toLowerCase();
     return data.tools.filter(
       (t) =>
-        (!orgFilter || t.organizationId === orgFilter) &&
+        passesOrgFilter(orgFilter, t.organizationId) &&
         (t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)),
     );
   }, [data, search, orgFilter]);
@@ -80,7 +85,7 @@ export function HomePage() {
   const filteredSkills = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      filterByOrg(data.skills ?? [], orgFilter),
+      filterByOrgs(data.skills ?? [], orgFilter),
       search,
       (s) => s.skillId,
     );
@@ -89,7 +94,7 @@ export function HomePage() {
   const filteredPlugins = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      filterByOrg(data.plugins ?? [], orgFilter),
+      filterByOrgs(data.plugins ?? [], orgFilter),
       search,
       (p) => p.pluginId,
     );
@@ -98,7 +103,7 @@ export function HomePage() {
   const filteredAgents = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      filterByOrg(data.agents ?? [], orgFilter),
+      filterByOrgs(data.agents ?? [], orgFilter),
       search,
       (a) => a.agentId,
     );
@@ -107,7 +112,7 @@ export function HomePage() {
   const filteredSandboxTools = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      filterByOrg(data.sandboxTools ?? [], orgFilter),
+      filterByOrgs(data.sandboxTools ?? [], orgFilter),
       search,
       (e) => e.sandboxExtensionId,
     );
@@ -116,7 +121,7 @@ export function HomePage() {
   const filteredSandboxFeatures = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      filterByOrg(data.sandboxFeatures ?? [], orgFilter),
+      filterByOrgs(data.sandboxFeatures ?? [], orgFilter),
       search,
       (e) => e.sandboxExtensionId,
     );
@@ -250,10 +255,6 @@ export function HomePage() {
     organizations: { label: "Organizations", count: filteredOrgs.length },
   };
 
-  const orgOptions = [...data.organizations].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
-
   return (
     <div>
       {/* Hero */}
@@ -274,32 +275,14 @@ export function HomePage() {
             from participating tool providers.
           </p>
 
-          <div className="w-full max-w-3xl mb-3 flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <input
-                type="search"
-                placeholder={SEARCH_PLACEHOLDERS[tab]}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-12 h-14 text-base bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-ring/50 placeholder:text-muted-foreground"
-              />
-            </div>
-            {/* scheme-dark so the native option list matches the dark theme */}
-            <select
-              aria-label="Filter by organization"
-              value={orgFilter}
-              onChange={(e) => setOrgFilter(e.target.value)}
-              className="sm:w-60 h-14 px-4 text-base text-left bg-card border border-border rounded-xl scheme-dark focus:outline-none focus:ring-2 focus:ring-ring/50"
-            >
-              <option value="">All organizations</option>
-              {orgOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <BrowserSearch
+            search={search}
+            onSearchChange={setSearch}
+            placeholder={SEARCH_PLACEHOLDERS[tab]}
+            organizations={data.organizations}
+            selectedOrgIds={orgFilter}
+            onSelectedOrgIdsChange={setOrgFilter}
+          />
 
           <p className="text-sm text-muted-foreground mb-6">
             Open source. Open governance. Built for interoperability.

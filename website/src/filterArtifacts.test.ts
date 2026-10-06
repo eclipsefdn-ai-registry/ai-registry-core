@@ -2,8 +2,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   filterByNameDescId,
-  filterByOrg,
+  filterByOrgs,
   filterByTool,
+  passesOrgFilter,
 } from "./filterArtifacts";
 
 interface Entry {
@@ -28,20 +29,34 @@ const ENTRIES = [ACME_ONLY, GLOBEX_ONLY, BOTH];
 
 const ids = (items: Entry[]) => items.map((e) => e.id);
 
-describe("filterByOrg", () => {
+describe("filterByOrgs", () => {
   it("keeps every entry when no organization is selected", () => {
-    assert.deepEqual(filterByOrg(ENTRIES, undefined), ENTRIES);
-    assert.deepEqual(filterByOrg(ENTRIES, ""), ENTRIES);
+    assert.deepEqual(filterByOrgs(ENTRIES, []), ENTRIES);
   });
 
   it("keeps only the entries the organization approved", () => {
-    assert.deepEqual(ids(filterByOrg(ENTRIES, "acme")), ["acme-only", "both"]);
-    assert.deepEqual(ids(filterByOrg(ENTRIES, "initech")), []);
+    assert.deepEqual(ids(filterByOrgs(ENTRIES, ["acme"])), [
+      "acme-only",
+      "both",
+    ]);
+    assert.deepEqual(ids(filterByOrgs(ENTRIES, ["initech"])), []);
   });
 
   it("matches an entry for each organization that approved it", () => {
-    assert.ok(filterByOrg(ENTRIES, "acme").includes(BOTH));
-    assert.ok(filterByOrg(ENTRIES, "globex").includes(BOTH));
+    assert.ok(filterByOrgs(ENTRIES, ["acme"]).includes(BOTH));
+    assert.ok(filterByOrgs(ENTRIES, ["globex"]).includes(BOTH));
+  });
+
+  it("keeps what any of several organizations approved, each entry once", () => {
+    assert.deepEqual(ids(filterByOrgs(ENTRIES, ["acme", "globex"])), [
+      "acme-only",
+      "globex-only",
+      "both",
+    ]);
+    assert.deepEqual(ids(filterByOrgs(ENTRIES, ["globex", "initech"])), [
+      "globex-only",
+      "both",
+    ]);
   });
 
   it("counts an approval held via trust for the trusting organization", () => {
@@ -50,10 +65,10 @@ describe("filterByOrg", () => {
       { organizationId: "globex" },
       { organizationId: "acme", viaTrust: "globex" },
     );
-    assert.deepEqual(ids(filterByOrg([trusted], "acme")), ["trusted"]);
+    assert.deepEqual(ids(filterByOrgs([trusted], ["acme"])), ["trusted"]);
   });
 
-  it("narrows a name search to one organization", () => {
+  it("narrows a name search to the selected organizations", () => {
     const named = [
       { ...ACME_ONLY, name: "review" },
       { ...GLOBEX_ONLY, name: "review" },
@@ -61,10 +76,25 @@ describe("filterByOrg", () => {
     ];
     assert.deepEqual(
       ids(
-        filterByNameDescId(filterByOrg(named, "acme"), "review", (e) => e.id),
+        filterByNameDescId(
+          filterByOrgs(named, ["acme"]),
+          "review",
+          (e) => e.id,
+        ),
       ),
       ["acme-only"],
     );
+  });
+});
+
+describe("passesOrgFilter", () => {
+  it("passes every organization when none is selected", () => {
+    assert.equal(passesOrgFilter([], "acme"), true);
+  });
+
+  it("passes only the selected organizations", () => {
+    assert.equal(passesOrgFilter(["acme", "globex"], "globex"), true);
+    assert.equal(passesOrgFilter(["acme", "globex"], "initech"), false);
   });
 });
 
