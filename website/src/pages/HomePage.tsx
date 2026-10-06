@@ -277,14 +277,7 @@ export function HomePage() {
       {/* Registry Browser */}
       <section className="pt-6 pb-24">
         <div className="max-w-6xl mx-auto px-4">
-          <BrowserTabsRow
-            tabs={tabs}
-            active={tab}
-            onSelect={(key) => {
-              setTab(key);
-              setSearch("");
-            }}
-          />
+          <BrowserTabsRow tabs={tabs} active={tab} onSelect={setTab} />
 
           {/* Tab content */}
           {tab === "servers" && (
