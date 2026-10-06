@@ -1,13 +1,48 @@
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
-import type { Tool, Organization } from "../types";
+import type {
+  Tool,
+  Organization,
+  McpServer,
+  Skill,
+  Plugin,
+  Agent,
+} from "../types";
 import { safeCssColor } from "../sanitize";
+import { filterByTool } from "../filterArtifacts";
+import { approvedArtifactsLabel } from "../approvedArtifacts";
+
+// Counts what the tool's page lists. Sandbox extensions aren't among the
+// lists: nothing about installing one is tool-specific, so no tool's page
+// shows them.
+function countToolArtifacts(
+  toolId: string,
+  servers: McpServer[],
+  skills: Skill[],
+  plugins: Plugin[],
+  agents: Agent[],
+): number {
+  return (
+    filterByTool(servers, toolId).length +
+    filterByTool(skills, toolId).length +
+    filterByTool(plugins, toolId).length +
+    filterByTool(agents, toolId).length
+  );
+}
 
 export function ToolList({
   tools,
+  servers,
+  skills,
+  plugins,
+  agents,
   getOrg,
 }: {
   tools: Tool[];
+  servers: McpServer[];
+  skills: Skill[];
+  plugins: Plugin[];
+  agents: Agent[];
   getOrg: (id: string) => Organization | undefined;
 }) {
   if (tools.length === 0) {
@@ -22,6 +57,13 @@ export function ToolList({
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {tools.map((tool) => {
         const org = getOrg(tool.organizationId);
+        const artifactCount = countToolArtifacts(
+          tool.id,
+          servers,
+          skills,
+          plugins,
+          agents,
+        );
         return (
           <Link
             key={tool.id}
@@ -47,7 +89,7 @@ export function ToolList({
               )}
             </div>
             <span className="inline-flex items-center text-sm font-medium text-primary mt-auto">
-              View approved servers
+              {approvedArtifactsLabel(artifactCount)}
               <ChevronRight className="h-4 w-4 ml-1" />
             </span>
           </Link>

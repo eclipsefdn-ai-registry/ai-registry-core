@@ -25,3 +25,17 @@ export function filterByOrg<
     item.approvals.some((a) => a.organizationId === orgId),
   );
 }
+
+// Keeps the entries with an approval that installs into the tool, the same
+// test buildToolEntryView in src/consolidate.ts applies to write
+// tools/<id>.json. Sandbox extensions don't fit the type: their approvals
+// have no installConfigs, so no tool's page lists them.
+export function filterByTool<
+  T extends { approvals: { installConfigs: { tool: string }[] }[] },
+>(items: T[], toolId: string): T[] {
+  return items.filter((item) =>
+    item.approvals.some((a) =>
+      a.installConfigs.some((ic) => ic.tool === toolId),
+    ),
+  );
+}

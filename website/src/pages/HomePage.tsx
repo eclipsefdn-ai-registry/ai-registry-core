@@ -371,7 +371,14 @@ export function HomePage() {
           )}
 
           {tab === "tools" && (
-            <ToolList tools={filteredTools} getOrg={getOrg} />
+            <ToolList
+              tools={filteredTools}
+              servers={data.mcp}
+              skills={data.skills ?? []}
+              plugins={data.plugins ?? []}
+              agents={data.agents ?? []}
+              getOrg={getOrg}
+            />
           )}
 
           {tab === "organizations" && (

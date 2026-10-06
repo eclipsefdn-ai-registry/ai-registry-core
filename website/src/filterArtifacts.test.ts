@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { filterByNameDescId, filterByOrg } from "./filterArtifacts";
+import {
+  filterByNameDescId,
+  filterByOrg,
+  filterByTool,
+} from "./filterArtifacts";
 
 interface Entry {
   id: string;
@@ -61,5 +65,37 @@ describe("filterByOrg", () => {
       ),
       ["acme-only"],
     );
+  });
+});
+
+describe("filterByTool", () => {
+  function installs(id: string, ...tools: string[][]) {
+    return {
+      id,
+      approvals: tools.map((t) => ({
+        installConfigs: t.map((tool) => ({ tool })),
+      })),
+    };
+  }
+
+  const THEIA = installs("theia", ["theia"]);
+  const SECOND_APPROVAL = installs("second-approval", ["vscode"], ["theia"]);
+  const OTHER_TOOL = installs("other-tool", ["vscode"]);
+  const NO_CONFIGS = installs("no-configs", []);
+  const ALL = [THEIA, SECOND_APPROVAL, OTHER_TOOL, NO_CONFIGS];
+
+  it("keeps entries with an approval that installs into the tool", () => {
+    assert.deepEqual(
+      filterByTool(ALL, "theia").map((e) => e.id),
+      ["theia", "second-approval"],
+    );
+  });
+
+  it("drops entries whose approvals name only other tools, or none", () => {
+    assert.deepEqual(
+      filterByTool(ALL, "vscode").map((e) => e.id),
+      ["second-approval", "other-tool"],
+    );
+    assert.deepEqual(filterByTool(ALL, "cursor"), []);
   });
 });
