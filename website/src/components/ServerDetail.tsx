@@ -110,6 +110,9 @@ export function ApprovalCard({
     fallbackId: approval.organizationId,
     approvedTitle: org ? approvedTitle(org) : "Approved by this organization",
   });
+  // A derived entry's instructions are usually the generic config's notes,
+  // which this card already shows, so they'd otherwise repeat once per tool.
+  const genericNotes = serverId ? approval.genericConfig?.notes : undefined;
   return (
     <div className="bg-background border border-border rounded-lg p-4 mb-3">
       <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
@@ -130,7 +133,15 @@ export function ApprovalCard({
         />
       )}
       {approval.installConfigs.map((config, j) => (
-        <InstallConfigView key={j} config={config} getTool={getTool} />
+        <InstallConfigView
+          key={j}
+          config={
+            genericNotes !== undefined && config.instructions === genericNotes
+              ? { ...config, instructions: undefined }
+              : config
+          }
+          getTool={getTool}
+        />
       ))}
     </div>
   );
@@ -150,14 +161,15 @@ function serverIdSlug(serverId: string): string {
 // expand/collapse toggle, a copy-to-clipboard button with a 2s "Copied!"
 // reset, and a syntax-highlighted <pre>. `caveat` is an optional italic note
 // shown only while expanded (GenericConfigView's "this isn't a finished
-// config" disclaimer); InstallConfigView's always-visible instructions text
-// has different visibility rules and is rendered separately, not through
-// this prop.
+// config" disclaimer). `children` render inside the box, below the JSON and
+// caveat, expanded or not (GenericConfigView's notes); InstallConfigView
+// renders its own box, so its always-visible instructions go there instead.
 function CollapsibleJson({
   label,
   json,
   caveat,
   boxed = true,
+  children,
 }: {
   label: string;
   json: Record<string, unknown> | undefined;
@@ -166,6 +178,7 @@ function CollapsibleJson({
   // InstallConfigView) — avoids nesting this component's own border/bg
   // inside that card's identical one.
   boxed?: boolean;
+  children?: React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -216,6 +229,7 @@ function CollapsibleJson({
           )}
         </>
       )}
+      {children}
     </div>
   );
 }
@@ -227,12 +241,21 @@ export function GenericConfigView({
   config: Record<string, unknown>;
   slug: string;
 }) {
+  // notes explain the config to a person and aren't part of it, so they're
+  // shown like an install config's instructions and left out of the copy.
+  const { notes, ...connection } = config;
   return (
     <CollapsibleJson
       label="Generic config"
-      json={{ [slug]: config }}
+      json={{ [slug]: connection }}
       caveat="Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers) instead of pasting it in as shown."
-    />
+    >
+      {typeof notes === "string" && (
+        <div className="mt-2 text-muted-foreground italic break-words overflow-hidden">
+          {notes}
+        </div>
+      )}
+    </CollapsibleJson>
   );
 }
 

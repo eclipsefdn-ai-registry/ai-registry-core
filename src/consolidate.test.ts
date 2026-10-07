@@ -2618,6 +2618,167 @@ describe("resolveMcpCrossVendorConfigs", () => {
       servers: { custom: {} },
     });
   });
+
+  describe("notes", () => {
+    function resolve(approvals: Approval[]): Approval[] {
+      const output = emptyOutput();
+      output.tools.push({
+        id: "theia-ide",
+        name: "Theia IDE",
+        organizationId: "theia",
+      });
+      output.mcp.push({
+        serverId: "io.example/foo",
+        name: "foo",
+        description: "",
+        mcpRegistryVerified: false,
+        approvals,
+      });
+      resolveMcpCrossVendorConfigs(output);
+      return output.mcp[0].approvals;
+    }
+
+    it("carries another vendor's notes into the instructions of an entry derived from its config", () => {
+      const [theia] = resolve([
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+        },
+        {
+          organizationId: "google",
+          date: "2026-08-01",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+            notes: "Requires a project with the API enabled.",
+          },
+        },
+      ]);
+
+      assert.deepEqual(theia.installConfigs[0], {
+        tool: "theia-ide",
+        config: { servers: { foo: { serverUrl: "https://mcp.example.com" } } },
+        instructions: "Requires a project with the API enabled.",
+      });
+    });
+
+    it("takes the notes from the config it derived from, not a newer vendor's", () => {
+      const [theia] = resolve([
+        {
+          organizationId: "theia",
+          date: "2026-08-01",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://theias-own.example.com",
+            notes: "Theia's notes.",
+          },
+        },
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-05",
+          configHash: "xyz",
+          installConfigs: [],
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://newer-vendor.example.com",
+            notes: "EclipseSource's notes.",
+          },
+        },
+      ]);
+
+      assert.equal(theia.installConfigs[0].instructions, "Theia's notes.");
+    });
+
+    it("keeps an entry's own instructions over the config's notes", () => {
+      const [theia] = resolve([
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [
+            {
+              tool: "theia-ide",
+              config: "derived",
+              instructions: "Written for Theia.",
+            },
+          ],
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+            notes: "Written for every tool.",
+          },
+        },
+      ]);
+
+      assert.equal(theia.installConfigs[0].instructions, "Written for Theia.");
+    });
+
+    // An empty string says nothing, so it doesn't hide the notes either.
+    it("gives an entry with empty instructions the config's notes", () => {
+      const [theia] = resolve([
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [
+            { tool: "theia-ide", config: "derived", instructions: "" },
+          ],
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+            notes: "Requires an account.",
+          },
+        },
+      ]);
+
+      assert.equal(
+        theia.installConfigs[0].instructions,
+        "Requires an account.",
+      );
+    });
+
+    it("adds no instructions when the config has no notes", () => {
+      const [theia] = resolve([
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+          genericConfig: {
+            type: "streamable-http",
+            url: "https://mcp.example.com",
+          },
+        },
+      ]);
+
+      assert.equal("instructions" in theia.installConfigs[0], false);
+    });
+
+    // The notes explain a config the card no longer shows.
+    it("adds no instructions to an entry whose config couldn't be derived", () => {
+      const [theia] = resolve([
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [{ tool: "theia-ide", config: "derived" }],
+          genericConfig: {
+            type: "ws",
+            url: "wss://mcp.example.com",
+            notes: "Requires an account.",
+          },
+        },
+      ]);
+
+      assert.deepEqual(theia.installConfigs[0], { tool: "theia-ide" });
+    });
+  });
 });
 
 describe("resolveMcpTrust", () => {
@@ -2756,6 +2917,56 @@ describe("resolveMcpTrust", () => {
     assert.ok(derived);
     assert.equal(derived!.installConfigs.length, 2);
     assert.equal("config" in derived!.installConfigs[0], false);
+  });
+
+  // A trust-derived card has no vendor-written instructions of its own, so
+  // without this nothing on it explains the config's placeholders.
+  it("carries the generic config's notes into every derived card's instructions", () => {
+    const output = baseOutput();
+    output.mcp[0].approvals[0].genericConfig!.notes = "Requires an account.";
+
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const derived = output.mcp[0].approvals.find(
+      (a) => a.organizationId === "theia",
+    );
+    assert.deepEqual(
+      derived!.installConfigs.map((ic) => ic.instructions),
+      ["Requires an account.", "Requires an account."],
+    );
+  });
+
+  it("adds no instructions when the generic config has no notes", () => {
+    const output = baseOutput();
+
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const derived = output.mcp[0].approvals.find(
+      (a) => a.organizationId === "theia",
+    );
+    for (const ic of derived!.installConfigs) {
+      assert.equal("instructions" in ic, false);
+    }
+  });
+
+  it("adds no instructions to a card whose config couldn't be derived", () => {
+    const output = baseOutput();
+    // Theia speaks no WebSocket transport, so this cannot be derived.
+    output.mcp[0].approvals[0].genericConfig = {
+      type: "ws",
+      url: "wss://review-guard.example.com/mcp",
+      notes: "Requires an account.",
+    };
+
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const derived = output.mcp[0].approvals.find(
+      (a) => a.organizationId === "theia",
+    );
+    for (const ic of derived!.installConfigs) {
+      assert.equal("config" in ic, false);
+      assert.equal("instructions" in ic, false);
+    }
   });
 });
 

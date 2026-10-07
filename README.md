@@ -115,7 +115,7 @@ An organization can also delegate to other organizations' judgment instead of fi
 }
 ```
 
-Every skill a trusted organization directly approves is automatically treated as approved by the trusting organization too — no separate `skills/*.json` file needed. Trust is single-hop only (no transitive trust) and, today, only covers skills (`artifactTypes.skills`); `artifactTypes.mcp` isn't a recognized key yet. Trust-derived approvals are tagged with `viaTrust` (the trusted org's id) in the consolidated output for API consumers, but render identically to direct approvals on the website.
+Every skill a trusted organization directly approves is automatically treated as approved by the trusting organization too — no separate `skills/*.json` file needed. Trust is single-hop only (no transitive trust) and covers each artifact type listed in `artifactTypes`: `skills`, `mcp`, `plugins`, `agents` and `sandboxExtensions`. A trust-derived MCP approval also gets install configs for the trusting organization's own tools, derived from the generic `config` described below. Trust-derived approvals are tagged with `viaTrust` (the trusted org's id) in the consolidated output for API consumers, but render identically to direct approvals on the website.
 
 ### MCP approval files
 
@@ -167,6 +167,7 @@ It is worth supplying, because it is what lets other vendors set `"config": "der
 - **`type`** is **required** on every variant, and is what selects the variant: `streamable-http` or `sse` for a remote server, `ws` for WebSocket, `stdio` for a local command. Note that mcp.json-style client files (Claude Code, VS Code and derivatives) spell Streamable HTTP as `"http"` — that spelling is **not** accepted here, so the registry has exactly one canonical value per transport.
 - **Remote** (`streamable-http` / `sse`) takes `url`, optional `headers`, and optional `oauth`. **`ws`** takes `url` and `headers` only — WebSocket auth is header-only.
 - **Local** (`stdio`) takes `command`, optional `args`, `env` and `cwd`.
+- **Every variant** also takes optional `notes`, described below.
 
 ##### Two placeholder conventions
 
@@ -180,6 +181,36 @@ They are not interchangeable, and which one to use depends on **who resolves the
 Secrets **must** be written as `${VAR}` references, never as literals. `oauth.clientSecret` enforces this with a pattern; `headers` and `env` cannot enforce it (a header value is typically `"Bearer ${TOKEN}"`, so the reference is embedded rather than the whole value) and rely on review.
 
 A tool that has no `${VAR}` expansion of its own gets these rewritten by its transform — Theia's, for instance, turns `${TOKEN}` into a `<TOKEN>` placeholder for the user to fill in.
+
+##### Explaining placeholders with `notes`
+
+A placeholder says that a value is needed, not what it is. `notes` is plain text for the person setting the server up: what each `<name>` placeholder should be replaced with, what each `${VAR}` reference must hold and where to get it, and any prerequisites.
+
+```json
+{
+  "serverId": "aws.api.us-east-1.ecs-mcp/server",
+  "date": "2026-10-07",
+  "config": {
+    "type": "stdio",
+    "command": "uvx",
+    "args": [
+      "mcp-proxy-for-aws@latest",
+      "https://ecs-mcp.<region>.api.aws/mcp",
+      "--service",
+      "ecs-mcp",
+      "--profile",
+      "<profile>",
+      "--region",
+      "<region>"
+    ],
+    "notes": "Replace <region> with your AWS region (e.g. us-east-1) and <profile> with your AWS CLI profile name (e.g. default). Requires AWS CLI credentials configured locally."
+  }
+}
+```
+
+`notes` is not connection info, so no transform copies it into a tool's config, and the website leaves it out of what the generic config's copy button copies. It is shown next to the generic config, and it becomes the `instructions` of every `installConfigs` entry derived from this config that has none of its own — including the entries trust delegation creates, which otherwise have no instructions at all.
+
+Since the same text appears for every tool, keep it tool-neutral, and name a `${VAR}` reference by its bare name (`GITHUB_TOKEN`, not `${GITHUB_TOKEN}`): Theia's transform turns the reference into `<GITHUB_TOKEN>`, and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged.
 
 #### Vendor-supplied metadata for servers not in the Anthropic registry
 

@@ -112,6 +112,11 @@ export interface InstallConfig {
   // object, or stripped back to the fields above, before the final output
   // is written — see resolveMcpCrossVendorConfigs.
   config?: Record<string, unknown> | "derived";
+  // Vendor-written setup text. An MCP entry whose config is derived, and
+  // which gave none (or an empty one), gets the notes of the generic config
+  // it was derived from: they explain that config's placeholders, and a
+  // tool's page shows installConfigs alone, never the generic config they
+  // would otherwise sit beside.
   instructions?: string;
 }
 
@@ -547,7 +552,11 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
         const transform = mcpConfigTransforms[cfg.tool];
         const derived = winner && transform?.(winner, slug);
         if (derived) {
-          return { ...cfg, config: derived };
+          const resolved: InstallConfig = { ...cfg, config: derived };
+          if (!resolved.instructions && winner.notes) {
+            resolved.instructions = winner.notes;
+          }
+          return resolved;
         }
 
         console.warn(
@@ -1057,7 +1066,10 @@ export function resolveMcpTrust(
           : undefined;
 
         const cfg: InstallConfig = { tool: tool.id };
-        if (derived) cfg.config = derived;
+        if (derived) {
+          cfg.config = derived;
+          if (winner.notes) cfg.instructions = winner.notes;
+        }
         if (installUrl) cfg.installUrl = installUrl;
         return cfg;
       });
