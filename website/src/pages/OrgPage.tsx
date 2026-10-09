@@ -277,14 +277,7 @@ export function OrgPage() {
       {/* Tabs. Six of them since sandbox extensions were added, which is more
           than fits a phone-width row — TabButtons wraps rather than clipping. */}
       <div className="mb-8 border-b border-border">
-        <TabButtons
-          tabs={tabs}
-          active={tab}
-          onSelect={(key) => {
-            setTab(key);
-            setSearch("");
-          }}
-        />
+        <TabButtons tabs={tabs} active={tab} onSelect={setTab} />
       </div>
 
       {/* Tab content */}
