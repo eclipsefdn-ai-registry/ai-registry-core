@@ -1,0 +1,363 @@
+{
+  "theia": {
+    "githubOrgs": ["eclipse-theia"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "org:eclipse-theia",
+        "type": "plugin",
+        "reason": "Theia is a client adopting the agent-plugins.org standard (1.75 release), not a publisher of one — no plugin.json found anywhere in the org. EclipseSource's own blog covers this adoption but isn't a Theia-published artifact.",
+        "checkedAt": "2026-09-12"
+      }
+    ]
+  },
+  "anthropic": {
+    "githubOrgs": ["anthropics"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "org:anthropics",
+        "type": "plugin",
+        "reason": "Anthropic is notably absent from the agent-plugins.org steering committee/launch list and publishes no root plugin.json anywhere in the org — only its own separate, incompatible .claude-plugin/plugin.json format (Claude Code's native plugin system). Reconfirmed 2026-09-18 across claude-code, claude-plugins-official, knowledge-work-plugins, life-sciences — all .claude-plugin-only.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "org:anthropics",
+        "type": "marketplace",
+        "reason": "Only Claude-Code-native .claude-plugin marketplace.json format found (life-sciences, claude-plugins-official) — not the codex-format (.agents/plugins/marketplace.json) required by the schema.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
+  },
+  "openai": {
+    "githubOrgs": ["openai"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "org:openai",
+        "type": "plugin",
+        "reason": "All plugin.json hits in the org are .codex-plugin/plugin.json (Codex's own native, tool-specific format, structurally excluded same as .claude-plugin/) or legacy ai-plugin.json (2023-era ChatGPT plugins, unrelated format) — no root agent-plugins.org-conformant plugin.json found. OpenAI helped found agent-plugins.org as a client but hasn't published a plugin.json of its own under this org.",
+        "checkedAt": "2026-09-12"
+      },
+      {
+        "url": "https://github.com/openai/plugins",
+        "type": "marketplace",
+        "reason": "Multi-entry .agents/plugins/marketplace.json ('openai-curated', Codex official) with 60+ entries, but sampled plugin subdirs (linear, openai-developers, superpowers, github, figma) contain only .codex-plugin/plugin.json, no agent-plugins.org-conformant root plugin.json — same pattern as awslabs/agent-plugins.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
+  },
+  "aws": {
+    "githubOrgs": ["aws", "awslabs"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [
+        "https://github.com/awslabs/cli-agent-orchestrator.git#skills"
+      ],
+      "marketplaces": [
+        "https://github.com/aws/agent-toolkit-for-aws.git#.agents/plugins/marketplace.json"
+      ]
+    },
+    "rejected": [
+      {
+        "url": "https://github.com/awslabs/agent-plugins.git",
+        "type": "marketplace",
+        "reason": "Has a genuine multi-entry .agents/plugins/marketplace.json, but every referenced plugin subdirectory (checked amazon-location-service, aws-serverless, sagemaker-ai, deploy-on-aws) contains only .claude-plugin/.codex-plugin tool-specific manifests — no root plugin.json anywhere. Not agent-plugins.org-conformant despite the marketplace file's shape; would fail plugin-source.ts enrichment on every entry.",
+        "checkedAt": "2026-09-12"
+      },
+      {
+        "url": "https://github.com/awslabs/startups.git",
+        "type": "marketplace",
+        "reason": "Two .agents/plugins/marketplace.json files (root single-entry git-subdir self-wrapper; migrate/plugins/ 2-entry local-source) — referenced plugin subdirectories (migrate/plugins/migration-to-aws, migrate/plugins/ai-to-aws) have only tool-specific manifests, confirmed no root plugin.json (404 on direct fetch).",
+        "checkedAt": "2026-09-18"
+      }
+    ]
+  },
+  "google": {
+    "githubOrgs": ["gemini-cli-extensions", "google"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [
+        "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
+        "https://github.com/google/agents-cli.git",
+        "https://github.com/gemini-cli-extensions/alloydb.git",
+        "https://github.com/gemini-cli-extensions/alloydb-omni.git",
+        "https://github.com/GoogleCloudPlatform/cloud-bigtable-ecosystem.git",
+        "https://github.com/gemini-cli-extensions/cloud-sql-mysql.git",
+        "https://github.com/gemini-cli-extensions/cloud-sql-postgresql.git",
+        "https://github.com/gemini-cli-extensions/cloud-sql-sqlserver.git",
+        "https://github.com/gemini-cli-extensions/firestore-native.git",
+        "https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git",
+        "https://github.com/gemini-cli-extensions/google-cloud-storage.git",
+        "https://github.com/gemini-cli-extensions/looker.git",
+        "https://github.com/gemini-cli-extensions/oracledb.git",
+        "https://github.com/gemini-cli-extensions/spanner.git",
+        "https://github.com/gemini-cli-extensions/knowledge-catalog.git",
+        "https://github.com/gemini-cli-extensions/dataproc.git",
+        "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
+        "https://github.com/google/skills.git#plugins/cloud/google-cloud-developer"
+      ],
+      "marketplaces": [
+        "https://github.com/google/skills.git#.agents/plugins/marketplace.json"
+      ]
+    },
+    "rejected": [
+      {
+        "url": "https://github.com/gemini-cli-extensions/sre.git",
+        "type": "plugin",
+        "reason": "plugin.json is agent-plugins.org-conformant but author is 'Gemini CLI Extensions Community', not Google itself — fails official-authorship bar despite living in Google's own org.",
+        "checkedAt": "2026-09-08"
+      },
+      {
+        "url": "https://github.com/gemini-cli-extensions/conductor.git",
+        "type": "plugin",
+        "reason": "plugin.json has no $schema and omits required fields — not agent-plugins.org-conformant.",
+        "checkedAt": "2026-09-08"
+      },
+      {
+        "url": "https://github.com/gemini-cli-extensions/data-agent-kit-starter-pack.git",
+        "type": "marketplace",
+        "reason": "has .agents/plugins/marketplace.json but it's a single-entry self-wrapper (source:local) for the repo's own plugin, already covered via google/skills marketplace fan-out — not a distinct vendor marketplace to approve.",
+        "checkedAt": "2026-09-08"
+      },
+      {
+        "url": "https://github.com/gemini-cli-extensions/conductor.git",
+        "type": "plugin",
+        "reason": "re-checked: plugin.json is still {\"name\":\"conductor\",\"description\":\"Conductor Agent Skills\"} — no $schema, non-conformant.",
+        "checkedAt": "2026-09-11"
+      },
+      {
+        "url": "https://github.com/gemini-cli-extensions/postgres.git",
+        "type": "plugin",
+        "reason": "Reverted 2026-09-12: gemini-cli-extensions is not a GitHub-verified org and plugin.json's \"author\": \"Google LLC\" is a self-declared claim, not independent proof — per an earlier team decision, gemini-cli-extensions plugins are only approved directly when they appear in Google's own google/skills marketplace file; this one doesn't.",
+        "checkedAt": "2026-09-12"
+      },
+      {
+        "url": "https://github.com/gemini-cli-extensions/mysql.git",
+        "type": "plugin",
+        "reason": "Reverted 2026-09-12: same reason as gemini-cli-extensions/postgres — not in the marketplace, org not independently verified.",
+        "checkedAt": "2026-09-12"
+      },
+      {
+        "url": "https://github.com/gemini-cli-extensions/sql-server.git",
+        "type": "plugin",
+        "reason": "Reverted 2026-09-12: same reason as gemini-cli-extensions/postgres — not in the marketplace, org not independently verified.",
+        "checkedAt": "2026-09-12"
+      }
+    ]
+  },
+  "eclipsesource": {
+    "githubOrgs": ["eclipsesource"],
+    "lastChecked": "2026-09-12",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "org:eclipsesource",
+        "type": "plugin",
+        "reason": "Only .claude-plugin/plugin.json hits (esm-tester, esm-prompt-helper) — Claude Code's own tool-specific format, not agent-plugins.org. No root plugin.json in the org.",
+        "checkedAt": "2026-09-12"
+      }
+    ]
+  },
+  "mosaico": {
+    "githubOrgs": [],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "gitlab.eclipse.org/eclipse-research-labs/mosaico-project",
+        "type": "plugin",
+        "reason": "Mosaico publishes from Eclipse's own GitLab instance, not github.com — gh api search/code can't reach it. Re-confirmed 2026-09-18 via full recursive repository-tree scan of all 24 repos in the group (via GitLab REST API) plus WebSearch — no plugin.json or marketplace.json anywhere in the group.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
+  },
+  "jetbrains": {
+    "githubOrgs": ["JetBrains", "Kotlin"],
+    "lastChecked": "2026-09-11",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "org:JetBrains",
+        "type": "plugin",
+        "reason": "gh code search for root-level plugin.json and .agents/plugins/marketplace.json in this org returned only tool-specific manifests (.claude-plugin/.codex-plugin/.cursor-plugin subfolders), test fixtures, or single-entry local-source marketplace self-wrappers — no agent-plugins.org-conformant root plugin.json found this pass. Re-confirmed via WebSearch this run: no evidence of JetBrains adopting agent-plugins.org found anywhere.",
+        "checkedAt": "2026-09-11"
+      },
+      {
+        "url": "org:Kotlin",
+        "type": "plugin",
+        "reason": "gh code search for root-level plugin.json and .agents/plugins/marketplace.json in this org returned only tool-specific manifests (.claude-plugin/.codex-plugin/.cursor-plugin subfolders), test fixtures, or single-entry local-source marketplace self-wrappers — no agent-plugins.org-conformant root plugin.json found this pass. Re-confirmed via WebSearch this run: no evidence of JetBrains adopting agent-plugins.org found anywhere.",
+        "checkedAt": "2026-09-11"
+      }
+    ]
+  },
+  "atlassian": {
+    "githubOrgs": ["atlassian"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [
+        "https://github.com/atlassian/forge-skills.git",
+        "https://github.com/atlassian/atlassian-mcp-server.git"
+      ],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "https://github.com/atlassian/forge-skills.git",
+        "type": "marketplace",
+        "reason": "has .agents/plugins/marketplace.json but it's a single-entry self-wrapper (source:local) for forge-skills, already approved directly as a plugin — no separate marketplace approval needed.",
+        "checkedAt": "2026-09-08"
+      },
+      {
+        "url": "https://github.com/openai/plugins.git#plugins/atlassian-rovo",
+        "type": "plugin",
+        "reason": "third-party directory sites describe an 'Atlassian Rovo' Codex plugin as Atlassian-authored, but the actual manifest is .codex-plugin/plugin.json inside OpenAI's own openai/plugins repo — wrong owner (not atlassian's org) and wrong (tool-specific) manifest format, not agent-plugins.org.",
+        "checkedAt": "2026-09-11"
+      },
+      {
+        "url": "https://github.com/atlassian/forge-skills.git#.plugin/plugin.json",
+        "type": "plugin",
+        "reason": "duplicate/alternate-format manifest for the already-approved root forge-skills plugin.json, not a distinct plugin.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/atlassian/forge-skills.git#.github/plugin/marketplace.json",
+        "type": "marketplace",
+        "reason": "single-entry self-wrapper (source: \".\") for forge-skills, same disqualifying shape as the already-rejected .agents/plugins/marketplace.json in this repo.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
+  },
+  "gitlab": {
+    "githubOrgs": [],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [
+        "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git#plugins/mr-review",
+        "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git#plugins/create-issue",
+        "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git#plugins/stack-changes"
+      ],
+      "marketplaces": []
+    },
+    "rejected": []
+  },
+  "github": {
+    "githubOrgs": ["github"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [
+        "https://github.com/github/github-mcp-server.git#agent-plugin"
+      ],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "https://github.com/github/copilot-advanced-security-plugin.git",
+        "type": "plugin",
+        "reason": "documented in this vendor repo's README: native GitHub Copilot Plugin manifest format, schema-incompatible with agent-plugins.org 1.0.0 (missing $schema, name contains '/', top-level skills/mcpServers/hooks disallowed).",
+        "checkedAt": "2026-09-11"
+      },
+      {
+        "url": "https://github.com/github/copilot-plugins.git",
+        "type": "marketplace",
+        "reason": "documented in this vendor repo's README as GitHub's own marketplace repo, but it's a native GitHub Copilot marketplace format at a non-.agents/plugins path — not the 'codex' format this registry's marketplace-approval schema currently supports, and most bundled entries are Microsoft- not GitHub-attributed anyway.",
+        "checkedAt": "2026-09-11"
+      },
+      {
+        "url": "https://github.com/github/awesome-copilot.git",
+        "type": "plugin",
+        "reason": "documented in this vendor repo's README: repo's own README states content is community-contributed, fails authorship bar despite conformant plugin.json examples.",
+        "checkedAt": "2026-09-11"
+      }
+    ]
+  },
+  "docker": {
+    "githubOrgs": ["docker"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "org:docker",
+        "type": "plugin",
+        "reason": "gh code search for root-level plugin.json and .agents/plugins/marketplace.json in this org returned only tool-specific manifests (.claude-plugin/.codex-plugin/.cursor-plugin subfolders), test fixtures, or single-entry local-source marketplace self-wrappers — no agent-plugins.org-conformant root plugin.json found this pass. Reconfirmed 2026-09-18 (docker/mcp-toolkit, docker/beta-mcp-skills both .claude-plugin only).",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/docker/claude-plugins.git",
+        "type": "plugin",
+        "reason": "WebSearch confirms this is Docker's own Claude Code-specific plugin marketplace (.claude-plugin/marketplace.json + plugins/docker-mcp-toolkit), not an agent-plugins.org plugin/marketplace — tool-specific format, correctly excluded.",
+        "checkedAt": "2026-09-11"
+      }
+    ]
+  },
+  "nvidia": {
+    "githubOrgs": ["NVIDIA"],
+    "lastChecked": "2026-09-18",
+    "knownSources": {
+      "plugins": [],
+      "marketplaces": []
+    },
+    "rejected": [
+      {
+        "url": "org:NVIDIA",
+        "type": "plugin",
+        "reason": "gh code search for root-level plugin.json and .agents/plugins/marketplace.json in this org returned only tool-specific manifests (.claude-plugin/.codex-plugin/.cursor-plugin subfolders), test fixtures, or single-entry local-source marketplace self-wrappers — no agent-plugins.org-conformant root plugin.json found this pass. Re-confirmed via WebSearch this run: NVIDIA's 2026 agent announcements (ACE, Agent Toolkit, OpenShell) are unrelated to agent-plugins.org.",
+        "checkedAt": "2026-09-11"
+      },
+      {
+        "url": "https://github.com/NVIDIA/Model-Optimizer.git",
+        "type": "marketplace",
+        "reason": "single-entry local-source self-wrapper; referenced plugins/modelopt subdir has no root plugin.json.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/NVIDIA/NeMo-Relay.git",
+        "type": "marketplace",
+        "reason": "single-entry local-source self-wrapper; referenced integrations/coding-agents/codex subdir has no root plugin.json.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/NVIDIA/nvidia-kaggle.git",
+        "type": "marketplace",
+        "reason": "single-entry url-source self-wrapper pointing back at its own repo; repo root has no plugin.json.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/NVIDIA/skills.git",
+        "type": "marketplace",
+        "reason": "single-entry local-source self-wrapper; referenced plugins/nvidia-skills subdir has no root plugin.json.",
+        "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://github.com/NVIDIA/TensorRT-Model-Connect.git",
+        "type": "marketplace",
+        "reason": "single-entry local-source self-wrapper; referenced plugins/trtmc-agent-skills subdir has no root plugin.json.",
+        "checkedAt": "2026-09-18"
+      }
+    ]
+  }
+}
