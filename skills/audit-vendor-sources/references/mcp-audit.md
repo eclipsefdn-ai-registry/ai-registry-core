@@ -34,6 +34,11 @@ vendor publishes without ever registering.
      Anything returned that isn't already in `mcp/*.json` is a candidate — for these, a normal
      approval is just `serverId` + `date`, since consolidation enriches name/description/version
      from the registry automatically.
+     **A registry search that hangs is transient, not an empty result.** Under parallel load on
+     2026-10-09 several `?search=` queries timed out past 120s and the identical query then returned
+     instantly on retry. Retry before recording "no results"; recording a timeout as an empty search
+     silently drops a vendor's whole registry-listed path for that run. `?limit=` appears
+     unsupported and makes the request hang on its own.
    - **Self-published path (secondary, bounded)** — a vendor can ship a working MCP server (often
      bundled into a product, or a scoped npm/PyPI package) without ever submitting it to the
      registry; don't skip this just because the registry search came back empty. Aim for ≤4
@@ -55,7 +60,18 @@ vendor publishes without ever registering.
        "secondary" to the registry search. For a self-published server family sharing one apex API
        domain, mint serverIds as `<reverse-domain-of-apex>/<product-slug>` (e.g.
        `com.googleapis/bigquery` for `bigquery.googleapis.com`), analogous to the
-       `com.gitlab.<group>/<name>` plugin-id convention for non-GitHub hosts.
+       `com.gitlab.<group>/<name>` plugin-id convention for non-GitHub hosts. **Before minting
+       any such id, search the registry for that namespace** (`?search=com.googleapis`) — a vendor
+       can register the same managed server under a per-service namespace
+       (`com.googleapis.<service>/mcp`: confirmed for `composer`, `monitoring`, `run`, `sqladmin`,
+       `container`, `compute`, `firestore`, `memorystore`, `datastream`, 2026-10-02). A registry
+       hit avoids a duplicate id and dissolves the REGION-placeholder problem, since a bare
+       registry-listed `serverId` needs no `config` at all. Then check the endpoints themselves
+       per "Verifying a remote endpoint" at the end of this file.
+     - A package registry is not only a lead and a source of connection config — it's the cheapest
+       **ownership proof** when `api.github.com/orgs/<org>` isn't available because the vendor
+       isn't on GitHub. One `registry.npmjs.org/<pkg>` fetch gave both `repository.url` (→ the
+       gitlab.com project) and a `@gitlab.com` maintainer email for `lazy-mcp`, 2026-10-02.
      - A repo literally named `<vendor>-registry`/`<vendor>-catalog`/`mcp-registry` (e.g.
        `docker/mcp-registry`) needs the same open-submission check marketplace files get in the
        plugin pass — read its README before treating any listed entry as vendor-authored; an
@@ -67,6 +83,14 @@ vendor publishes without ever registering.
        `@theia/ai-mcp-server` lets _other_ Theia-based applications expose an MCP endpoint at a
        deployment-specific port; it isn't itself an installable server. Same exclusion class as
        `.claude-plugin/`-style tool-specific manifests for plugins/skills.
+       **The test is "is this a building block for _other_ vendors' products", not "is the host
+       per-deployment".** A server you install into your own instance of the vendor's own product
+       is a real, approvable artifact — it just can't carry a `config`.
+       `mcp-server-config.schema.json`'s `url` is `format: uri`, and ajv rejects
+       `https://<your-teamcity>/app/mcp` and `https://{host}/app/mcp` alike (verified directly,
+       2026-10-09). Publish `metadata` + `selfPublished: true` with **no** `config` — the same shape
+       a bare registry-listed entry has — rather than fabricating an `example.com` host or rejecting
+       the server. `com.jetbrains/teamcity-mcp` is the worked example.
    - **Drop anything already approved** (registry-listed `serverId` match, or a self-published
      entry whose `config`/`metadata` clearly describes the same server already in `mcp/*.json`) or
      already in the cache's `rejected` list.
@@ -105,7 +129,22 @@ vendor publishes without ever registering.
      `selfPublished` instead of registry-listed, confirm it's actually absent from the registry**
      with a direct check (`curl
 "https://registry.modelcontextprotocol.io/v0.1/servers/<url-encoded-serverId>/versions"` — a
-     404 confirms it; don't just assume from an earlier search not surfacing it). Create the `mcp/`
+     404 confirms it; don't just assume from an earlier search not surfacing it).
+     **`type` is required on every `config` variant, and the canonical remote spelling is
+     `streamable-http` — never `http`.** Since ai-registry-core#95 the enum is
+     `streamable-http`/`sse` for HTTP remotes, `ws` for WebSocket (header auth only, no OAuth),
+     `stdio` for local; `oauth.scopes` is an **array**, not a space-joined string. `"http"` is the
+     mcp.json/Claude Code spelling and is _deliberately rejected_ so the registry carries one
+     canonical value per transport — translating to a tool's own spelling is a transform's job.
+     **Read the current schema file before writing a batch of configs**; don't infer the enum from
+     a neighbouring approval, and don't trust a remembered value. The 2026-10-02 run got this
+     backwards in both directions at once: six vendor repos had correctly migrated to
+     `streamable-http` ahead of the core change, the audit ran from a core checkout that predated
+     it, concluded the _vendors_ were broken, and wrote 30+ new Google configs as `"http"` — all
+     of which had to be migrated back. Two compounding failure modes to avoid: reading only
+     `validate-vendor`'s summary verdict instead of the per-file lines, and validating against a
+     core checkout behind `origin/main` (`git fetch && git log origin/main -- schemas/`).
+     Create the `mcp/`
      directory first if the vendor repo has no prior MCP approvals. Branch, commit, and validate
      per `conventions.md`. A registry-not-found WARNING during validation is expected and fine for
      a still-propagating registry entry; any ERROR is not — drop and reject on ERROR.
@@ -159,3 +198,46 @@ gap is a self-published server with **no public trace at all** (closed-source pr
 config sample, no blog post): if the registry search and the bounded web search both come back
 empty, report "nothing new" for that vendor, not a special gap category — there's nothing further
 to try boundedly, and an unbounded crawl isn't this skill's job.
+
+## Verifying a remote endpoint
+
+**Prove the endpoint actually speaks MCP — a status code is not proof.** A bare `GET` returning
+405 only shows something is listening and the method is wrong. Send a real handshake:
+
+```
+curl -s -X POST -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ai-registry-check","version":"1"}}}' \
+  <url>
+```
+
+A conformant server returns `result.serverInfo` and `result.capabilities` (confirmed 2026-10-04
+against `https://api.klibs.io/mcp` → `serverInfo.name: klibs-mcp-server`). The
+`Accept: application/json, text/event-stream` header is mandatory per the Streamable HTTP spec —
+omitting it yields a 400 that reads like a broken endpoint.
+
+**A `401` carrying `WWW-Authenticate: Bearer realm=…, scope=…, resource_metadata=https://…/.well-known/oauth-protected-resource/<path>`
+is itself positive proof the endpoint speaks MCP.** That header is the MCP authorization spec's
+RFC 9728 protected-resource response, and no plain REST 401 emits it (confirmed 2026-10-09 against
+`https://gitlab.com/api/v4/orbit/mcp` → `scope="mcp_orbit"`). An OAuth-gated server can never
+complete the handshake above anonymously, so without this signal it would read as unverifiable.
+
+**When the vendor publishes a catalogue page, cross-check every minted id's endpoint against that
+page rather than trusting a transcription.** Extract the URL from each approval file and grep the
+fetched page for it; all 31 new Google entries were re-verified this way on 2026-10-04. **Diff the
+page week over week by distinct product name, not by row** — `docs.cloud.google.com/mcp/supported-products`
+returns 594 rows but only 80 distinct products, and collapsing the regional duplicates (`awk` on
+`section | product`) made the 2026-10-09 diff against `knownSources` exactly one line long. Key the
+duplicate check on the **endpoint URL, not the product slug**: a product name need not match its
+host (`Service Metadata API` → `cloud.googleapis.com`).
+
+**Distinguish enumerable from combinatorial endpoint sets.** A product with a small, fixed set of
+global hosts and one toolset path each is approvable as one entry per toolset — Security Command
+Center ships `securitycenter…/mcp/investigate` plus `securitycentermanagement…/mcp/manage-services`
+and was approved as two. A product whose endpoints multiply across regions × toolsets is not:
+Gemini Enterprise Agent Platform shows **432** distinct `aiplatform` URLs on that same page, and
+Secure Source Manager is per-region × per-toolset. Count the matches on the page before deciding.
+
+A hostname containing a region (e.g. `ces.us.rep.googleapis.com`) is still approvable when it is
+the _only_ one published, since there is nothing for a user to substitute — but say so explicitly
+in the commit and flag it for recheck if the vendor adds regions.
