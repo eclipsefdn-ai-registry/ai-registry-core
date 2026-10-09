@@ -17,7 +17,7 @@
   },
   "anthropic": {
     "githubOrgs": ["anthropics"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -26,20 +26,38 @@
       {
         "url": "org:anthropics",
         "type": "plugin",
-        "reason": "Reconfirmed 2026-10-02: 150 plugin.json hits org-wide, 100% under .claude-plugin/; a filtered query for any non-.claude-plugin plugin.json returns zero. New repos since last run (claude-for-legal, financial-services, commerce-agents, healthcare, oncall-kit, k12-teacher-skills, claude-tag-plugins, claude-for-financial-advisors, claude-code-playground, claude-plugins-community) are all the same Claude-Code-native format. Note financial-services has a dir literally named plugins/agent-plugins/ — still .claude-plugin-only underneath.",
-        "checkedAt": "2026-10-02"
+        "reason": "Re-checked 2026-10-09 per the every-run .claude-plugin re-check rule, this time by bulk core-API/raw fetch of root plugin.json across all 74 non-fork non-archived org repos rather than code search: zero 200s. 151 plugin.json hits org-wide, all .claude-plugin/. NOTE: -path:.claude-plugin negation is silently IGNORED by the legacy REST search/code syntax — the filtered query returns the unfiltered result set.",
+        "checkedAt": "2026-10-09"
       },
       {
         "url": "org:anthropics",
         "type": "marketplace",
-        "reason": "Reconfirmed 2026-10-02: all 18 marketplace.json hits are .claude-plugin/marketplace.json; none in codex .agents/plugins/marketplace.json format.",
-        "checkedAt": "2026-10-02"
+        "reason": "Bulk check of .agents/plugins/marketplace.json across all 74 org repos: zero. No codex-format marketplace.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/anthropics/claude-code-playground.git",
+        "type": "plugin",
+        "reason": "Only claude-code/mods/*/.claude-plugin/plugin.json + .claude-plugin/marketplace.json — Claude-Code-native bundle.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/anthropics/oss-scanner.git",
+        "type": "plugin",
+        "reason": "New repo 2026-10-08; recursive tree has no plugin.json/marketplace.json.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/anthropics/snix.git",
+        "type": "plugin",
+        "reason": "Mirror of third-party git.snix.dev/snix/snix, not Anthropic-authored.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "openai": {
     "githubOrgs": ["openai"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -48,8 +66,8 @@
       {
         "url": "org:openai",
         "type": "plugin",
-        "reason": "All plugin.json hits in the org are .codex-plugin/plugin.json (Codex's own native, tool-specific format, structurally excluded same as .claude-plugin/) or legacy ai-plugin.json (2023-era ChatGPT plugins, unrelated format) — no root agent-plugins.org-conformant plugin.json found. OpenAI helped found agent-plugins.org as a client but hasn't published a plugin.json of its own under this org.",
-        "checkedAt": "2026-09-12"
+        "reason": "Re-confirmed per the mandatory per-run re-check: full-org tree scan of all 136 public non-fork repos found zero root-level agent-plugins.org plugin.json. All 602 manifest paths in openai/plugins, plus snap-o/codex-security/mcp-extensions/tunnel-client/codex-plugin-cc/openai-developers-for-{claude,cursor}, are .codex-plugin/.claude-plugin/.cursor-plugin only.",
+        "checkedAt": "2026-10-09"
       },
       {
         "url": "https://github.com/openai/plugins",
@@ -135,7 +153,7 @@
   },
   "google": {
     "githubOrgs": ["gemini-cli-extensions", "google", "GoogleCloudPlatform"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [
         "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
@@ -155,7 +173,21 @@
         "https://github.com/gemini-cli-extensions/knowledge-catalog.git",
         "https://github.com/gemini-cli-extensions/dataproc.git",
         "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
-        "https://github.com/google/skills.git#plugins/cloud/google-cloud-developer"
+        "https://github.com/google/skills.git#plugins/cloud/google-cloud-developer",
+        "https://github.com/GoogleCloudPlatform/alloydb-plugin.git",
+        "https://github.com/GoogleCloudPlatform/alloydb-omni-plugin.git",
+        "https://github.com/GoogleCloudPlatform/bigquery-data-analytics-plugin.git",
+        "https://github.com/GoogleCloudPlatform/cloud-sql-mysql-plugin.git",
+        "https://github.com/GoogleCloudPlatform/cloud-sql-postgresql-plugin.git",
+        "https://github.com/GoogleCloudPlatform/cloud-sql-sqlserver-plugin.git",
+        "https://github.com/GoogleCloudPlatform/data-agent-kit-plugin.git",
+        "https://github.com/GoogleCloudPlatform/dataproc-plugin.git",
+        "https://github.com/GoogleCloudPlatform/firestore-native-plugin.git",
+        "https://github.com/GoogleCloudPlatform/google-cloud-storage-plugin.git",
+        "https://github.com/GoogleCloudPlatform/knowledge-catalog-plugin.git",
+        "https://github.com/GoogleCloudPlatform/looker-plugin.git",
+        "https://github.com/GoogleCloudPlatform/oracledb-plugin.git",
+        "https://github.com/GoogleCloudPlatform/spanner-plugin.git"
       ],
       "marketplaces": [
         "https://github.com/google/skills.git#.agents/plugins/marketplace.json"
@@ -264,7 +296,7 @@
   },
   "jetbrains": {
     "githubOrgs": ["JetBrains", "Kotlin"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -299,12 +331,30 @@
         "type": "marketplace",
         "reason": "Same self-wrapper shape, \"path\": \"./\"; no root plugin.json.",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/JetBrains/go-modern-guidelines.git (root plugin.json)",
+        "type": "plugin",
+        "reason": "Re-checked 2026-10-09 per the no-skip rule: raw root plugin.json still HTTP 404 on main.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/JetBrains/hexana.git (root plugin.json)",
+        "type": "plugin",
+        "reason": "Re-checked 2026-10-09: root plugin.json still HTTP 404 on main.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/JetBrains/phpstorm-claude-marketplace.git (root plugin.json)",
+        "type": "plugin",
+        "reason": "Re-checked 2026-10-09: root plugin.json still HTTP 404 on main.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "atlassian": {
     "githubOrgs": ["atlassian", "atlassian-labs"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [
         "https://github.com/atlassian/forge-skills.git",
@@ -355,12 +405,18 @@
         "type": "plugin",
         "reason": "No root agent-plugins.org plugin.json — only .codex-plugin/.claude-plugin/openclaw-plugin manifests; manifest author is an individual, not Atlassian.",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/atlassian/trello-mcp-server.git",
+        "type": "plugin",
+        "reason": "No root agent-plugins.org plugin.json — root has only mcp.json and .cursor-plugin/plugin.json. Re-check each run per the no-root-manifest rule.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [
         "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git#plugins/mr-review",
@@ -381,12 +437,30 @@
         "type": "marketplace",
         "reason": "Genuine multi-entry index but all 3 entries already approved individually; marketplace fan-out only resolves github.com sources (derivePluginIdFromSource), and it is not at the .agents/plugins/ path the codex format expects.",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/developer-relations/cursor-gitlab-plugin",
+        "type": "plugin",
+        "reason": "Cursor plugin bundle: .cursor-plugin/plugin.json only, no agent-plugins.org root plugin.json.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/upstream-studios/design-strategy/gitlab-team-kit",
+        "type": "plugin",
+        "reason": "Claude Code-native .claude-plugin bundle for a design-strategy team metrics kit; no agent-plugins.org manifest.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/upstream-studios/design-strategy/cq-screenshots",
+        "type": "plugin",
+        "reason": "Claude Code-native .claude-plugin bundle; GDK-dependent contributor workflow.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "github": {
     "githubOrgs": ["github"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [
         "https://github.com/github/github-mcp-server.git#agent-plugin"
@@ -435,12 +509,24 @@
         "type": "marketplace",
         "reason": "Catalog of third-party plugins (anthropics, cursor, …) — aggregator, not GitHub-published artifacts.",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/github/computer-use-plugin.git",
+        "type": "plugin",
+        "reason": "Repo contains only LICENSE/README/SECURITY — no plugin.json or any manifest yet. Empty placeholder, recheck next run.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/github/copilot-sdk-workshop.git#.github/skills/localizations",
+        "type": "plugin",
+        "reason": "plugin.json has no $schema and top-level \"skills\": \"./\" — fails agent-plugins.org 1.0.0.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "docker": {
     "githubOrgs": ["docker"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -449,8 +535,8 @@
       {
         "url": "org:docker",
         "type": "plugin",
-        "reason": "Reconfirmed 2026-10-02: 6 plugin.json hits org-wide, all reject-by-path tool-specific manifests (docker/skills .claude-plugin/.codex-plugin/.cursor-plugin/.github/plugin; docker/claude-plugins plugins/*/.claude-plugin). No agent-plugins.org root plugin.json anywhere in the org.",
-        "checkedAt": "2026-10-02"
+        "reason": "Re-checked 2026-10-09 via direct raw plugin.json fetch on skills, claude-plugins, sandbox-kit-spec, sbx-kits-contrib, model-runner, docker-agent, mcp-gateway, sbx-releases — all 404. Still no agent-plugins.org root manifest in the org.",
+        "checkedAt": "2026-10-09"
       },
       {
         "url": "https://github.com/docker/claude-plugins.git",
@@ -468,7 +554,7 @@
   },
   "nvidia": {
     "githubOrgs": ["NVIDIA"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -501,14 +587,20 @@
       {
         "url": "https://github.com/NVIDIA/skills.git",
         "type": "marketplace",
-        "reason": "single-entry local-source self-wrapper; referenced plugins/nvidia-skills subdir has no root plugin.json.",
-        "checkedAt": "2026-09-18"
+        "reason": "Re-checked 2026-10-09 per the no-90-day-skip rule: .agents/plugins/marketplace.json is still a single-entry local-source self-wrapper for ./plugins/nvidia-skills, and that subdir still has no root plugin.json (404) — only .claude-plugin/.codex-plugin/.cursor-plugin wrappers.",
+        "checkedAt": "2026-10-09"
       },
       {
         "url": "https://github.com/NVIDIA/TensorRT-Model-Connect.git",
         "type": "marketplace",
         "reason": "single-entry local-source self-wrapper; referenced plugins/trtmc-agent-skills subdir has no root plugin.json.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "org:NVIDIA (root plugin.json recheck)",
+        "type": "plugin",
+        "reason": "Re-fetched root plugin.json against each repo's verified default_branch for skills, Model-Optimizer, NeMo-Relay, nvidia-kaggle, TensorRT-Model-Connect, elements, OpenShell, NemoClaw, TileGym, warp — all HTTP 404. No agent-plugins.org-conformant manifest in the org.",
+        "checkedAt": "2026-10-09"
       }
     ]
   }

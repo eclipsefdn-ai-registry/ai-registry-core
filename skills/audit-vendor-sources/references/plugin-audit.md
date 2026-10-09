@@ -25,6 +25,13 @@ point, though: this runs weekly, so a missed finding this week is caught next we
    `atlassian-labs/twg-plugins` went from README-documented exclusion to a conformant root
    `plugin.json` between 2026-09-18 and 2026-10-02; `org:JetBrains`, rejected 2026-09-11 as
    shipping no codex-format manifests at all, now ships three.
+   **Run that re-check as one bulk sweep over the whole org, not per cached rejection.**
+   `gh api --paginate orgs/<org>/repos` gives every repo plus its `default_branch`; a loop of
+   `curl -s -o /dev/null -w '%{http_code}'` over `<default_branch>/plugin.json` and
+   `<default_branch>/.agents/plugins/marketplace.json` then answers the question exhaustively for
+   zero `search`/`code_search` quota — 74 anthropics repos and 8 docker repos each re-validated in a
+   single pass on 2026-10-09. It is also strictly more reliable than code search, which under-reports
+   in large repos, and it catches a manifest appearing in a repo no previous run ever cached.
 2. **For each vendor in `vendors.json`** (parallelizable — dispatch one subagent per vendor for
    the research step, since vendors are fully independent; keep branch/commit work in the
    dispatching thread so git state stays predictable), do the following:
@@ -76,6 +83,11 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      need to re-fetch and re-parse the marketplace file just to re-derive the same answer.
    - **Filter false-positive hits before verifying anything.** `filename:plugin.json` and
      `filename:marketplace.json` searches over-match badly:
+     - **A repo whose _name_ ends in `-plugin` can be a bare placeholder.**
+       `github/computer-use-plugin` was created 2026-07-02 and pushed 2026-10-09 but holds only
+       `LICENSE`, `README.md` and `SECURITY.md` — no manifest of any kind. Check the tree before
+       spending a manifest fetch, and queue it for recheck rather than filing a format-based
+       rejection it hasn't earned yet.
      - Reject by path alone, no further check needed: anything under `.claude-plugin/`,
        `.codex-plugin/`, `.cursor-plugin/`, `.plugin/`, `.github/plugin/`, or a
        `test/`/`fixtures/`/`examples/` directory — these are different, tool-specific plugin

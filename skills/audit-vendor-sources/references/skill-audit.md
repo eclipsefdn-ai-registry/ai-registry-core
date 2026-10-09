@@ -44,6 +44,17 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        pass starts from it directly.
    - **Drop anything already approved** (per the glob/array resolution above) or already in the
      cache's `rejected` list.
+     - **A vendor catalog repo can be an automated mirror of skills authored in product repos, and
+       glob resolution against the source repo never catches that.** `NVIDIA/skills` is rebuilt
+       daily from per-product repos (`NVIDIA/NemoClaw/skills/README.md`: ".agents/skills/ … copied to
+       skills/"), so every `tilegym-*` and `warp-*` folder in the product repo already publishes
+       through the approved catalog glob — under a _different_ skillId prefix, which is why a
+       `source.url` + path comparison shows no overlap. Before approving any `skills/` directory in a
+       product repo, grep the catalog's leaf names first: one call,
+       `gh api repos/<org>/skills/contents/skills?per_page=100 --jq '.[].name'` (402 entries for
+       NVIDIA today). On 2026-10-09 that check would have replaced reading twelve skill bodies, all
+       twelve of which turned out to be duplicates. Read a `skills/README.md` before classifying the
+       directory as canonical — it often states the mirror relationship outright.
    - **Filter false-positive hits before verifying anything.** `filename:SKILL.md` over-matches:
      - Skip any `SKILL.md` that lives under a repo/path already approved (or approvable) as an
        Agent Plugin's `skills/*/SKILL.md` — per `AGENTS.md`, a plugin's contained skills are
@@ -179,6 +190,11 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        location to avoid double-approving identical content under two skillIds.
      - For everything else, open the `SKILL.md` and confirm it has real YAML frontmatter with
        `name`/`description` — a stray file that merely happens to be named `SKILL.md` isn't one.
+     - **Read the candidate directory's own `README.md` before sampling bodies.** It can state the
+       internal/external split verbatim and narrow the batch for free:
+       `google/xrblocks#skills/README.md` says "`xb-contribute-sdk` is repository-facing. The other
+       workflows are for applications that consume XR Blocks" — eight skills decided in one fetch
+       (2026-10-09), and the same file carried the tool-agnostic-install signal.
 
    - **Verify every remaining candidate** against `conventions.md`'s checklist, **including its
      same-org-family rule** — a repo under a product/ecosystem org that merely sounds affiliated
@@ -201,6 +217,18 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      `gitlab.com/gitlab-org/ci-cd/gitlab-ci-skill` and `.../github-actions-to-gitlab-ci`,
      2026-10-02). Worth searching for deliberately: a root-level skill repo is invisible to any
      `skills/`-prefixed path grep, only to a `SKILL.md` match at depth 0.
+     **A catalog can be root-level sibling directories with no `skills/` prefix at all** —
+     `google/mantis` ships 19 `mantis-*` folders directly at the repo root, each with its own
+     `SKILL.md` (2026-10-09). This is the depth-0 shape one level out: invisible to any
+     `skills/`-prefixed path grep, and the approval needs an explicit path array, since a bare `*`
+     at depth 0 would sweep in every non-skill directory in the repo.
+     **Two skill approval files in one vendor repo cannot share a base `skillId`,** even when their
+     expanded ids would differ. `consolidate.ts` dedups on `approvalData.skillId` at collect time,
+     before `expandSkillEntry` appends the path leaf, so the second file is silently treated as a
+     duplicate approval of the first and its source is dropped — no error, no warning. This blocks
+     the "group same-repo skills into one approval" guidance above whenever the natural base id is
+     already taken by an existing glob approval; fall back to one single-path file per skill and say
+     why in the commit message.
      **A vendor can keep only a `SKILL-template.md` on the default branch and assemble the real
      `SKILL.md` files onto a release branch** (`google/perfetto`'s `ai-agents` branch). Since
      ai-registry-core#123 the skill schema has `source.ref` (tag, branch, or full commit SHA), so

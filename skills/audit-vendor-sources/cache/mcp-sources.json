@@ -22,7 +22,7 @@
   },
   "anthropic": {
     "githubOrgs": ["anthropics"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "mcpServers": []
     },
@@ -42,8 +42,8 @@
       {
         "url": "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.anthropics",
         "type": "mcpServer",
-        "reason": "Zero results — Anthropic has registered no server in its own namespace as of 2026-10-02.",
-        "checkedAt": "2026-10-02"
+        "reason": "Re-confirmed 2026-10-09: count 0. The broader ?search=anthropic returns only third-party servers (ai.getvda/*, io.github.Trushtonfactory/anthropic-admin-mcp, io.github.ericm1018/*) that merely integrate with Anthropic's API.",
+        "checkedAt": "2026-10-09"
       },
       {
         "url": "https://docs.claude.com/en/docs/agents-and-tools/remote-mcp-servers",
@@ -54,20 +54,32 @@
       {
         "url": "npm scope:@anthropic-ai",
         "type": "mcpServer",
-        "reason": "Scope contains only SDKs and Claude Code/Agent SDK native binaries; no MCP server package.",
-        "checkedAt": "2026-10-02"
+        "reason": "Re-listed 2026-10-09: SDKs + Claude Code/Agent SDK native binaries only. No MCP server package.",
+        "checkedAt": "2026-10-09"
       },
       {
         "url": "claude mcp serve (Claude Code CLI)",
         "type": "mcpServer",
         "reason": "A mode of the Claude Code CLI exposing its own tools, not a separately published standalone server artifact; no registry entry and no distinct package.",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/anthropics/claude-ai-mcp.git",
+        "type": "mcpServer",
+        "reason": "Name is a false positive: issue-tracker-only repo for MCP-in-Claude bug reports (.github/ISSUE_TEMPLATE, drafts/). No server code, no config.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://mcp.claude.com/mcp | https://docs.claude.com/mcp | https://docs.anthropic.com/mcp",
+        "type": "mcpServer",
+        "reason": "Real initialize handshake probes return 301 HTML / empty. No Anthropic-hosted remote MCP endpoint exists at the obvious apex paths.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "openai": {
     "githubOrgs": ["openai"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "mcpServers": ["com.openai/docs-mcp"]
     },
@@ -89,6 +101,12 @@
         "type": "mcpServer",
         "reason": "A client that tunnels the user's own private MCP servers; its plugins/tunnel-mcp/.mcp.json is Codex plugin packaging.",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "registry.modelcontextprotocol.io?search=openai",
+        "type": "mcpServer",
+        "reason": "No com.openai/* or io.github.openai/* namespace exists in the registry (both namespace searches return 0). developers.openai.com/learn/docs-mcp lists exactly one first-party server, the already-approved Docs MCP.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
@@ -115,7 +133,7 @@
   },
   "google": {
     "githubOrgs": ["google", "googleapis", "googlemaps"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "mcpServers": [
         "com.googleapis/agent-registry",
@@ -195,7 +213,8 @@
         "com.googleapis/security-command-center-management",
         "com.googleapis/service-health",
         "com.googleapis/unified-maintenance",
-        "com.googleapis.composer/mcp"
+        "com.googleapis.composer/mcp",
+        "com.googleapis/service-metadata"
       ]
     },
     "rejected": [
@@ -262,9 +281,13 @@
   },
   "jetbrains": {
     "githubOrgs": ["JetBrains", "Kotlin"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
-      "mcpServers": ["com.jetbrains/mcp-server", "io.klibs/mcp-server"]
+      "mcpServers": [
+        "com.jetbrains/mcp-server",
+        "io.klibs/mcp-server",
+        "com.jetbrains/teamcity-mcp"
+      ]
     },
     "rejected": [
       {
@@ -282,18 +305,44 @@
       {
         "url": "https://github.com/JetBrains/context.git (jbcontext MCP)",
         "type": "mcpServer",
-        "reason": "No published mcpServers connection block found; mcp/ holds only tool-description text for the proprietary CLI's own MCP mode.",
-        "checkedAt": "2026-10-02"
+        "reason": "Re-checked 2026-10-09 after the repo description changed to 'skills, mcp, hooks': mcp/ still holds only tool-description .txt files, no connection block. Prior rejection stands.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/JetBrains/digma-mcp-server",
+        "type": "mcpServer",
+        "reason": "fork=true (Digma acquisition mirror), last pushed 2025-05-06.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/JetBrains/mcp-steroid",
+        "type": "mcpServer",
+        "reason": "fork=true; project page for a third-party IntelliJ plugin.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "io.github.aoreshkov/kotlin-lib-mcp",
+        "type": "mcpServer",
+        "reason": "Registry hit under a personal account, not the JetBrains or Kotlin org.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/JetBrains/kotlin-toolchain.git#sources/amper-project-templates/resources/templates/*/.mcp.json",
+        "type": "mcpServer",
+        "reason": "Project-template fixture shipped with the Kotlin Toolchain scaffolder, not a connectable server.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "atlassian": {
     "githubOrgs": ["atlassian", "atlassian-labs"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "mcpServers": [
         "com.atlassian/atlassian-mcp-server",
-        "com.atlassian/trello-mcp-server"
+        "com.atlassian/trello-mcp-server",
+        "https://mcp.atlassian.com/v1/forge/mcp (covered via io.github.atlassian/forge-skills containedMcpServers, not standalone)",
+        "https://mcp.atlassian.com/v1/ads/public/mcp (covered via io.github.atlassian/forge-skills containedMcpServers, not standalone)"
       ]
     },
     "rejected": [
@@ -307,9 +356,13 @@
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
-      "mcpServers": ["com.gitlab/mcp", "com.gitlab/lazy-mcp"]
+      "mcpServers": [
+        "com.gitlab/mcp",
+        "com.gitlab/lazy-mcp",
+        "com.gitlab/orbit"
+      ]
     },
     "rejected": [
       {
@@ -334,7 +387,7 @@
   },
   "github": {
     "githubOrgs": ["github"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "mcpServers": ["io.github.github/github-mcp-server"]
     },
@@ -344,12 +397,18 @@
         "type": "mcpServer",
         "reason": "Open aggregator registry of third-party servers, not a GitHub self-published server (same exclusion class as docker/mcp-registry).",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/github/gh-aw-mcpg.git",
+        "type": "mcpServer",
+        "reason": "MCP Gateway proxying other MCP servers for gh-aw sandboxes; no fixed command/serverUrl (port/domain/agentId per deployment) — framework building block exclusion, not a standalone connectable server.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "docker": {
     "githubOrgs": ["docker"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "mcpServers": ["com.docker/hub-mcp", "com.docker/dhi-mcp"]
     },
@@ -383,12 +442,24 @@
         "type": "mcpServer",
         "reason": "prompts/mcp/readmes/* are third-party server configs Docker packaged; repo is deprecated in favour of the MCP Toolkit.",
         "checkedAt": "2026-10-02"
+      },
+      {
+        "url": "https://github.com/docker/dockside-releases.git",
+        "type": "mcpServer",
+        "reason": "Release-binaries repo for 'Dockside', the CLI/console for Docker MCP Gateway Enterprise — tooling around the already-rejected aggregating gateway, not a first-party MCP server with a fixed config.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/docker/harbor.git",
+        "type": "mcpServer",
+        "reason": "Agent evaluation framework; no MCP server published.",
+        "checkedAt": "2026-10-09"
       }
     ]
   },
   "nvidia": {
     "githubOrgs": ["NVIDIA"],
-    "lastChecked": "2026-10-02",
+    "lastChecked": "2026-10-09",
     "knownSources": {
       "mcpServers": [
         "com.nvidia.ngc.nsight.copilot.api/cuda-docs",
@@ -407,6 +478,24 @@
         "type": "mcpServer",
         "reason": "not vendor's own org.",
         "checkedAt": "2026-09-18"
+      },
+      {
+        "url": "https://docs.nvidia.com/nemo/agent-toolkit/ (nat mcp)",
+        "type": "mcpServer",
+        "reason": "Framework building block letting other workflows expose an MCP endpoint — no fixed command/URL; same exclusion class as @theia/ai-mcp-server.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://docs.nvidia.com/switch-infrastructure/config-manager/config-manager/overview/mcp",
+        "type": "mcpServer",
+        "reason": "Remote MCP runs inside the customer's own Config Manager deployment; endpoint is per-deployment, no connectable config.",
+        "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/NVIDIA-AI-IOT/inference_builder",
+        "type": "mcpServer",
+        "reason": "DeepStream Inference Builder MCP: docs publish only http://<host>:8000/mcp for a user-run server — no fixed connectable config. Also NVIDIA-AI-IOT is a same-org-family org, not independently verified as NVIDIA's own.",
+        "checkedAt": "2026-10-09"
       }
     ]
   }

@@ -34,6 +34,11 @@ vendor publishes without ever registering.
      Anything returned that isn't already in `mcp/*.json` is a candidate — for these, a normal
      approval is just `serverId` + `date`, since consolidation enriches name/description/version
      from the registry automatically.
+     **A registry search that hangs is transient, not an empty result.** Under parallel load on
+     2026-10-09 several `?search=` queries timed out past 120s and the identical query then returned
+     instantly on retry. Retry before recording "no results"; recording a timeout as an empty search
+     silently drops a vendor's whole registry-listed path for that run. `?limit=` appears
+     unsupported and makes the request hang on its own.
    - **Self-published path (secondary, bounded)** — a vendor can ship a working MCP server (often
      bundled into a product, or a scoped npm/PyPI package) without ever submitting it to the
      registry; don't skip this just because the registry search came back empty. Aim for ≤4
@@ -78,6 +83,14 @@ vendor publishes without ever registering.
        `@theia/ai-mcp-server` lets _other_ Theia-based applications expose an MCP endpoint at a
        deployment-specific port; it isn't itself an installable server. Same exclusion class as
        `.claude-plugin/`-style tool-specific manifests for plugins/skills.
+       **The test is "is this a building block for _other_ vendors' products", not "is the host
+       per-deployment".** A server you install into your own instance of the vendor's own product
+       is a real, approvable artifact — it just can't carry a `config`.
+       `mcp-server-config.schema.json`'s `url` is `format: uri`, and ajv rejects
+       `https://<your-teamcity>/app/mcp` and `https://{host}/app/mcp` alike (verified directly,
+       2026-10-09). Publish `metadata` + `selfPublished: true` with **no** `config` — the same shape
+       a bare registry-listed entry has — rather than fabricating an `example.com` host or rejecting
+       the server. `com.jetbrains/teamcity-mcp` is the worked example.
    - **Drop anything already approved** (registry-listed `serverId` match, or a self-published
      entry whose `config`/`metadata` clearly describes the same server already in `mcp/*.json`) or
      already in the cache's `rejected` list.
@@ -203,9 +216,20 @@ against `https://api.klibs.io/mcp` → `serverInfo.name: klibs-mcp-server`). The
 `Accept: application/json, text/event-stream` header is mandatory per the Streamable HTTP spec —
 omitting it yields a 400 that reads like a broken endpoint.
 
+**A `401` carrying `WWW-Authenticate: Bearer realm=…, scope=…, resource_metadata=https://…/.well-known/oauth-protected-resource/<path>`
+is itself positive proof the endpoint speaks MCP.** That header is the MCP authorization spec's
+RFC 9728 protected-resource response, and no plain REST 401 emits it (confirmed 2026-10-09 against
+`https://gitlab.com/api/v4/orbit/mcp` → `scope="mcp_orbit"`). An OAuth-gated server can never
+complete the handshake above anonymously, so without this signal it would read as unverifiable.
+
 **When the vendor publishes a catalogue page, cross-check every minted id's endpoint against that
 page rather than trusting a transcription.** Extract the URL from each approval file and grep the
-fetched page for it; all 31 new Google entries were re-verified this way on 2026-10-04.
+fetched page for it; all 31 new Google entries were re-verified this way on 2026-10-04. **Diff the
+page week over week by distinct product name, not by row** — `docs.cloud.google.com/mcp/supported-products`
+returns 594 rows but only 80 distinct products, and collapsing the regional duplicates (`awk` on
+`section | product`) made the 2026-10-09 diff against `knownSources` exactly one line long. Key the
+duplicate check on the **endpoint URL, not the product slug**: a product name need not match its
+host (`Service Metadata API` → `cloud.googleapis.com`).
 
 **Distinguish enumerable from combinatorial endpoint sets.** A product with a small, fixed set of
 global hosts and one toolset path each is approvable as one entry per toolset — Security Command
