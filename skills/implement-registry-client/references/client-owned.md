@@ -15,7 +15,7 @@ Some shapes this can take:
 - **Ranking rather than filtering.** Everything stays visible, and endorsements from preferred organizations sort first or carry a stronger badge. Nothing disappears, so there is no empty-list state to design.
 - **A threshold.** Require endorsement by more than one organization before an artifact is offered. Cheap to implement, and it disadvantages artifacts that are simply new.
 
-The `inferred` flag on an organization is worth surfacing in any of these. It marks an organization pre-seeded from a public source rather than one participating in the registry directly, which is a different kind of endorsement than a vendor filing its own approvals.
+The `inferred` flag on an organization is worth surfacing in any of these. It marks an organization pre-seeded from a public source rather than one participating in the registry directly, which is a different kind of endorsement than an organization filing its own approvals.
 
 ## Auto-update policy
 

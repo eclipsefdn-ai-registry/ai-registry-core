@@ -19,10 +19,12 @@ The registry records that a named organization **endorsed** an artifact on a dat
 
 It does not test, audit, sandbox, or certify anything. Endorsement is per organization, not a registry-wide certification. A client can present its per-tool list as its own and never name another organization, or it can show the endorsement chain behind each artifact. Both are valid; the second gives the user something to evaluate.
 
+An organization endorsing an artifact it wrote itself leaves the same record as one endorsing somebody else's, and the registry does not check who owns the source. **Do not read authorship into an endorsement**, or into an organization's source repository matching its name. The one place a publisher is named is `selfPublished` on an MCP endorsement, which is the organization's own claim rather than anything verified.
+
 Five limits shape everything below:
 
 - MCP servers are described by configuration, not by content. The registry publishes the command or URL to run. Nothing in the feed covers the server's code, and that code can change under a stable command at any time.
-- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push, and `source.commit`, the commit that run checked out and hashed. Both can also carry an optional `source.ref` (a git tag, branch, or full commit SHA) naming the revision the organization endorsed instead of the default branch. The ref says what was endorsed and the commit says what was hashed, so fetch `source.commit` to verify the hash. With no `source.ref`, the endorsement follows the default branch and `source.commit` moves with it on every run. Each entry also carries `latestCommit` and `latestHash`, what the source ships at the same path now, whenever consolidation could find that out. They show when a pinned endorsement has fallen behind its source, and they are never something to install. See [what the source ships now](references/staying-current.md#what-the-source-ships-now).
+- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and whenever an organization pushes, and `source.commit`, the commit that run checked out and hashed. Both can also carry an optional `source.ref` (a git tag, branch, or full commit SHA) naming the revision the organization endorsed instead of the default branch. The ref says what was endorsed and the commit says what was hashed, so fetch `source.commit` to verify the hash. With no `source.ref`, the endorsement follows the default branch and `source.commit` moves with it on every run. Each entry also carries `latestCommit` and `latestHash`, what the source ships at the same path now, whenever consolidation could find that out. They show when a pinned endorsement has fallen behind its source, and they are never something to install. See [what the source ships now](references/staying-current.md#what-the-source-ships-now).
 - Agents carry a content hash too, but of a single fetched Agent Card JSON file, not a directory — there is no path to pin.
 - Sandbox extensions carry a content hash of their directory, a `source.commit`, and `latestCommit` and `latestHash`, all the same way. They can also name a revision: `source.ref` holds a git tag, branch, or full commit SHA when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
 - Withdrawing an endorsement removes the entry from the feed, but so does a source that was briefly unreachable when consolidation ran. Nothing in the data separates the two, so there is no revocation signal a client can act on. See [Disappearing entries](#disappearing-entries).
@@ -42,6 +44,8 @@ Base URL: `https://ai.open-vsx.org/api/v1/`
 `tools/<tool-id>.json` is all you need to browse and install. Add `organizations.json` if you want to name the endorsing organizations, since the per-tool view carries `organizationId` strings and nothing else about them.
 
 Reach for `orgs/<org-id>.json` or the per-type files when your client's boundary is an organization or an artifact type rather than a tool — for example, an organization publishing its own curated allowlist, or a client that only ever handles one artifact type.
+
+An organization-scoped feed exists whether or not that organization provides tools. An organization can endorse artifacts purely to publish what it allows, with no `tools` and no install configuration anywhere, so such a feed carries no `installConfigs` to act on. Decide how your client installs what it finds there.
 
 Both keep every entry's `approvals` and `installConfigs` exactly as filed, unlike `tools/<tool-id>.json`. Filter `approvals` by `organizationId` and `installConfigs[].tool` yourself before installing, or treat these as browsing views like `all.json`.
 
@@ -302,7 +306,7 @@ Install means downloading `source.path` from `source.url` at `source.commit`, ve
 
 ## Disappearing entries
 
-An installed artifact vanishing from the feed can mean an organization withdrew its endorsement. It can also mean consolidation skipped the entry because its source was briefly unreachable, or a vendor retargeted the approval, or an id was renamed. The data does not distinguish them.
+An installed artifact vanishing from the feed can mean an organization withdrew its endorsement. It can also mean consolidation skipped the entry because its source was briefly unreachable, or the organization retargeted the endorsement, or an id was renamed. The data does not distinguish them.
 
 Surface it and act on nothing. Mark the artifact as no longer listed, and let the user keep it, dropping the registry link, or remove it.
 

@@ -106,7 +106,8 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Every organization, tool, MCP server, skill, plugin, A2A agent,
-                and sandbox extension, with approvals merged across all vendors.
+                and sandbox extension, with approvals merged across all
+                organizations.
               </td>
             </tr>
             <tr className="border-b border-border align-top">
@@ -147,7 +148,10 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Artifacts approved by one organization, across every tool, with
-                install configs kept in full. Example:{" "}
+                install configs kept in full. Defined for every organization,
+                whether or not it provides tools — for one that provides none,
+                this is the whole of what it approved, and the feed to follow
+                for the list it has vetted. Example:{" "}
                 <a
                   href={`${BASE_URL}api/v1/orgs/eclipsesource.json`}
                   className="text-primary hover:underline"
@@ -257,7 +261,7 @@ export function ApiPage() {
 }`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
           These shapes are produced by consolidation and differ from the
-          approval files vendors write. Fields such as{" "}
+          approval files organizations write. Fields such as{" "}
           <InlineCode>approvals</InlineCode>,{" "}
           <InlineCode>contentHash</InlineCode>, and{" "}
           <InlineCode>containedSkills</InlineCode> exist only in the output.
@@ -568,9 +572,9 @@ export function ApiPage() {
 
       <DocsSection id="schemas">
         <p className="mb-3 leading-relaxed">
-          These schemas describe the approval files vendors write, not the API
-          responses above. Consolidation reads them, enriches them, and emits
-          the response shapes.
+          These schemas describe the approval files organizations write, not the
+          API responses above. Consolidation reads them, enriches them, and
+          emits the response shapes.
         </p>
         <table className="w-full text-sm mt-3">
           <thead>
@@ -585,7 +589,7 @@ export function ApiPage() {
           </thead>
           <tbody>
             {[
-              ["organization.schema.json", "Vendor organization metadata"],
+              ["organization.schema.json", "Organization metadata"],
               ["mcp-approval.schema.json", "MCP server approval file"],
               ["skill-approval.schema.json", "Agent Skill approval file"],
               [
@@ -620,8 +624,8 @@ export function ApiPage() {
 
       <DocsSection id="stability">
         <p className="mb-3 leading-relaxed">
-          Registry data is rebuilt whenever a vendor updates their approvals,
-          and daily to pick up changes in{" "}
+          Registry data is rebuilt whenever an organization updates their
+          approvals, and daily to pick up changes in{" "}
           <a
             href="https://registry.modelcontextprotocol.io/"
             target="_blank"
