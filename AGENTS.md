@@ -21,7 +21,18 @@ Organizations can provide tools (with `installConfigs`) or just approve artifact
 - Only an approval whose `source.ref` pins a tag or commit can differ, and only once the default branch moves off it.
 - One `git ls-remote` per repository decides. Only when the branch has moved is the path fetched and hashed again, with no ref.
 - Behind is `latestHash !== contentHash`. Every consumer derives it, it is never stored, and it is never a commit comparison.
-- Every published file carries a `generatedAt` timestamp.
+- Every published file carries a `generatedAt` timestamp, except the marketplace files (below), whose schema is not ours.
+
+## Published marketplaces
+
+The registry also publishes its approved plugins back out as Claude Code plugin marketplaces: `marketplace.json` (every approved plugin) and `orgs/<id>/marketplace.json` (one per organization that approved at least one, and none for the others). A client adds one with `claude plugin marketplace add <url>` instead of reading the registry. Per-organization is the form to subscribe to, since trust here is held by an organization and a merged catalog flattens it.
+
+This is the opposite direction from `marketplaces/*.json` approvals, which consume a vendor's marketplace file — `src/marketplace-output.ts` writes, `src/marketplace-source.ts` reads.
+
+- Entry `name` is the `pluginId` with `/` replaced by `.`, and the plugin's own name goes to `displayName`. Consolidation is a stateless rebuild and so can't emit the `renames` map that repairs installs after a name moves; a name derived from the id can never move.
+- Entries pin `sha` to `source.commit`, alongside `ref` where the approval names one, so an install is what `contentHash` covers. Claude Code wants a full 40-character SHA and anything shorter is dropped.
+- Approval provenance goes in each entry's free-form `metadata`, which Claude Code ignores at load.
+- Claude Code only. It is the only client that adds a marketplace from a URL; Codex and Copilot read one out of a git repository, which a static API isn't. Publishing their dialects means publishing a generated repository.
 
 ## Data flow
 
@@ -50,6 +61,7 @@ src/
   plugin-source.ts          Plugin enrichment (sparse checkout, manifest + contents)
   agent-source.ts           Agent enrichment (HTTP fetch, parse, hash)
   marketplace-source.ts     Marketplace expansion (parse marketplace file, resolve + derive plugin IDs)
+  marketplace-output.ts     Marketplace files the registry publishes (Claude Code format, aggregate + per org)
   sandbox-source.ts         Sandbox extension enrichment (clone, discover tools/* and features/*, parse spec, hash)
   git-source.ts             Shared git helpers (clone at a ref, list remote branches, decide whether latest needs a second fetch and record it)
   anthropic-registry.ts     MCP server metadata lookup
@@ -89,5 +101,6 @@ Tests use Node.js built-in `node:test` with `assert/strict`. Pure function tests
 - The second fetch that computes `latestHash` must go through the same function that produced `contentHash`, or the two stop being comparable.
 - Website types in `website/src/types.ts` mirror but don't import from `src/consolidate.ts` — keep them in sync manually.
 - Guidance for implementing clients exists twice on purpose: `skills/implement-registry-client/` for agents, `/docs/clients` (`website/src/pages/docs/ClientsPage.tsx`) for people. Each is complete and neither links to the other, so a rule that changes needs both edited. Drift here is accepted, not a bug to fix by merging them.
+- `src/marketplace-output.ts` is the one tool-specific rendering outside the website, deliberately: `installCommand.ts` and `enclaveCommand.ts` produce a string for a human to copy, while a marketplace file has to exist at a URL in the API surface. The command that adds one is still website-only, in `website/src/marketplaceCommand.ts`.
 - The sandbox extension install command (`enclave tools|features add ...`) lives only in `website/src/enclaveCommand.ts` and is never written into the consolidated JSON, matching how the skill and plugin commands live only in `website/src/installCommand.ts`. It returns undefined for non-GitHub sources, since Enclave's `owner/repo` shorthand assumes github.com. The skill command carries `source.ref` as `#<ref>`, or `source.commit` in its place when `approvedTarget` says pinned, since a tag can be moved and the commit is what was hashed. The plugin command is omitted whenever the approval names a ref, branch included, because the plugins CLI can't target one; that suppression goes away once it can.
 - Docs pages live under `/docs` with a sidebar driven by `website/src/components/docs/docsNav.ts`. Section titles come from that file via `DocsSection`, so a section is added by adding it there and rendering `<DocsSection id="...">` on the page.
