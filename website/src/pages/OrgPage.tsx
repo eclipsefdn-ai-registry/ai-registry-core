@@ -13,6 +13,8 @@ import { AgentDetail } from "../components/AgentDetail";
 import { SandboxExtensionList } from "../components/SandboxExtensionList";
 import { SandboxExtensionDetail } from "../components/SandboxExtensionDetail";
 import { TabButtons } from "../components/TabButtons";
+import { InstallFromCli } from "../components/InstallFromCli";
+import { marketplaceCommand } from "../marketplaceCommand";
 import { NotFoundPage } from "./NotFoundPage";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { filterByNameDescId } from "../filterArtifacts";
@@ -298,11 +300,25 @@ export function OrgPage() {
       )}
 
       {tab === "plugins" && (
-        <PluginList
-          plugins={filteredPlugins}
-          getOrg={getOrg}
-          onSelect={(id) => setSearchParams({ plugin: id })}
-        />
+        <>
+          {/* Only organizations with at least one approved plugin get a
+              marketplace file, which is the same condition consolidation
+              writes one under. */}
+          {(data.plugins ?? []).length > 0 && (
+            <div className="mb-8">
+              <InstallFromCli
+                label="Add in Claude Code"
+                command={marketplaceCommand(window.location.origin, orgId)}
+                note={`Installs any plugin ${org?.name ?? orgId} approved, at the commit the registry verified. Claude Code only: other tools read a marketplace from a git repository.`}
+              />
+            </div>
+          )}
+          <PluginList
+            plugins={filteredPlugins}
+            getOrg={getOrg}
+            onSelect={(id) => setSearchParams({ plugin: id })}
+          />
+        </>
       )}
 
       {tab === "agents" && (

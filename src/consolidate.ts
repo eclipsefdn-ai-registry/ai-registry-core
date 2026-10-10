@@ -25,6 +25,10 @@ import {
   fetchMarketplaceEntries,
   derivePluginIdFromSource,
 } from "./marketplace-source.js";
+import {
+  buildMarketplace,
+  type MarketplaceFile,
+} from "./marketplace-output.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
@@ -1377,6 +1381,15 @@ function writeOutput(output: ConsolidatedOutput, generatedAt: string): void {
     console.log(`Written: ${filePath}`);
   };
 
+  // The marketplace files are the one exception to the rule above. Their schema
+  // is Anthropic's, where an unknown top-level key is a validation warning, so
+  // they carry no generatedAt: extending someone else's contract to satisfy
+  // ours is the wrong trade. See marketplace-output.ts.
+  const writeMarketplace = (filePath: string, data: MarketplaceFile): void => {
+    writeJson(filePath, data);
+    console.log(`Written: ${filePath}`);
+  };
+
   write(resolve(outputDir, "all.json"), output);
 
   write(resolve(outputDir, "organizations.json"), {
@@ -1423,7 +1436,23 @@ function writeOutput(output: ConsolidatedOutput, generatedAt: string): void {
       sandboxTools: buildOrgEntryView(org.id, output.sandboxTools),
       sandboxFeatures: buildOrgEntryView(org.id, output.sandboxFeatures),
     });
+
+    // An organization that has approved no plugins gets no marketplace file: an
+    // empty catalog is a dead end for whoever added it, and a validation
+    // warning. orgs/<id>/marketplace.json and orgs/<id>.json sit side by side.
+    if (buildOrgEntryView(org.id, output.plugins).length === 0) continue;
+    const orgMarketplaceDir = resolve(orgsDir, org.id);
+    mkdirSync(orgMarketplaceDir, { recursive: true });
+    writeMarketplace(
+      resolve(orgMarketplaceDir, "marketplace.json"),
+      buildMarketplace(output.plugins, { orgId: org.id, orgName: org.name }),
+    );
   }
+
+  writeMarketplace(
+    resolve(outputDir, "marketplace.json"),
+    buildMarketplace(output.plugins),
+  );
 
   console.log(`\n  Organizations: ${output.organizations.length}`);
   console.log(`  Tools: ${output.tools.length}`);
