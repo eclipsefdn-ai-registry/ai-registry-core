@@ -17,10 +17,17 @@ describe("marketplaceCommand", () => {
     );
   });
 
-  it("keeps the origin it was given, so a preview deployment links to itself", () => {
+  it("keeps the base it was given, so a preview deployment links to itself", () => {
     assert.match(
       marketplaceCommand("https://preview.example.com", "aws"),
       /^claude plugin marketplace add https:\/\/preview\.example\.com\//,
+    );
+  });
+
+  it("keeps a subpath, where the origin alone would be a 404", () => {
+    assert.equal(
+      marketplaceCommand("https://example.github.io/ai-registry-core/", "aws"),
+      "claude plugin marketplace add https://example.github.io/ai-registry-core/api/v1/orgs/aws/marketplace.json",
     );
   });
 

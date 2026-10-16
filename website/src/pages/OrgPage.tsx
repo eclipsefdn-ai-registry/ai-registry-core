@@ -308,7 +308,11 @@ export function OrgPage() {
             <div className="mb-8">
               <InstallFromCli
                 label="Add in Claude Code"
-                command={marketplaceCommand(window.location.origin, orgId)}
+                command={marketplaceCommand(
+                  new URL(import.meta.env.BASE_URL, window.location.origin)
+                    .href,
+                  orgId,
+                )}
                 note={`Installs any plugin ${org?.name ?? orgId} approved, at the commit the registry verified. Claude Code only: other tools read a marketplace from a git repository.`}
               />
             </div>
