@@ -1,4 +1,4 @@
-import type { PluginEntry } from "./consolidate.js";
+import type { PluginApproval, PluginEntry } from "./consolidate.js";
 
 // Builds the marketplace files the registry publishes, as opposed to the vendor
 // marketplace files it consumes (see marketplace-source.ts). A client adds one
@@ -31,12 +31,14 @@ export interface MarketplaceEntrySource {
   sha?: string;
 }
 
-export interface MarketplaceEntryApproval {
-  organizationId: string;
-  date: string;
-  viaTrust?: string;
-  sourcedFrom?: { marketplaceUrl: string; format: string };
-}
+// The approval as a client of the marketplace sees it: who approved, when, and
+// how they arrived at it. configHash and installConfigs are left behind — the
+// first is an update-detection device for registry clients, and the second has
+// no meaning once the plugin is installed from here.
+export type MarketplaceEntryApproval = Pick<
+  PluginApproval,
+  "organizationId" | "date" | "viaTrust" | "sourcedFrom"
+>;
 
 export interface MarketplaceEntryMetadata {
   pluginId: string;
