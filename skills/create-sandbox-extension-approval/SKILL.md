@@ -43,7 +43,8 @@ agent's own approval prompts (`sandbox.yoloFlag`).
 Approving a repository endorses **every** extension in it, and it is re-read on every
 consolidation run — so extensions added upstream later are published under this approval too.
 Pin `source.ref` to a tag if the organization means to endorse a fixed release rather than
-whatever the default branch becomes.
+whatever the default branch becomes, or to a full commit SHA for a pin that must never move: a
+tag can be moved, and a branch of the same name takes precedence over it.
 
 ## Your Workflow
 
