@@ -6,21 +6,21 @@ A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclip
 
 ## How It Works
 
-The registry follows a federated model: **vendors** maintain their own repositories with approval files for AI artifacts (MCP servers, Agent Skills, Agent Plugins, A2A agents, and sandbox extensions) they endorse. A **central repository** consolidates all vendor data into a single JSON file that tools can consume.
+The registry follows a federated model: **organizations** maintain their own repositories with approval files for AI artifacts (MCP servers, Agent Skills, Agent Plugins, A2A agents, and sandbox extensions) they endorse. A **central repository** consolidates all of that data into a single JSON file that tools can consume.
 
 ```
-Vendor Repos                    Central Repo                    Consumers
+Org Repos                       Central Repo                    Consumers
 ┌──────────────┐
 │ Theia IDE    │──┐
 │ (approvals)  │  │         ┌─────────────────┐          ┌──────────────┐
 └──────────────┘  ├──────►  │  Consolidation  │────────► │  all.json    │
 ┌──────────────┐  │         │  + Validation   │          │  Website     │
-│ Vendor B     │──┘         │  + Metadata     │          │  Tools/IDEs  │
+│ Org B        │──┘         │  + Metadata     │          │  Tools/IDEs  │
 │ (approvals)  │            └─────────────────┘          └──────────────┘
 └──────────────┘
 ```
 
-**Vendor repos** contain:
+**Organization repos** contain:
 
 - `organization.json` — organization identity and (optionally) tools
 - `mcp/*.json` — one approval file per approved MCP server, with optional tool-specific install configurations
@@ -31,7 +31,7 @@ Vendor Repos                    Central Repo                    Consumers
 **The central repo** provides:
 
 - JSON schemas that define the contract for all participants
-- A consolidation pipeline that pulls, validates, and merges vendor data
+- A consolidation pipeline that pulls, validates, and merges each organization's data
 - Metadata enrichment from the Anthropic MCP registry (server names, descriptions, verification status)
 - Metadata enrichment from skill source repos (name, description, content hash)
 - Metadata enrichment from plugin source repos (name, description, version, author, contained skills/MCP servers, content hash)
@@ -45,25 +45,25 @@ Vendor Repos                    Central Repo                    Consumers
 | Repository                                                                       | Purpose                                                                                        |
 | :------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
 | [ai-registry-core](https://github.com/eclipsefdn-ai-registry/ai-registry-core)   | Central repo — schemas, consolidation, website, AI skill ([development guide](DEVELOPMENT.md)) |
-| [ai-registry-theia](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) | Theia IDE vendor repo — serves as the reference implementation for vendor repositories         |
+| [ai-registry-theia](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) | Theia IDE organization repo — the reference implementation for organization repositories       |
 
 ## Data Flow
 
-1. A vendor creates approval files (manually or using the Claude Code skills for [MCP](skills/create-mcp-approval/SKILL.md), [skills](skills/create-skill-approval/SKILL.md), [plugins](skills/create-plugin-approval/SKILL.md), or [agents](skills/create-agent-approval/SKILL.md))
-2. Vendor commits and pushes — CI validates against the central schemas
-3. On successful push to main, the vendor CI triggers the central consolidation workflow
-4. Consolidation pulls all registered vendor repos, validates, enriches with MCP registry metadata, skill source metadata, plugin source metadata, and agent card metadata
+1. An organization creates approval files (manually or using the Claude Code skills for [MCP](skills/create-mcp-approval/SKILL.md), [skills](skills/create-skill-approval/SKILL.md), [plugins](skills/create-plugin-approval/SKILL.md), or [agents](skills/create-agent-approval/SKILL.md))
+2. The organization commits and pushes — CI validates against the central schemas
+3. On successful push to main, the organization's CI triggers the central consolidation workflow
+4. Consolidation pulls all registered organization repos, validates, enriches with MCP registry metadata, skill source metadata, plugin source metadata, and agent card metadata
 5. The website and consolidated JSON are built and deployed to GitHub Pages
 6. Tools (e.g., Theia IDE) consume the consolidated JSON at a stable URL
 
-## Vendor Guide
+## Organization Guide
 
 ### Repository structure
 
-A vendor repo is a pure data repository — no dependencies, no build steps. It contains:
+An organization repo is a pure data repository — no dependencies, no build steps. It contains:
 
 ```
-organization.json          # vendor identity and tools
+organization.json          # organization identity and tools
 mcp/
   <server-id>.json         # one file per approved MCP server
 skills/
@@ -150,7 +150,7 @@ The `serverId` must reference a server in the [Anthropic MCP registry](https://r
 
 Alongside `installConfigs`, an approval can carry a root-level `config`: generic, tool-agnostic connection info for the server itself. It describes **one server** and deliberately omits the outer `mcpServers`/`servers` wrapper that client config files use — adding that wrapper, and translating field names, is a per-tool transform's job (`src/mcp-config-templates/`). See the [config schema](schemas/mcp-server-config.schema.json) for the full field reference.
 
-It is worth supplying, because it is what lets other vendors set `"config": "derived"` on an `installConfigs` entry and have their tool's config generated from it — including vendors who approve the same server later, and tools that don't exist yet. An approval with no root `config` can only ever offer hand-written install configs.
+It is worth supplying, because it is what lets other organizations set `"config": "derived"` on an `installConfigs` entry and have their tool's config generated from it — including organizations that approve the same server later, and tools that don't exist yet. An approval with no root `config` can only ever offer hand-written install configs.
 
 ```json
 {
@@ -181,9 +181,9 @@ Secrets **must** be written as `${VAR}` references, never as literals. `oauth.cl
 
 A tool that has no `${VAR}` expansion of its own gets these rewritten by its transform — Theia's, for instance, turns `${TOKEN}` into a `<TOKEN>` placeholder for the user to fill in.
 
-#### Vendor-supplied metadata for servers not in the Anthropic registry
+#### Organization-supplied metadata for servers not in the Anthropic registry
 
-Not every MCP server a vendor wants to approve is registered with Anthropic yet. For these, an approval can optionally include `metadata` and `selfPublished`:
+Not every MCP server an organization wants to approve is registered with Anthropic yet. For these, an approval can optionally include `metadata` and `selfPublished`:
 
 ```json
 {
@@ -200,12 +200,12 @@ Not every MCP server a vendor wants to approve is registered with Anthropic yet.
 - **`metadata`** (`{ name, description }`) — a fallback name/description used only while the server is absent from the Anthropic registry. Once the server appears there, registry data always takes precedence and `metadata` is ignored.
 - **`selfPublished`** (boolean) — set this only if your organization actually publishes/maintains the server (not merely approves or recommends it). It renders a distinct "Publisher claim" badge on the website, separate from Anthropic-registry verification; the claiming organization's name appears in the badge's tooltip, not the badge text itself.
 
-These two fields are independent: any approving vendor may supply `metadata` as a suggestion without self-attesting, and self-attestation implies stronger trust in that vendor's `metadata` if supplied.
+These two fields are independent: any approving organization may supply `metadata` as a suggestion without self-attesting, and self-attestation implies stronger trust in that organization's `metadata` if supplied.
 
 Resolution when a server has no registry entry:
 
-1. If exactly one vendor set `selfPublished: true`, that vendor's `metadata` (if present) wins, and the website shows a "Publisher claim" badge (the claiming vendor's name is in the tooltip). **Two different vendors self-attesting for the same server is a contradiction and fails the shared consolidation build** — a server can only have one publisher.
-2. Otherwise, among vendors that supplied plain `metadata`, the earliest-`date` approval wins (organization ID alphabetically as a tie-break on an exact date match). This is a deterministic, non-fatal fallback — vendors can't see each other's data before filing, so disagreement here is expected and only logged as a warning, not a build failure.
+1. If exactly one organization set `selfPublished: true`, that organization's `metadata` (if present) wins, and the website shows a "Publisher claim" badge (the claiming organization's name is in the tooltip). **Two different organizations self-attesting for the same server is a contradiction and fails the shared consolidation build** — a server can only have one publisher.
+2. Otherwise, among organizations that supplied plain `metadata`, the earliest-`date` approval wins (organization ID alphabetically as a tie-break on an exact date match). This is a deterministic, non-fatal fallback — organizations can't see each other's data before filing, so disagreement here is expected and only logged as a warning, not a build failure.
 
 ### Skill approval files
 
@@ -310,22 +310,30 @@ Those two directories are a registry convention, stricter than what [Eclipse Enc
 
 ### Validation
 
-Validation runs in CI by checking out the central repo and running its CLI against your vendor repo.
+Validation runs in CI by checking out the central repo and running its CLI against your organization repo.
 
-To validate locally from the vendor repo:
+To validate locally from the organization repo:
 
 ```bash
 npm run validate           # standalone — clones core repo automatically
 npm run validate:local     # fast — requires core repo checked out as sibling
 ```
 
-See the [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) for a complete reference implementation including the CI workflow.
+See the [Theia organization repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) for a complete reference implementation including the CI workflow.
 
-### Becoming a vendor
+### Registering an organization
 
-1. Request a vendor repository by [opening an issue](https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues) on this repo describing your organization and the artifacts you plan to approve
+Three reasons to register, all of them first-class and all using the files described above:
+
+- **You provide a tool.** Declare it in `tools` and give your approvals install configurations, and your tool reads its own feed at `tools/<tool-id>.json`.
+- **You want to publish a whitelist for your own organization.** Approve what you have vetted and it is published at `orgs/<org-id>.json` and on your organization page. Note that the registry is public, so a list you curate for internal use is visible to everyone.
+- **You publish your own artifacts.** Approving them here lists them with their provenance and source, attached to your organization.
+
+Only the first needs a `tools` array; it is optional, and leaving it out is supported rather than a workaround. The registry does not distinguish the last two — both are an organization and its approvals.
+
+1. Request an organization repository by [opening an issue](https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues) on this repo describing your organization and the artifacts you plan to approve
 2. We create a new repository for you from a template, with the structure above and CI (the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml)) already set up — you only need to fill in your `organization.json` and add approval files in `mcp/`, `skills/`, `plugins/`, `agents/`, and/or `sandbox-extensions/`
-3. Request registration by opening a PR on this repo that adds your entry to `vendors.json`
+3. Request registration by opening a PR on this repo that adds your entry to `vendors.json` (named for the registry's earlier vocabulary; it lists every participating organization, tools or not)
 
 ## API
 
@@ -351,8 +359,8 @@ A tool integration typically fetches `organizations.json` + its own `tools/<tool
 
 The consolidation pipeline follows a build-or-nothing approach:
 
-1. **Collect** — Clone all vendor repos and validate their data. Any failure (repo unreachable, invalid data) fails the build.
-2. **Enrich MCP** — Look up each server in the Anthropic MCP registry, a few at a time. A request that fails with a server error, a rate limit, or a network error is retried with backoff. Registry errors that persist through the retries (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`, then falls back to any vendor-supplied `metadata`/`selfPublished` (see [Vendor-supplied metadata](#vendor-supplied-metadata-for-servers-not-in-the-anthropic-registry)). Two different vendors self-attesting as publisher for the same server is treated the same as a registry error — it fails the build.
+1. **Collect** — Clone all organization repos and validate their data. Any failure (repo unreachable, invalid data) fails the build.
+2. **Enrich MCP** — Look up each server in the Anthropic MCP registry, a few at a time. A request that fails with a server error, a rate limit, or a network error is retried with backoff. Registry errors that persist through the retries (down, rate-limited, etc.) fail the build. A server not found in the registry is fine — it's included with `mcpRegistryVerified: false`, then falls back to any organization-supplied `metadata`/`selfPublished` (see [Organization-supplied metadata](#organization-supplied-metadata-for-servers-not-in-the-anthropic-registry)). Two different organizations self-attesting as publisher for the same server is treated the same as a registry error — it fails the build.
 3. **Enrich Skills** — Fetch each skill's source via sparse git checkout to extract metadata and compute a content hash. Unreachable sources are skipped with a warning — the skill is omitted from the output until its source is reachable again.
 4. **Enrich Plugins** — Fetch each plugin's directory via sparse git checkout to read its manifest, enumerate contained skills and MCP servers, and compute a content hash. Unreachable sources are skipped with a warning — the plugin is omitted from the output until its source is reachable again.
 5. **Enrich Agents** — Fetch each agent's `agent_card.json` over HTTP to extract name/description and compute a content hash. Unreachable sources are skipped with a warning — the agent is omitted from the output until its source is reachable again.
@@ -365,7 +373,7 @@ If collection or MCP enrichment fails, the build stops and the previous deployme
 ## Links
 
 - [Development guide](DEVELOPMENT.md) — scripts, local development, GitHub Actions
-- [Theia vendor repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) — reference vendor implementation
+- [Theia organization repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) — reference organization implementation
 - [MCP approval skill](skills/create-mcp-approval/SKILL.md) — AI agent skill for generating MCP approval files
 - [Skill approval skill](skills/create-skill-approval/SKILL.md) — AI agent skill for generating skill approval files
 - [Plugin approval skill](skills/create-plugin-approval/SKILL.md) — AI agent skill for generating plugin approval files
