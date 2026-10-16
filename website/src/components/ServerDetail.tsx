@@ -1,8 +1,15 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import type { McpServer, Organization, Tool, InstallConfig } from "../types";
+import type {
+  McpServer,
+  Organization,
+  Tool,
+  InstallConfig,
+  GenericConfig,
+} from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
+import { hoistSharedInstructions } from "../sharedInstructions";
 import { McpVerificationBadge } from "./McpVerificationBadge";
 
 export function ServerDetail({
@@ -62,7 +69,7 @@ interface ApprovalCardApproval {
   date: string;
   configHash: string;
   installConfigs: InstallConfig[];
-  genericConfig?: Record<string, unknown>;
+  genericConfig?: GenericConfig;
 }
 
 /**
@@ -110,9 +117,16 @@ export function ApprovalCard({
     fallbackId: approval.organizationId,
     approvedTitle: org ? approvedTitle(org) : "Approved by this organization",
   });
-  // A derived entry's instructions are usually the generic config's notes,
-  // which this card already shows, so they'd otherwise repeat once per tool.
-  const genericNotes = serverId ? approval.genericConfig?.notes : undefined;
+  // One value both renders the generic config box and tells the dedupe below
+  // its notes are on screen, so the two can't disagree.
+  const generic =
+    approval.genericConfig && serverId
+      ? { config: approval.genericConfig, slug: serverIdSlug(serverId) }
+      : undefined;
+  const { hoisted, installConfigs } = hoistSharedInstructions(
+    approval.installConfigs,
+    generic?.config.notes,
+  );
   return (
     <div className="bg-background border border-border rounded-lg p-4 mb-3">
       <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
@@ -126,22 +140,12 @@ export function ApprovalCard({
         </span>
         <span className="text-muted-foreground">Approved: {approval.date}</span>
       </div>
-      {approval.genericConfig && serverId && (
-        <GenericConfigView
-          config={approval.genericConfig}
-          slug={serverIdSlug(serverId)}
-        />
+      {generic && (
+        <GenericConfigView config={generic.config} slug={generic.slug} />
       )}
-      {approval.installConfigs.map((config, j) => (
-        <InstallConfigView
-          key={j}
-          config={
-            genericNotes !== undefined && config.instructions === genericNotes
-              ? { ...config, instructions: undefined }
-              : config
-          }
-          getTool={getTool}
-        />
+      {hoisted && <SetupText>{hoisted}</SetupText>}
+      {installConfigs.map((config, j) => (
+        <InstallConfigView key={j} config={config} getTool={getTool} />
       ))}
     </div>
   );
@@ -234,11 +238,30 @@ function CollapsibleJson({
   );
 }
 
+// Prose for whoever sets the server up: a generic config's notes, an install
+// config's instructions, or the text a card shows once for all its tools.
+// One component, so the three always look alike.
+function SetupText({
+  children,
+  compact,
+}: {
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`mt-2 text-sm text-muted-foreground italic break-words overflow-hidden ${compact ? "line-clamp-2" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function GenericConfigView({
   config,
   slug,
 }: {
-  config: Record<string, unknown>;
+  config: GenericConfig;
   slug: string;
 }) {
   // notes explain the config to a person and aren't part of it, so they're
@@ -250,11 +273,7 @@ export function GenericConfigView({
       json={{ [slug]: connection }}
       caveat="Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers) instead of pasting it in as shown."
     >
-      {typeof notes === "string" && (
-        <div className="mt-2 text-muted-foreground italic break-words overflow-hidden">
-          {notes}
-        </div>
-      )}
+      {notes && <SetupText>{notes}</SetupText>}
     </CollapsibleJson>
   );
 }
@@ -307,11 +326,7 @@ export function InstallConfigView({
         boxed={false}
       />
       {config.instructions && (
-        <div
-          className={`mt-2 text-muted-foreground italic break-words overflow-hidden ${compact ? "line-clamp-2" : ""}`}
-        >
-          {config.instructions}
-        </div>
+        <SetupText compact={compact}>{config.instructions}</SetupText>
       )}
     </div>
   );
