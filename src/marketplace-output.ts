@@ -1,4 +1,8 @@
-import type { PluginApproval, PluginEntry } from "./consolidate.js";
+import type {
+  Organization,
+  PluginApproval,
+  PluginEntry,
+} from "./consolidate.js";
 
 // Builds the marketplace files the registry publishes, as opposed to the vendor
 // marketplace files it consumes (see marketplace-source.ts). A client adds one
@@ -72,13 +76,10 @@ export interface MarketplaceFile {
   plugins: MarketplaceEntry[];
 }
 
-export interface BuildMarketplaceOptions {
-  // Absent builds the aggregate of every approved plugin. Present filters to
-  // one organization's approvals, which is the form an enterprise subscribes
-  // to: trust here is per organization, and a merged catalog would flatten it.
-  orgId?: string;
-  orgName?: string;
-}
+// Absent builds the aggregate of every approved plugin. Present filters to one
+// organization's approvals, which is the form an enterprise subscribes to:
+// trust here is per organization, and a merged catalog would flatten it.
+export type MarketplaceOrg = Pick<Organization, "id" | "name">;
 
 // --- Constants ---
 
@@ -203,9 +204,9 @@ function buildEntry(
 
 export function buildMarketplace(
   plugins: PluginEntry[],
-  options: BuildMarketplaceOptions = {},
+  org?: MarketplaceOrg,
 ): MarketplaceFile {
-  const { orgId, orgName } = options;
+  const orgId = org?.id;
 
   // Unchecked: the organization schema already restricts an id to
   // ^[a-z0-9-]+$, fatally, before consolidation runs, so this is always a
@@ -265,8 +266,8 @@ export function buildMarketplace(
   return {
     $schema: SCHEMA_URL,
     name,
-    description: orgId
-      ? `Agent Plugins approved by ${orgName ?? orgId} in the Eclipse AI Registry.`
+    description: org
+      ? `Agent Plugins approved by ${org.name} in the Eclipse AI Registry.`
       : "Agent Plugins approved in the Eclipse AI Registry.",
     owner: OWNER,
     plugins: entries,

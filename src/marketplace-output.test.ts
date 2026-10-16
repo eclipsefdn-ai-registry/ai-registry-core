@@ -38,13 +38,13 @@ function plugin(overrides: Partial<PluginEntry> = {}): PluginEntry {
 // output. Same shape as the console.warn capture in consolidate.test.ts.
 function buildQuietly(
   plugins: PluginEntry[],
-  options: Parameters<typeof buildMarketplace>[1] = {},
+  org?: Parameters<typeof buildMarketplace>[1],
 ) {
   const warnings: unknown[][] = [];
   const originalWarn = console.warn;
   console.warn = (...args: unknown[]) => warnings.push(args);
   try {
-    return { file: buildMarketplace(plugins, options), warnings };
+    return { file: buildMarketplace(plugins, org), warnings };
   } finally {
     console.warn = originalWarn;
   }
@@ -75,10 +75,7 @@ describe("buildMarketplace", () => {
   it("names the aggregate and the per-organization file differently", () => {
     assert.equal(buildMarketplace([plugin()]).name, "ai-registry");
 
-    const org = buildMarketplace([plugin()], {
-      orgId: "google",
-      orgName: "Google",
-    });
+    const org = buildMarketplace([plugin()], { id: "google", name: "Google" });
     assert.equal(org.name, "ai-registry-google");
     assert.match(org.description, /approved by Google/);
   });
@@ -166,7 +163,7 @@ describe("buildMarketplace per organization", () => {
           approvals: [approved("google")],
         }),
       ],
-      { orgId: "aws" },
+      { id: "aws", name: "AWS" },
     );
     assert.deepEqual(
       file.plugins.map((p) => p.metadata.pluginId),
@@ -179,7 +176,7 @@ describe("buildMarketplace per organization", () => {
       approvals: [approved("aws"), approved("google")],
     });
 
-    const org = buildMarketplace([shared], { orgId: "aws" });
+    const org = buildMarketplace([shared], { id: "aws", name: "AWS" });
     assert.deepEqual(
       org.plugins[0].metadata.approvals.map((a) => a.organizationId),
       ["aws"],

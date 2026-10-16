@@ -1445,7 +1445,7 @@ function writeOutput(output: ConsolidatedOutput, generatedAt: string): void {
     mkdirSync(orgMarketplaceDir, { recursive: true });
     writeMarketplace(
       resolve(orgMarketplaceDir, "marketplace.json"),
-      buildMarketplace(output.plugins, { orgId: org.id, orgName: org.name }),
+      buildMarketplace(output.plugins, org),
     );
   }
 
