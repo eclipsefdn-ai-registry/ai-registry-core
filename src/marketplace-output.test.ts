@@ -189,6 +189,38 @@ describe("buildMarketplace per organization", () => {
     );
   });
 
+  it("leaves an organization that approved another revision off the entry", () => {
+    const shared = plugin({
+      pluginId: "io.github.acme/one",
+      approvals: [approved("aws"), approved("google")],
+    });
+    const mismatches = new Set(["io.github.acme/one::google"]);
+
+    // The entry's source is AWS's, the one that was fetched and hashed, so
+    // Google can't be shown beside it.
+    const all = buildMarketplace([shared], undefined, mismatches);
+    assert.deepEqual(
+      all.plugins[0].metadata.approvals.map((a) => a.organizationId),
+      ["aws"],
+    );
+
+    // And Google's own marketplace doesn't offer it at all.
+    const google = buildMarketplace(
+      [shared],
+      { id: "google", name: "Google" },
+      mismatches,
+    );
+    assert.deepEqual(google.plugins, []);
+
+    // AWS's is unaffected.
+    const aws = buildMarketplace(
+      [shared],
+      { id: "aws", name: "AWS" },
+      mismatches,
+    );
+    assert.equal(aws.plugins.length, 1);
+  });
+
   it("carries viaTrust and sourcedFrom, and drops approval fields a client can't use", () => {
     const sourcedFrom = {
       marketplaceUrl: "https://github.com/google/skills.git",

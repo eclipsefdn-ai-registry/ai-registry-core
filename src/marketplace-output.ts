@@ -155,12 +155,26 @@ function entrySource(source: PluginEntry["source"]): MarketplaceEntrySource {
   return entry;
 }
 
+// The approvals this file may show for a plugin: the ones belonging to its
+// organization, minus any that approved a different revision.
+//
+// Several organizations approving one plugin share a single entry, and the
+// first source collected wins it, so an approval that named a different
+// revision is attached to a commit its organization never saw. Publishing it
+// as data was already wrong; publishing it in that organization's marketplace
+// would make it an instruction to install what they didn't approve. Their own
+// revision can't take its place either — only the winning one was fetched and
+// hashed.
 function entryApprovals(
   plugin: PluginEntry,
   orgId: string | undefined,
+  sourceMismatches: ReadonlySet<string>,
 ): MarketplaceEntryApproval[] {
   return plugin.approvals
     .filter((a) => !orgId || a.organizationId === orgId)
+    .filter(
+      (a) => !sourceMismatches.has(`${plugin.pluginId}::${a.organizationId}`),
+    )
     .map(({ organizationId, date, viaTrust, sourcedFrom }) => {
       const approval: MarketplaceEntryApproval = { organizationId, date };
       if (viaTrust) approval.viaTrust = viaTrust;
@@ -172,13 +186,13 @@ function entryApprovals(
 function buildEntry(
   plugin: PluginEntry,
   name: string,
-  orgId: string | undefined,
+  approvals: MarketplaceEntryApproval[],
 ): MarketplaceEntry {
   const metadata: MarketplaceEntryMetadata = {
     pluginId: plugin.pluginId,
     registryUrl: `${SITE_URL}?plugin=${encodeURIComponent(plugin.pluginId)}`,
     contentHash: plugin.contentHash,
-    approvals: entryApprovals(plugin, orgId),
+    approvals,
   };
 
   const entry: MarketplaceEntry = {
@@ -205,6 +219,7 @@ function buildEntry(
 export function buildMarketplace(
   plugins: PluginEntry[],
   org?: MarketplaceOrg,
+  sourceMismatches: ReadonlySet<string> = new Set(),
 ): MarketplaceFile {
   const orgId = org?.id;
 
@@ -229,9 +244,11 @@ export function buildMarketplace(
   for (const plugin of [...plugins].sort((a, b) =>
     a.pluginId < b.pluginId ? -1 : a.pluginId > b.pluginId ? 1 : 0,
   )) {
-    if (orgId && !plugin.approvals.some((a) => a.organizationId === orgId)) {
-      continue;
-    }
+    // Also the organization filter: nothing left to show means either another
+    // organization approved this plugin, or this one approved a different
+    // revision of it.
+    const approvals = entryApprovals(plugin, orgId, sourceMismatches);
+    if (approvals.length === 0) continue;
 
     const entryName = marketplaceEntryName(plugin.pluginId);
     if (!entryName) {
@@ -252,7 +269,7 @@ export function buildMarketplace(
     }
     takenBy.set(entryName, plugin.pluginId);
 
-    entries.push(buildEntry(plugin, entryName, orgId));
+    entries.push(buildEntry(plugin, entryName, approvals));
   }
 
   // Sorted by code unit rather than locale, so two runs on different machines
