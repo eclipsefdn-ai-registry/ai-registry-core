@@ -56,6 +56,8 @@ src/
   anthropic-registry.ts     MCP server metadata lookup
   cli-validate.ts           CLI entry: validate a vendor repo
   cli-consolidate.ts        CLI entry: consolidate all vendors
+  check-updates.ts          Approvals behind their source, read from a consolidated feed
+  cli-check-updates.ts      CLI entry: report approvals behind their source
 website/                    React + Vite static website
 skills/                     Claude Code skills for generating approvals
 vendors.json                Registered vendor repos
@@ -68,6 +70,7 @@ npm run check               # typecheck + lint + format check + tests
 npm test                    # tests only (Node.js built-in test runner via tsx)
 npm run validate-vendor -- <path>   # validate a vendor repo
 npm run consolidate         # consolidate all vendors to dist/api/v1/
+npm run check-updates -- [path|url]   # report approvals behind their source, from dist/api/v1/all.json by default
 npm run dev                 # consolidate + start website dev server
 npm run format              # auto-format with Prettier
 ```
