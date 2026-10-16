@@ -96,8 +96,12 @@ const FULL_SHA_RE = /^[0-9a-f]{40}$/;
 
 // --- Field derivation ---
 
+function isIdentifier(value: string): boolean {
+  return IDENTIFIER_RE.test(value) && !value.includes("..");
+}
+
 function assertIdentifier(value: string, what: string): string {
-  if (!IDENTIFIER_RE.test(value) || value.includes("..")) {
+  if (!isIdentifier(value)) {
     throw new Error(
       `${what} "${value}" is not a valid marketplace identifier: letters, digits, ".", "_" and "-" only, starting with a letter or digit, and no ".."`,
     );
@@ -107,16 +111,23 @@ function assertIdentifier(value: string, what: string): string {
 
 /**
  * The entry name users type as `<name>@<marketplace>`, derived from the plugin
- * id by replacing its "/" separator.
+ * id by replacing its "/" separator, or undefined when the id can't produce a
+ * usable one.
  *
  * It is the plugin id rather than the plugin's own name because consolidation
  * is a stateless rebuild: it cannot emit the `renames` map that would repair
  * installs if a name ever moved. A name derived from the id can't move when
  * another plugin is approved. The plugin's own name goes to `displayName`,
  * which is what the UI shows.
+ *
+ * The plugin id schema rejects an id that lands here unusable, but only for a
+ * hand-authored approval: an id derived from a vendor's marketplace file
+ * (marketplace-source.ts) never passes through schema validation, so this still
+ * has to answer for one.
  */
-export function marketplaceEntryName(pluginId: string): string {
-  return assertIdentifier(pluginId.replace(/\//g, "."), "Plugin entry name");
+export function marketplaceEntryName(pluginId: string): string | undefined {
+  const name = pluginId.replace(/\//g, ".");
+  return isIdentifier(name) ? name : undefined;
 }
 
 // Claude Code refuses to load a plugin whose homepage doesn't parse as a URL,
@@ -164,6 +175,7 @@ function entryApprovals(
 
 function buildEntry(
   plugin: PluginEntry,
+  name: string,
   orgId: string | undefined,
 ): MarketplaceEntry {
   const metadata: MarketplaceEntryMetadata = {
@@ -174,7 +186,7 @@ function buildEntry(
   };
 
   const entry: MarketplaceEntry = {
-    name: marketplaceEntryName(plugin.pluginId),
+    name,
     displayName: plugin.name,
     source: entrySource(plugin.source),
     metadata,
@@ -205,27 +217,49 @@ export function buildMarketplace(
     "Marketplace name",
   );
 
-  const entries = plugins
-    .filter(
-      (p) => !orgId || p.approvals.some((a) => a.organizationId === orgId),
-    )
-    .map((p) => buildEntry(p, orgId))
-    // Sorted by code unit rather than locale, so two runs on different machines
-    // produce the same file.
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  // An entry that can't be published is left out with a warning rather than
+  // throwing. Both causes are vendor-controlled — an id no schema constrains,
+  // or two ids that collide — and this runs inside writeOutput, after most of
+  // the API has been written, so throwing would abort the build and leave the
+  // whole registry un-deployed over one bad approval. Matches how the
+  // enrichment steps skip an entry they can't read.
+  const entries: MarketplaceEntry[] = [];
+  const takenBy = new Map<string, string>();
 
-  // Two plugin ids can in principle derive one entry name ("a/b.c" and
-  // "a.b/c"). Claude Code rejects a marketplace with a duplicate name, and a
-  // silently dropped entry would be worse than a failed build.
-  const seen = new Set<string>();
-  for (const entry of entries) {
-    if (seen.has(entry.name)) {
-      throw new Error(
-        `Two plugin ids derive the same marketplace entry name "${entry.name}"`,
-      );
+  // Iterated in pluginId order so the entry that wins a collision is the same
+  // one on every run, whatever order the caller collected them in.
+  for (const plugin of [...plugins].sort((a, b) =>
+    a.pluginId < b.pluginId ? -1 : a.pluginId > b.pluginId ? 1 : 0,
+  )) {
+    if (orgId && !plugin.approvals.some((a) => a.organizationId === orgId)) {
+      continue;
     }
-    seen.add(entry.name);
+
+    const entryName = marketplaceEntryName(plugin.pluginId);
+    if (!entryName) {
+      console.warn(
+        `  WARNING: plugin "${plugin.pluginId}" has no usable marketplace entry name — left out of "${name}"`,
+      );
+      continue;
+    }
+
+    // Two plugin ids can derive one entry name ("a/b.c" and "a.b/c"), and
+    // Claude Code rejects a marketplace that repeats one.
+    const taken = takenBy.get(entryName);
+    if (taken !== undefined) {
+      console.warn(
+        `  WARNING: plugin "${plugin.pluginId}" derives the same marketplace entry name as "${taken}" — left out of "${name}"`,
+      );
+      continue;
+    }
+    takenBy.set(entryName, plugin.pluginId);
+
+    entries.push(buildEntry(plugin, entryName, orgId));
   }
+
+  // Sorted by code unit rather than locale, so two runs on different machines
+  // produce the same file.
+  entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
   // forceRemoveDeletedPlugins is deliberately unset. Setting it would uninstall
   // a dropped plugin from users' machines, which is real revocation reach and

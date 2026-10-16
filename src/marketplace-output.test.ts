@@ -33,6 +33,23 @@ function plugin(overrides: Partial<PluginEntry> = {}): PluginEntry {
   };
 }
 
+// Entries this can't publish are skipped with a warning, so a test that
+// exercises one captures the warning instead of letting it reach the test
+// output. Same shape as the console.warn capture in consolidate.test.ts.
+function buildQuietly(
+  plugins: PluginEntry[],
+  options: Parameters<typeof buildMarketplace>[1] = {},
+) {
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => warnings.push(args);
+  try {
+    return { file: buildMarketplace(plugins, options), warnings };
+  } finally {
+    console.warn = originalWarn;
+  }
+}
+
 // --- marketplaceEntryName ---
 
 describe("marketplaceEntryName", () => {
@@ -43,15 +60,12 @@ describe("marketplaceEntryName", () => {
     );
   });
 
-  it("rejects an id that derives an unusable name", () => {
-    assert.throws(
-      () => marketplaceEntryName("io.github.acme/../escape"),
-      /not a valid marketplace identifier/,
-    );
-    assert.throws(
-      () => marketplaceEntryName("io.github.acme/has space"),
-      /not a valid marketplace identifier/,
-    );
+  it("has no name for an id that can't produce a usable one", () => {
+    assert.equal(marketplaceEntryName("io.github.acme/../escape"), undefined);
+    assert.equal(marketplaceEntryName("io.github.acme/has space"), undefined);
+    // Derived from a vendor marketplace file listing a dotted folder, which
+    // no schema constrains.
+    assert.equal(marketplaceEntryName("io.github.acme/.hidden"), undefined);
   });
 });
 
@@ -104,15 +118,36 @@ describe("buildMarketplace", () => {
     );
   });
 
-  it("throws rather than emitting two entries with the same name", () => {
-    assert.throws(
-      () =>
-        buildMarketplace([
-          plugin({ pluginId: "io.github.acme/b.c" }),
-          plugin({ pluginId: "io.github.acme.b/c" }),
-        ]),
-      /derive the same marketplace entry name/,
+  it("leaves out an entry it can't name, rather than failing the build", () => {
+    const { file, warnings } = buildQuietly([
+      plugin({ pluginId: "io.github.acme/.hidden" }),
+      plugin({ pluginId: "io.github.acme/good" }),
+    ]);
+    assert.deepEqual(
+      file.plugins.map((p) => p.name),
+      ["io.github.acme.good"],
     );
+    assert.match(String(warnings[0][0]), /io\.github\.acme\/\.hidden/);
+  });
+
+  it("leaves out the second of two ids that derive one name", () => {
+    const { file, warnings } = buildQuietly([
+      plugin({ pluginId: "io.github.acme.b/c" }),
+      plugin({ pluginId: "io.github.acme/b.c" }),
+    ]);
+    assert.deepEqual(
+      file.plugins.map((p) => p.metadata.pluginId),
+      ["io.github.acme.b/c"],
+    );
+    assert.match(String(warnings[0][0]), /io\.github\.acme\/b\.c/);
+  });
+
+  it("picks the same collision winner whatever order it is given", () => {
+    const a = plugin({ pluginId: "io.github.acme.b/c" });
+    const b = plugin({ pluginId: "io.github.acme/b.c" });
+    const first = buildQuietly([a, b]).file.plugins[0].metadata.pluginId;
+    const second = buildQuietly([b, a]).file.plugins[0].metadata.pluginId;
+    assert.equal(first, second);
   });
 });
 
