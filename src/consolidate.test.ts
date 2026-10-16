@@ -1062,6 +1062,45 @@ describe("addPluginApproval", () => {
     assert.match(String(warnCalls[0][0]), /io\.example\/my-plugin/);
   });
 
+  it("records the losing approval for the marketplace files", () => {
+    const output = emptyOutput();
+    const mismatches = new Set<string>();
+    const originalWarn = console.warn;
+    console.warn = () => {};
+    try {
+      addPluginApproval(pluginApproval, "acme", output, undefined, mismatches);
+      addPluginApproval(
+        {
+          ...pluginApproval,
+          source: { ...pluginApproval.source, ref: "2.0.0" },
+        },
+        "other-org",
+        output,
+        undefined,
+        mismatches,
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+    // Only the organization whose source lost, so its marketplace can leave
+    // out a plugin it approved at a revision this entry doesn't carry.
+    assert.deepEqual([...mismatches], ["io.example/my-plugin::other-org"]);
+  });
+
+  it("records nothing when both vendors name the same source", () => {
+    const output = emptyOutput();
+    const mismatches = new Set<string>();
+    addPluginApproval(pluginApproval, "acme", output, undefined, mismatches);
+    addPluginApproval(
+      pluginApproval,
+      "other-org",
+      output,
+      undefined,
+      mismatches,
+    );
+    assert.equal(mismatches.size, 0);
+  });
+
   it("stamps sourcedFrom on the approval when provided", () => {
     const output = emptyOutput();
     addPluginApproval(pluginApproval, "acme", output, {
