@@ -95,7 +95,7 @@ ours is the wrong trade. AGENTS.md records the exception.
   "displayName": "looker",
   "description": "...",
   "version": "0.3.10",
-  "author": "...",
+  "author": { "name": "..." },
   "homepage": "...",
   "keywords": ["..."],
   "source": {
@@ -123,8 +123,12 @@ pluginId removes that class of failure entirely. `displayName` carries the
 plugin's own name for the `/plugin` UI.
 
 Two distinct pluginIds could in principle derive the same entry name
-(`a/b.c` and `a.b/c`). `buildMarketplace` throws rather than emitting a
-marketplace with a duplicate name.
+(`a/b.c` and `a.b/c`), and an id can also be unusable outright — the plugin id
+schema rejects one that is, but only for a hand-authored approval, since an id
+derived from a vendor's marketplace file never passes through validation. Both
+cases leave the entry out with a warning. Throwing would abort consolidation
+from inside the write step, so one bad approval would leave the whole registry
+un-deployed.
 
 **Source.** `git-subdir` when the approval has a `path`, `url` when it does not.
 Both carry `ref` when the approval names one.
@@ -148,6 +152,15 @@ lists only that organization's approvals; the aggregate lists all of them.
 `viaTrust` and `sourcedFrom` come along where present, since both say something
 about how the approval was arrived at.
 
+An approval is left off the entry when its organization approved a different
+revision. Organizations approving one plugin share a single entry and the first
+source collected wins it, so the losing approval is attached to a commit its
+organization never saw — publishing that as an install instruction in their own
+marketplace would be wrong, and their revision can't take its place because only
+the winning one was fetched and hashed. `addPluginApproval` records the loser
+where it already warns, and that record is threaded through the build rather
+than published.
+
 ## Code
 
 `src/marketplace-output.ts` exports `buildMarketplace(plugins, options)`, a pure
@@ -161,8 +174,10 @@ AGENTS.md records the distinction.
 
 Tests are pure-function tests in `src/marketplace-output.test.ts`: name
 derivation, the `git-subdir`/`url` split, ref and sha emission, the full-SHA
-guard, per-organization filtering of both entries and their approvals, omission
-of organizations with no plugins, sort order, and the duplicate-name guard.
+guard, per-organization filtering of both entries and their approvals, dropping
+an approval that named another revision, sort order, and the two skip rules with
+their warnings. Whether an organization with nothing to list gets a file at all
+is decided in `consolidate.ts`, and covered there.
 
 ## Website and docs
 
@@ -177,6 +192,12 @@ unchanged.
 
 - Claude Code and Claude Desktop only, until Codex supports `url` marketplace
   sources.
-- 19 plugin entries today. The catalog is thin until the question of indexing
+- 24 plugin entries today. The catalog is thin until the question of indexing
   tool-specific plugin formats is settled.
 - No skills.
+- Claude Code reads a plugin's MCP servers from `.mcp.json`, while the portable
+  Agent Plugins layout puts them in `mcp.json`, so a published entry whose value
+  is an MCP server installs and loads nothing. 5 of the 24 are MCP-only. Skills
+  use the same `skills/` convention in both and do load — verified by installing
+  one. Translating the contents would mean publishing something other than what
+  the vendor did, so this is left as it is.
