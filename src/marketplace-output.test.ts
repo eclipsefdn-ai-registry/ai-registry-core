@@ -315,11 +315,8 @@ describe("buildMarketplace entries", () => {
   });
 
   it("omits empty optional fields rather than writing them blank", () => {
-    const entry = entryOf(
-      plugin({ description: "", contentHash: "", keywords: [] }),
-    );
+    const entry = entryOf(plugin({ description: "", keywords: [] }));
     assert.equal("description" in entry, false);
     assert.equal("keywords" in entry, false);
-    assert.equal("contentHash" in entry.metadata, false);
   });
 });

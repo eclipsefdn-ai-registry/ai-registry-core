@@ -43,7 +43,9 @@ export type MarketplaceEntryApproval = Pick<
 export interface MarketplaceEntryMetadata {
   pluginId: string;
   registryUrl: string;
-  contentHash?: string;
+  // Always present: enrichment drops a plugin whose directory it couldn't hash,
+  // so an entry that reaches here has one.
+  contentHash: string;
   approvals: MarketplaceEntryApproval[];
 }
 
@@ -183,7 +185,7 @@ function buildEntry(
   const metadata: MarketplaceEntryMetadata = {
     pluginId: plugin.pluginId,
     registryUrl: `${SITE_URL}?plugin=${encodeURIComponent(plugin.pluginId)}`,
-    ...(plugin.contentHash ? { contentHash: plugin.contentHash } : {}),
+    contentHash: plugin.contentHash,
     approvals: entryApprovals(plugin, orgId),
   };
 
