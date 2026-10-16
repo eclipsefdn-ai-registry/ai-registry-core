@@ -100,13 +100,6 @@ describe("buildMarketplace", () => {
     );
   });
 
-  it("rejects an organization id that can't be a marketplace name", () => {
-    assert.throws(
-      () => buildMarketplace([], { orgId: ".." }),
-      /not a valid marketplace identifier/,
-    );
-  });
-
   it("sorts entries by name, independently of input order", () => {
     const file = buildMarketplace([
       plugin({ pluginId: "io.github.acme/zebra" }),

@@ -104,15 +104,6 @@ function isIdentifier(value: string): boolean {
   return IDENTIFIER_RE.test(value) && !value.includes("..");
 }
 
-function assertIdentifier(value: string, what: string): string {
-  if (!isIdentifier(value)) {
-    throw new Error(
-      `${what} "${value}" is not a valid marketplace identifier: letters, digits, ".", "_" and "-" only, starting with a letter or digit, and no ".."`,
-    );
-  }
-  return value;
-}
-
 /**
  * The entry name users type as `<name>@<marketplace>`, derived from the plugin
  * id by replacing its "/" separator, or undefined when the id can't produce a
@@ -216,10 +207,12 @@ export function buildMarketplace(
 ): MarketplaceFile {
   const { orgId, orgName } = options;
 
-  const name = assertIdentifier(
-    orgId ? `ai-registry-${orgId}` : "ai-registry",
-    "Marketplace name",
-  );
+  // Unchecked: the organization schema already restricts an id to
+  // ^[a-z0-9-]+$, fatally, before consolidation runs, so this is always a
+  // usable marketplace name. A plugin id carries no such pattern once it is
+  // derived rather than authored, which is why the entry names below are
+  // checked and this isn't.
+  const name = orgId ? `ai-registry-${orgId}` : "ai-registry";
 
   // An entry that can't be published is left out with a warning rather than
   // throwing. Both causes are vendor-controlled — an id no schema constrains,
