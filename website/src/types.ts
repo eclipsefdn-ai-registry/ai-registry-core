@@ -21,6 +21,11 @@ export interface InstallConfig {
   instructions?: string;
 }
 
+// Mirrors GenericMcpConfig only as far as the website reads it: the
+// connection fields are printed as JSON and nothing more, while notes is
+// shown as text.
+export type GenericConfig = Record<string, unknown> & { notes?: string };
+
 export interface Approval {
   organizationId: string;
   date: string;
@@ -29,7 +34,7 @@ export interface Approval {
   version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
-  genericConfig?: Record<string, unknown>;
+  genericConfig?: GenericConfig;
   viaTrust?: string;
 }
 

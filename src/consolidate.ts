@@ -112,6 +112,11 @@ export interface InstallConfig {
   // object, or stripped back to the fields above, before the final output
   // is written — see resolveMcpCrossVendorConfigs.
   config?: Record<string, unknown> | "derived";
+  // Vendor-written setup text. An MCP entry whose config is derived, and
+  // which gave none (or an empty one), gets the notes of the generic config
+  // it was derived from: they explain that config's placeholders, and a
+  // tool's page shows installConfigs alone, never the generic config they
+  // would otherwise sit beside.
   instructions?: string;
 }
 
@@ -526,6 +531,25 @@ export function pickWinningGenericConfig(
   return winner.genericConfig;
 }
 
+// cfg with its config derived from generic by the tool's registered transform,
+// and generic's notes as its instructions if it gave none (an empty string
+// counts as none). Undefined when there's no generic config or the transform
+// can't represent it. Shared by resolveMcpCrossVendorConfigs and
+// resolveMcpTrust, so a derived entry gets the same instructions either way.
+function deriveInstallConfig(
+  cfg: InstallConfig,
+  generic: GenericMcpConfig | undefined,
+  slug: string,
+): InstallConfig | undefined {
+  const derived = generic && mcpConfigTransforms[cfg.tool]?.(generic, slug);
+  if (!derived) return undefined;
+  const resolved: InstallConfig = { ...cfg, config: derived };
+  if (!resolved.instructions && generic.notes) {
+    resolved.instructions = generic.notes;
+  }
+  return resolved;
+}
+
 // Resolves any installConfigs entry still marked config: "derived" — i.e.
 // entries whose own approval had no usable root config — by looking across
 // every vendor's contribution for the same serverId. Must run after every
@@ -544,11 +568,8 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
           entry.serverId,
           approval.organizationId,
         );
-        const transform = mcpConfigTransforms[cfg.tool];
-        const derived = winner && transform?.(winner, slug);
-        if (derived) {
-          return { ...cfg, config: derived };
-        }
+        const resolved = deriveInstallConfig(cfg, winner, slug);
+        if (resolved) return resolved;
 
         console.warn(
           `  WARNING: could not derive config for tool "${cfg.tool}" on MCP server "${entry.serverId}" — no generic config available or the tool can't represent it`,
@@ -1050,14 +1071,13 @@ export function resolveMcpTrust(
       const slug = entry.serverId.split("/").pop()!;
 
       const installConfigs: InstallConfig[] = ownTools.map((tool) => {
-        const transform = mcpConfigTransforms[tool.id];
-        const derived = winner && transform?.(winner, slug);
         const installUrl = tool.mcpInstallUrlPrefix
           ? tool.mcpInstallUrlPrefix + entry.serverId
           : undefined;
 
-        const cfg: InstallConfig = { tool: tool.id };
-        if (derived) cfg.config = derived;
+        const cfg = deriveInstallConfig({ tool: tool.id }, winner, slug) ?? {
+          tool: tool.id,
+        };
         if (installUrl) cfg.installUrl = installUrl;
         return cfg;
       });

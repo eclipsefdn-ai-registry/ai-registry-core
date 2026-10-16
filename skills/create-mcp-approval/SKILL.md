@@ -23,7 +23,7 @@ Vendors maintain their own repositories with approval files for MCP servers they
 4. **Read the approval schema** — Fetch the schema from `https://ai.open-vsx.org/schemas/mcp-approval.schema.json` to ensure you follow the current contract.
 5. **Read tool-specific config docs** — Check `ai-docs/mcp-approval.md` in the repo. If it exists, read it to understand how to construct the `config` and `installUrl` for this vendor's tools.
 6. **Read an existing approval as reference** — Look for existing files in the `mcp/` directory. If none exist, fetch the example from `https://raw.githubusercontent.com/eclipsefdn-ai-registry/ai-registry-theia/main/mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`.
-7. **Write the generic `config`** — Unless the server's connection details are genuinely unknown, always include a root-level `config` (see "The Generic Root `config`" below). Fetch `https://ai.open-vsx.org/schemas/mcp-server-config.schema.json` for the current contract. This is separate from, and in addition to, the tool-specific configs in `installConfigs`.
+7. **Write the generic `config`** — Unless the server's connection details are genuinely unknown, always include a root-level `config` (see "The Generic Root `config`" below). Fetch `https://ai.open-vsx.org/schemas/mcp-server-config.schema.json` for the current contract. If it contains placeholders, add `notes` explaining them (see "Explaining Placeholders with `notes`" below). This is separate from, and in addition to, the tool-specific configs in `installConfigs`.
 8. **Generate the approval file** — Create a JSON file in the `mcp/` directory following the schema, the tool-specific docs, and the naming convention below.
 9. **Validate** — Run `npm run validate` to check the file.
 
@@ -42,7 +42,7 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
 - **installConfigs** (optional): Tool-specific installation configurations. Include one entry per tool declared in organization.json. Omit entirely if the organization has no tools (approval-only without install configuration).
   - **tool**: Tool ID this config targets (must match a tool in organization.json).
   - **config**: Tool-specific configuration object (e.g., MCP server settings for stdio). Note this is a _different_ field from the root-level `config` above — this one follows the target tool's own format, described in that vendor's `ai-docs/mcp-approval.md`.
-  - **instructions**: Human-readable setup instructions.
+  - **instructions**: Human-readable setup instructions. On an entry with `"config": "derived"`, omit it to inherit the generic config's `notes`; set it only when the tool needs something the notes don't say, since it replaces them rather than adding to them.
   - **installUrl**: Deep-link URL for one-click install (optional). **Omit if the tool declares `mcpInstallUrlPrefix` in `organization.json`** — consolidation generates it automatically as `prefix + serverId`. Set it explicitly only when the tool has no prefix or you need a non-standard URL.
   - **openVsxUrl**: Link to an Open VSX extension (optional).
 - **metadata** (optional): `{ "name": "...", "description": "..." }` — only relevant when the server was not found in the Anthropic MCP registry (step 2). Provides a fallback name/description so the server doesn't show up as a raw serverId with no description. Ignored once the server appears in the registry.
@@ -59,6 +59,7 @@ The root-level `config` describes **one server**, tool-agnostically, with no out
 | `streamable-http`, `sse` | `url` (required), `headers`, `oauth`                                    |
 | `ws`                     | `url` (required), `headers` — WebSocket auth is header-only, no `oauth` |
 | `stdio`                  | `command` (required), `args`, `env`, `cwd`                              |
+| any                      | `notes` — see "Explaining Placeholders with `notes`" below              |
 
 `"http"` is **not** accepted, even though Claude Code, VS Code and other mcp.json derivatives use it for Streamable HTTP. Write `streamable-http`; translating to a tool's own spelling is the transform's job.
 
@@ -84,6 +85,34 @@ Which one you use depends on **who resolves the value**:
 ```
 
 The generic `oauth` object takes `clientId`, `clientSecret`, `scopes` (string array), `authServerMetadataUrl` and `resource`. Note it is **not** identical to the tool-specific `oauth` described in the next section: the generic one spells the metadata URL `authServerMetadataUrl` (Theia, for one, calls it `authorizationServer`) and requires `${VAR}` for `clientSecret`. An empty `oauth: {}` is meaningful — it says the server expects OAuth but has nothing to pre-configure, so clients should discover everything.
+
+### Explaining Placeholders with `notes`
+
+A placeholder says that a value is needed, not what it is. Whenever the config contains one, add `notes`: plain text telling the person setting the server up what each `<name>` should be replaced with, what each `${VAR}` must hold and where to get it (the page or console that issues it), and any prerequisites (a running local service, required permissions or scopes). Leave it out when there is nothing to explain.
+
+```json
+{
+  "type": "stdio",
+  "command": "uvx",
+  "args": [
+    "mcp-proxy-for-aws@latest",
+    "https://ecs-mcp.<region>.api.aws/mcp",
+    "--service",
+    "ecs-mcp",
+    "--profile",
+    "<profile>",
+    "--region",
+    "<region>"
+  ],
+  "notes": "Replace <region> with your AWS region (e.g. us-east-1) and <profile> with your AWS CLI profile name (e.g. default). Requires AWS CLI credentials configured locally."
+}
+```
+
+The same text is shown for every tool: next to the generic config, and as the `instructions` of every install config derived from it, trust-derived ones included. So:
+
+- **Keep it tool-neutral.** Don't name a tool's own fields (`serverAuthToken`) or behaviour ("Theia opens a browser"); that belongs in a tool-specific entry's `instructions`.
+- **Name a `${VAR}` by its bare name** — `GITHUB_TOKEN`, not `${GITHUB_TOKEN}`. A tool with no `${VAR}` expansion rewrites the reference into its own placeholder (Theia shows `<GITHUB_TOKEN>`), and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged, so name those as written.
+- **Explain, don't configure.** Anything a client needs in order to connect belongs in the config fields; transforms never read `notes`.
 
 ## Remote Servers and OAuth (tool-specific configs)
 

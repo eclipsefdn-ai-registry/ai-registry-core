@@ -304,6 +304,23 @@ export function ClientsPage() {
             missing.
           </li>
           <li className="leading-relaxed">
+            <InlineCode>installConfigs[].instructions</InlineCode>, when
+            present, is setup text for the person installing: what to put in
+            place of a <InlineCode>&lt;name&gt;</InlineCode> placeholder in the
+            config, and what a <InlineCode>{"${VAR}"}</InlineCode> reference
+            must hold. Show it with the config, since the config may not work
+            until those values are filled in. On an entry derived from an
+            organization's generic config, it is that config's{" "}
+            <InlineCode>notes</InlineCode>.
+          </li>
+          <li className="leading-relaxed">
+            <InlineCode>approvals[].genericConfig</InlineCode>, when present, is
+            the organization's tool-agnostic connection info as filed. If you
+            build your own config from it, its <InlineCode>notes</InlineCode> is
+            the same kind of text as <InlineCode>instructions</InlineCode>, not
+            connection info, so leave it out of what you write.
+          </li>
+          <li className="leading-relaxed">
             <InlineCode>mcpRegistryVerified</InlineCode> means the server is
             listed in the Anthropic MCP registry. It says nothing about the
             server's behaviour or safety.

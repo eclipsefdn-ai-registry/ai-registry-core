@@ -2,7 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://ai.open-vsx.org/schemas/mcp-server-config.schema.json",
   "title": "MCP Server Config",
-  "description": "Generic, tool-agnostic connection info for one MCP server — a remote URL or a local (stdio) command, with optional auth. Two placeholder conventions apply, and they mean different things: ${VAR} / ${VAR:-default} is a reference something else resolves (from the environment, or by prompting) at install/connect time, used for headers, env, oauth.clientSecret and cwd — secrets MUST be written this way, never as literals; <name> is a value a human has to choose, used for args and other free strings, and nothing resolves it automatically. Per-tool derivation (including the outer mcpServers/servers wrapper, and any rewriting a target tool needs) is implemented as a registered transform function, not part of this schema — see ai-registry-core/src/mcp-config-templates/.",
+  "description": "Generic, tool-agnostic connection info for one MCP server — a remote URL or a local (stdio) command, with optional auth. Two placeholder conventions apply, and they mean different things: ${VAR} / ${VAR:-default} is a reference something else resolves (from the environment, or by prompting) at install/connect time, used for headers, env, oauth.clientSecret and cwd — secrets MUST be written this way, never as literals; <name> is a value a human has to choose, used for args and other free strings, and nothing resolves it automatically. The optional notes field explains them to whoever sets the server up. Per-tool derivation (including the outer mcpServers/servers wrapper, and any rewriting a target tool needs) is implemented as a registered transform function, not part of this schema — see ai-registry-core/src/mcp-config-templates/.",
+  "definitions": {
+    "notes": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable notes for whoever sets this server up: what each <name> placeholder should be replaced with, what each ${VAR} reference must hold and where to get it, and any prerequisites. Not connection info, so no transform copies it into a tool's config. It is shown next to this config, and carried into the instructions of every installConfigs entry derived from it that has none of its own, so keep it tool-neutral, and name a ${VAR} reference by its bare name (GITHUB_TOKEN, not ${GITHUB_TOKEN}): a tool with no ${VAR} expansion rewrites the reference into its own placeholder (Theia shows <GITHUB_TOKEN>)."
+    }
+  },
   "oneOf": [
     {
       "title": "Remote HTTP/SSE server",
@@ -51,7 +58,8 @@
               "description": "Resource indicator (RFC 8707) sent in the authorization request, for servers that require it."
             }
           }
-        }
+        },
+        "notes": { "$ref": "#/definitions/notes" }
       }
     },
     {
@@ -69,7 +77,8 @@
           "type": "object",
           "additionalProperties": { "type": "string" },
           "description": "Static header-based auth, e.g. {\"Authorization\": \"Bearer ${MY_TOKEN}\"}. Token values must be ${VAR} references, never literal secrets."
-        }
+        },
+        "notes": { "$ref": "#/definitions/notes" }
       }
     },
     {
@@ -93,7 +102,8 @@
         "cwd": {
           "type": "string",
           "description": "Working directory for the server process. Relative paths resolve against the workspace root; ${PLUGIN_ROOT}/${PLUGIN_DATA} references resolve against the plugin installation/data directory."
-        }
+        },
+        "notes": { "$ref": "#/definitions/notes" }
       }
     }
   ]
