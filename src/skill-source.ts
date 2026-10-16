@@ -17,6 +17,7 @@ import {
   cloneAtRef,
   recordLatest,
   resolveInsideRepo,
+  sourcePinned,
   type RemoteBranchesLookup,
 } from "./git-source.js";
 import type { SkillEntry } from "./consolidate.js";
@@ -417,6 +418,8 @@ export function enrichSkillMetadata(
         // A second fetch, when one is needed, reuses the clone that skills
         // tracking the default branch of the same repository already share.
         if (remote) {
+          const pinned = sourcePinned(entry.source, remote);
+          if (pinned !== undefined) entry.source.pinned = pinned;
           recordLatest(
             entry,
             entry.skillId,
