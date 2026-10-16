@@ -37,7 +37,7 @@ Vendor Repos                    Central Repo                    Consumers
 - Metadata enrichment from plugin source repos (name, description, version, author, contained skills/MCP servers, content hash)
 - Metadata enrichment from agent card URLs (name, description, content hash)
 - A static website deployed to GitHub Pages for browsing the registry
-- Claude Code skills for generating [MCP](skills/create-mcp-approval/SKILL.md), [skill](skills/create-skill-approval/SKILL.md), [plugin](skills/create-plugin-approval/SKILL.md), and [agent](skills/create-agent-approval/SKILL.md) approval files
+- Claude Code skills for generating [MCP](skills/create-mcp-approval/SKILL.md), [skill](skills/create-skill-approval/SKILL.md), [plugin](skills/create-plugin-approval/SKILL.md), [agent](skills/create-agent-approval/SKILL.md), [marketplace](skills/create-marketplace-approval/SKILL.md), and [sandbox extension](skills/create-sandbox-extension-approval/SKILL.md) approval files
 - Guidance for implementing clients — as a [website page](https://ai.open-vsx.org/docs/clients) and as a [Claude Code skill](skills/implement-registry-client/SKILL.md)
 
 ## Repositories
@@ -49,7 +49,7 @@ Vendor Repos                    Central Repo                    Consumers
 
 ## Data Flow
 
-1. A vendor creates approval files (manually or using the Claude Code skills for [MCP](skills/create-mcp-approval/SKILL.md), [skills](skills/create-skill-approval/SKILL.md), [plugins](skills/create-plugin-approval/SKILL.md), or [agents](skills/create-agent-approval/SKILL.md))
+1. A vendor creates approval files (manually or using the Claude Code skills for [MCP](skills/create-mcp-approval/SKILL.md), [skills](skills/create-skill-approval/SKILL.md), [plugins](skills/create-plugin-approval/SKILL.md), [agents](skills/create-agent-approval/SKILL.md), [marketplaces](skills/create-marketplace-approval/SKILL.md), or [sandbox extensions](skills/create-sandbox-extension-approval/SKILL.md))
 2. Vendor commits and pushes — CI validates against the central schemas
 3. On successful push to main, the vendor CI triggers the central consolidation workflow
 4. Consolidation pulls all registered vendor repos, validates, enriches with MCP registry metadata, skill source metadata, plugin source metadata, and agent card metadata
@@ -119,7 +119,7 @@ Every skill a trusted organization directly approves is automatically treated as
 
 ### MCP approval files
 
-One JSON file per approved MCP server, stored in `mcp/`. The filename must be `<serverId>.json` with `/` replaced by `--`. See the [approval schema](schemas/mcp-approval.schema.json) for the full field reference.
+One JSON file per approved MCP server, stored in `mcp/`. The filename must be `<serverId>.json` with `/` replaced by `--`. See the [approval schema](schemas/mcp-approval.schema.json) for the full field reference. If you use Claude Code, the [`create-mcp-approval` skill](skills/create-mcp-approval/SKILL.md) can write the file for you.
 
 Example: `mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`
 
@@ -209,7 +209,7 @@ Resolution when a server has no registry entry:
 
 ### Skill approval files
 
-One JSON file per approved Agent Skill (or group of skills from the same repo), stored in `skills/`. The filename must be `<skillId>.json` with `/` replaced by `--`. See the [skill approval schema](schemas/skill-approval.schema.json) for the full field reference.
+One JSON file per approved Agent Skill (or group of skills from the same repo), stored in `skills/`. The filename must be `<skillId>.json` with `/` replaced by `--`. See the [skill approval schema](schemas/skill-approval.schema.json) for the full field reference. If you use Claude Code, the [`create-skill-approval` skill](skills/create-skill-approval/SKILL.md) can write the file for you.
 
 **Single skill** — `source.path` is a string pointing to the skill folder:
 
@@ -246,7 +246,7 @@ The `source` points to a git repository containing the skill folder(s). Skill me
 
 ### Plugin approval files
 
-One JSON file per approved [Agent Plugin](https://agent-plugins.org), stored in `plugins/`. The filename must be `<pluginId>.json` with `/` replaced by `--`. See the [plugin approval schema](schemas/plugin-approval.schema.json) for the full field reference.
+One JSON file per approved [Agent Plugin](https://agent-plugins.org), stored in `plugins/`. The filename must be `<pluginId>.json` with `/` replaced by `--`. See the [plugin approval schema](schemas/plugin-approval.schema.json) for the full field reference. If you use Claude Code, the [`create-plugin-approval` skill](skills/create-plugin-approval/SKILL.md) can write the file for you.
 
 Example: `plugins/io.github.gemini-cli-extensions--bigquery-data-analytics.json`
 
@@ -269,7 +269,7 @@ During consolidation, the plugin's directory is fetched to read its `plugin.json
 
 ### Agent approval files
 
-One JSON file per approved [A2A agent](https://a2a-protocol.org), stored in `agents/`. The filename must be `<agentId>.json` with `/` replaced by `--`. See the [agent approval schema](schemas/agent-approval.schema.json) for the full field reference.
+One JSON file per approved [A2A agent](https://a2a-protocol.org), stored in `agents/`. The filename must be `<agentId>.json` with `/` replaced by `--`. See the [agent approval schema](schemas/agent-approval.schema.json) for the full field reference. If you use Claude Code, the [`create-agent-approval` skill](skills/create-agent-approval/SKILL.md) can write the file for you.
 
 Example: `agents/eu.mosaico-project--ip-solution-agent.json`
 
@@ -287,7 +287,7 @@ Unlike skill and plugin approvals, `source` has no `path` field — `source.url`
 
 ### Sandbox extension approval files
 
-One JSON file per approved **repository** of sandbox extensions, stored in `sandbox-extensions/`. The filename must be `<sandboxExtensionId>.json` with `/` replaced by `--`. See the [sandbox extension approval schema](schemas/sandbox-extension-approval.schema.json) for the full field reference.
+One JSON file per approved **repository** of sandbox extensions, stored in `sandbox-extensions/`. The filename must be `<sandboxExtensionId>.json` with `/` replaced by `--`. See the [sandbox extension approval schema](schemas/sandbox-extension-approval.schema.json) for the full field reference. If you use Claude Code, the [`create-sandbox-extension-approval` skill](skills/create-sandbox-extension-approval/SKILL.md) can write the file for you.
 
 Example: `sandbox-extensions/io.github.eclipse-enclave--enclave-extensions.json`
 
@@ -370,6 +370,8 @@ If collection or MCP enrichment fails, the build stops and the previous deployme
 - [Skill approval skill](skills/create-skill-approval/SKILL.md) — AI agent skill for generating skill approval files
 - [Plugin approval skill](skills/create-plugin-approval/SKILL.md) — AI agent skill for generating plugin approval files
 - [Agent approval skill](skills/create-agent-approval/SKILL.md) — AI agent skill for generating agent approval files
+- [Marketplace approval skill](skills/create-marketplace-approval/SKILL.md) — AI agent skill for generating marketplace approval files
+- [Sandbox extension approval skill](skills/create-sandbox-extension-approval/SKILL.md) — AI agent skill for generating sandbox extension approval files
 - [Client implementation guidance](skills/implement-registry-client/SKILL.md) — AI agent skill for implementing an AI Registry client in a tool
 - [JSON schemas](schemas/) — organization and approval file schemas
 
