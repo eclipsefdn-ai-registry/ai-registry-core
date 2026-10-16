@@ -1457,15 +1457,22 @@ function writeOutput(
       sandboxFeatures: buildOrgEntryView(org.id, output.sandboxFeatures),
     });
 
-    // An organization that has approved no plugins gets no marketplace file: an
-    // empty catalog is a dead end for whoever added it, and a validation
-    // warning. orgs/<id>/marketplace.json and orgs/<id>.json sit side by side.
-    if (buildOrgEntryView(org.id, output.plugins).length === 0) continue;
+    // An organization with nothing to list gets no marketplace file: an empty
+    // catalog is a dead end for whoever added it, and a validation warning.
+    // Asked of the built marketplace rather than of the plugins, so it still
+    // holds for an organization whose every entry was skipped.
+    // orgs/<id>/marketplace.json and orgs/<id>.json sit side by side.
+    const marketplace = buildMarketplace(
+      output.plugins,
+      org,
+      pluginSourceMismatches,
+    );
+    if (marketplace.plugins.length === 0) continue;
     const orgMarketplaceDir = resolve(orgsDir, org.id);
     mkdirSync(orgMarketplaceDir, { recursive: true });
     writeMarketplace(
       resolve(orgMarketplaceDir, "marketplace.json"),
-      buildMarketplace(output.plugins, org, pluginSourceMismatches),
+      marketplace,
     );
   }
 
