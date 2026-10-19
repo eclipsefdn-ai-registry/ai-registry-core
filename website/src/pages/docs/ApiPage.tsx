@@ -38,7 +38,7 @@ const APPROVAL_FIELDS = [
     name: "genericConfig",
     type: "object?",
     description:
-      "MCP only: the approval's tool-agnostic connection info, as written in its root config (see mcp-server-config.schema.json), present only when the approval gave one. Its optional notes field is text for whoever sets the server up, explaining the config's placeholders; it is not part of the connection.",
+      "MCP only: the approval's tool-agnostic connection info, as written in its root config (see mcp-server-config.schema.json), present only when the approval gave one. Its optional notes field is text for whoever sets the server up, explaining the config's placeholders. Its optional serverKey field is the key a client stores the server under, and the key every install config derived from it uses; when absent, the key is the serverId's last segment, or the nearest namespace part that says more when that segment is only mcp, server or mcp-server. Neither field is part of the connection.",
   },
   {
     name: "viaTrust",
