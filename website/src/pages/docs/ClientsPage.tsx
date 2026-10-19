@@ -342,10 +342,11 @@ export function ClientsPage() {
           <li className="leading-relaxed">
             Store a server you build from <InlineCode>genericConfig</InlineCode>{" "}
             under its <InlineCode>serverKey</InlineCode>, which is also the key
-            every install config derived from it uses, so your client and theirs
-            agree. <InlineCode>serverKey</InlineCode> is not connection info
-            either, so leave it out of the config too. When it's absent, use the
-            last segment of the <InlineCode>serverId</InlineCode>, unless that
+            every install config derived from it uses, so your client stores it
+            under the same name as a client installing from one of those.{" "}
+            <InlineCode>serverKey</InlineCode> is not connection info either, so
+            leave it out of the config too. When it's absent, use the last
+            segment of the <InlineCode>serverId</InlineCode>, unless that
             segment is exactly <InlineCode>mcp</InlineCode>,{" "}
             <InlineCode>server</InlineCode> or{" "}
             <InlineCode>mcp-server</InlineCode>. In that case, use the nearest

@@ -18,10 +18,10 @@ export interface GenericConfigBox {
 
 export function genericConfigBox(config: GenericConfig): GenericConfigBox {
   const { notes, serverKey, ...json } = config;
-  const as = serverKey ? ` as "${serverKey}"` : "";
+  const keyHint = serverKey ? ` as "${serverKey}"` : "";
   return {
     json,
-    caveat: `Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers)${as} instead of pasting it in as shown.`,
+    caveat: `Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers)${keyHint} instead of pasting it in as shown.`,
     ...(notes && { notes }),
   };
 }

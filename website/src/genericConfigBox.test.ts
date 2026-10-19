@@ -30,7 +30,7 @@ describe("genericConfigBox", () => {
     );
   });
 
-  it("keeps today's caveat when there is no serverKey", () => {
+  it("names no key in the caveat when there is no serverKey", () => {
     assert.equal(
       genericConfigBox(CONNECTION).caveat,
       "Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers) instead of pasting it in as shown.",
