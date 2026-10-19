@@ -27,11 +27,10 @@ import {
 } from "./marketplace-source.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
-import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
+import { deriveToolConfig } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 import {
-  derivedServerKey,
-  findKeyCollisions,
+  groupCollidingServers,
   installedServerKey,
   type KeyedServer,
 } from "./server-key.js";
@@ -548,12 +547,7 @@ function deriveInstallConfig(
   generic: GenericMcpConfig | undefined,
   serverId: string,
 ): InstallConfig | undefined {
-  const derived =
-    generic &&
-    mcpConfigTransforms[cfg.tool]?.(
-      generic,
-      derivedServerKey(serverId, generic),
-    );
+  const derived = generic && deriveToolConfig(cfg.tool, serverId, generic);
   if (!derived) return undefined;
   const resolved: InstallConfig = { ...cfg, config: derived };
   if (!resolved.instructions && generic.notes) {
@@ -610,7 +604,7 @@ export function findServerKeyCollisions(output: ConsolidatedOutput): string[] {
       }
     }
   }
-  return findKeyCollisions(servers).map(
+  return groupCollidingServers(servers).map(
     ({ tool, key, serverIds }) =>
       `server key "${key}" is used by more than one MCP server for tool "${tool}": ${serverIds.join(", ")} — installing one overwrites another`,
   );
