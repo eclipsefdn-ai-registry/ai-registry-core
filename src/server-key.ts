@@ -32,12 +32,12 @@ export function derivedServerKey(
 // that shape, so no per-tool wrapper name is needed. Undefined for anything
 // else, which has no one key to collide on.
 export function installedServerKey(config: unknown): string | undefined {
-  const wrapper = soleValue(config);
+  const wrapper = soleEntry(config);
   if (!wrapper || typeof wrapper.value !== "object") return undefined;
-  return soleValue(wrapper.value)?.key;
+  return soleEntry(wrapper.value)?.key;
 }
 
-function soleValue(obj: unknown): { key: string; value: unknown } | undefined {
+function soleEntry(obj: unknown): { key: string; value: unknown } | undefined {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return undefined;
   const entries = Object.entries(obj);
   if (entries.length !== 1) return undefined;
@@ -60,17 +60,17 @@ export interface ServerKeyCollision {
 
 // Groups servers by tool and key, keeping the groups that hold more than one
 // server. The same server listed twice is not a collision.
-export function findKeyCollisions(
+export function groupCollidingServers(
   servers: KeyedServer[],
 ): ServerKeyCollision[] {
   const groups = new Map<string, ServerKeyCollision>();
   for (const { tool, key, serverId } of servers) {
-    const id = JSON.stringify([tool, key]);
-    const group = groups.get(id) ?? { tool, key, serverIds: [] };
+    const groupKey = JSON.stringify([tool, key]);
+    const group = groups.get(groupKey) ?? { tool, key, serverIds: [] };
     if (!group.serverIds.includes(serverId)) group.serverIds.push(serverId);
-    groups.set(id, group);
+    groups.set(groupKey, group);
   }
-  return [...groups.values()]
-    .filter((g) => g.serverIds.length > 1)
-    .map((g) => ({ ...g, serverIds: g.serverIds.sort() }));
+  const colliding = [...groups.values()].filter((g) => g.serverIds.length > 1);
+  for (const g of colliding) g.serverIds.sort();
+  return colliding;
 }

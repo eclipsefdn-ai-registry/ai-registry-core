@@ -13,17 +13,16 @@ import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
 import { isGlobPattern, resolveSkillPaths } from "./skill-source.js";
 import { fetchAgentCard } from "./agent-source.js";
-import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
+import { deriveToolConfig } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 import {
-  derivedServerKey,
-  findKeyCollisions,
+  groupCollidingServers,
   installedServerKey,
   type KeyedServer,
 } from "./server-key.js";
 // Type-only, so it is erased at runtime and creates no import cycle with
 // consolidate.ts (which imports this module).
-import type { SandboxExtensionEntry } from "./consolidate.js";
+import type { InstallConfig, SandboxExtensionEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -67,10 +66,7 @@ export interface ApprovalData {
   date: string;
   version?: string;
   config?: GenericMcpConfig;
-  installConfigs?: {
-    tool: string;
-    config?: Record<string, unknown> | "derived";
-  }[];
+  installConfigs?: Pick<InstallConfig, "tool" | "config">[];
 }
 
 export interface ApprovalEntry {
@@ -369,7 +365,7 @@ export function validateSimpleApprovals<D>(
 // Two of a vendor's own approvals giving the same server key for one of its
 // tools: a client installing one overwrites the other, and the vendor can
 // always fix it. A derived config's key is what the tool's transform gives
-// for the approval's own generic config, the same call consolidation makes.
+// for the approval's own generic config, the same derivation consolidation makes.
 // One with no generic config of its own is derived from another vendor's at
 // consolidation, which this vendor can't see, so consolidation's own
 // collision check covers it.
@@ -382,17 +378,13 @@ export function checkServerKeyCollisions(approvals: ApprovalEntry[]): string[] {
     for (const cfg of data.installConfigs ?? []) {
       const config =
         cfg.config === "derived"
-          ? generic &&
-            mcpConfigTransforms[cfg.tool]?.(
-              generic,
-              derivedServerKey(data.serverId, generic),
-            )
+          ? generic && deriveToolConfig(cfg.tool, data.serverId, generic)
           : cfg.config;
       const key = installedServerKey(config);
       if (key) servers.push({ tool: cfg.tool, key, serverId: data.serverId });
     }
   }
-  return findKeyCollisions(servers).map(
+  return groupCollidingServers(servers).map(
     ({ tool, key, serverIds }) =>
       `server key "${key}" for tool "${tool}" is used by more than one approval: ${serverIds.map((id) => `${id} (${files.get(id)})`).join(", ")} — set a different serverKey on the generic config, or rename the key in the hand-written config`,
   );
