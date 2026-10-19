@@ -531,17 +531,24 @@ export function pickWinningGenericConfig(
   return winner.genericConfig;
 }
 
+// The key a derived install config stores the server under.
+function serverKey(serverId: string): string {
+  return serverId.split("/").pop()!;
+}
+
 // cfg with its config derived from generic by the tool's registered transform,
 // and generic's notes as its instructions if it gave none (an empty string
 // counts as none). Undefined when there's no generic config or the transform
 // can't represent it. Shared by resolveMcpCrossVendorConfigs and
-// resolveMcpTrust, so a derived entry gets the same instructions either way.
+// resolveMcpTrust, so a derived entry gets the same server key and
+// instructions either way.
 function deriveInstallConfig(
   cfg: InstallConfig,
   generic: GenericMcpConfig | undefined,
-  slug: string,
+  serverId: string,
 ): InstallConfig | undefined {
-  const derived = generic && mcpConfigTransforms[cfg.tool]?.(generic, slug);
+  const derived =
+    generic && mcpConfigTransforms[cfg.tool]?.(generic, serverKey(serverId));
   if (!derived) return undefined;
   const resolved: InstallConfig = { ...cfg, config: derived };
   if (!resolved.instructions && generic.notes) {
@@ -557,7 +564,6 @@ function deriveInstallConfig(
 export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
   for (const entry of output.mcp) {
     const candidates = entry.approvals.filter((a) => a.genericConfig);
-    const slug = entry.serverId.split("/").pop()!;
 
     for (const approval of entry.approvals) {
       approval.installConfigs = approval.installConfigs.map((cfg) => {
@@ -568,7 +574,7 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
           entry.serverId,
           approval.organizationId,
         );
-        const resolved = deriveInstallConfig(cfg, winner, slug);
+        const resolved = deriveInstallConfig(cfg, winner, entry.serverId);
         if (resolved) return resolved;
 
         console.warn(
@@ -1068,14 +1074,16 @@ export function resolveMcpTrust(
         entry.serverId,
         trustedOrg,
       );
-      const slug = entry.serverId.split("/").pop()!;
-
       const installConfigs: InstallConfig[] = ownTools.map((tool) => {
         const installUrl = tool.mcpInstallUrlPrefix
           ? tool.mcpInstallUrlPrefix + entry.serverId
           : undefined;
 
-        const cfg = deriveInstallConfig({ tool: tool.id }, winner, slug) ?? {
+        const cfg = deriveInstallConfig(
+          { tool: tool.id },
+          winner,
+          entry.serverId,
+        ) ?? {
           tool: tool.id,
         };
         if (installUrl) cfg.installUrl = installUrl;
