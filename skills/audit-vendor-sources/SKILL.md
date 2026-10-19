@@ -51,7 +51,9 @@ a single type: still dispatch one subagent per vendor, not one shared agent loop
 1. **Preflight (main thread, not delegated).** For every vendor in `vendors.json`, check
    `git status`/current branch. Report dirty/non-main vendors as their own message, before
    dispatching anything — per `references/conventions.md`'s preflight rule. Exclude those vendors
-   from dispatch this run.
+   from dispatch this run. In the same pass, list every vendor's **open** PRs
+   (`gh pr list -R <repo> --state open`), not just whether last week's audit PR merged — see
+   `references/conventions.md` on open audit PRs.
 2. **Load the relevant cache(s) (main thread).** Read `cache/plugin-sources.json`,
    `cache/skill-sources.json`, and/or `cache/mcp-sources.json` — whichever the requested scope
    covers. Pass each clean vendor's relevant slice into that vendor's dispatch prompt, so the

@@ -39,6 +39,22 @@ vendor publishes without ever registering.
      instantly on retry. Retry before recording "no results"; recording a timeout as an empty search
      silently drops a vendor's whole registry-listed path for that run. `?limit=` appears
      unsupported and makes the request hang on its own.
+     **Also check already-approved registry-listed servers that carry their own `config`.** A
+     search for new serverIds never notices a version bump that moves the endpoint:
+     `com.atlassian/atlassian-mcp-server` 2.0.0 lists `https://mcp.atlassian.com/v2/mcp`, while the
+     approval still says `/v1/mcp` (found 2026-10-16). One call per server,
+     `/v0.1/servers/<id>/versions`, and compare the latest `remotes[].url`/`packages` against the
+     approval's `config`. Report a drift as a pre-existing issue rather than folding the fix into
+     the audit commit.
+     **A `server.json` in the vendor's repo does not mean the server is registered.**
+     `docker/hub-mcp` has declared `io.github.docker/hub-mcp` since 2026-08-27, but a direct
+     `/versions` lookup still 404s. Look the id up directly before treating it as registry-listed.
+     **The converse also happens: a registry hit can be a server already approved under a minted
+     id.** On 2026-10-16 the registry carried six `com.googleapis.<service>/mcp` entries whose
+     endpoints were identical to existing self-published `com.googleapis/<slug>` approvals. Match
+     a registry hit's remote URL against every approval's `config.url` before calling it new;
+     the same match tells a genuinely different server apart (`memorystore.googleapis.com` is
+     Valkey, not the approved `redis.googleapis.com`).
    - **Self-published path (secondary, bounded)** — a vendor can ship a working MCP server (often
      bundled into a product, or a scoped npm/PyPI package) without ever submitting it to the
      registry; don't skip this just because the registry search came back empty. Aim for ≤4

@@ -114,6 +114,13 @@ repo's current `main` state _and_ this cache's `knownSources` before treating it
 `main` alone will re-flag the same finding as "new" on a second branch every week until someone
 actually merges the first one.
 
+**Check every open PR in the vendor repo, not just last week's.** On 2026-10-16 the preflight
+confirmed that jetbrains' 2026-10-09 PR had merged and missed that its 2026-10-02 PR (#1) was still
+open. A new finding that only edits a file which exists solely on an open PR's branch (there,
+adding `migrate-to-teamcity` to an array introduced by #1) cannot go on a `main`-based branch.
+Keep it as a separate patch and hand it to that PR's review; don't stack this week's commit onto
+an older PR's branch, which mixes two reviews into one.
+
 **There is a third place decisions live: the vendor repo's own README.** Several vendor repos carry
 a "considered and excluded" section whose entries were never mirrored into a cache `rejected` list
 — so nothing ever re-checks them and they go stale silently (`atlassian-labs/twg-plugins` sat
@@ -186,7 +193,10 @@ method, not WebSearch.** The GitLab REST API is usable unauthenticated for publi
    thousands of projects; adding `&search=<keyword>` to that same endpoint with the four keywords
    `mcp`, `skill`, `plugin`, `agent` surfaced every real finding in one pass on 2026-10-02. Two
    false-positive classes to filter from the results: any path under `*/experiments/*`, and
-   `<team-name>/skills` repos, are reliably internal.
+   `<team-name>/skills` repos, are reliably internal. For a weekly delta, filter by
+   `&last_activity_after=<last-run-date>` as well as by creation date:
+   `gitlab-org/growth/ai/skills` was created in 2026-04 and only appeared through activity on
+   2026-10-16.
 2. `GET /api/v4/projects/<url-encoded-path>/repository/tree?recursive=true&per_page=100`
    (paginate via `&page=N`) lists every file path in a given repo — grep the returned paths for
    `plugin.json`, `marketplace.json`, `SKILL.md`, `mcp.json`. **Paginate to exhaustion or scope the
@@ -228,6 +238,15 @@ Across `atlassian` + `atlassian-labs`, 181 repos scanned in about two minutes.
 on a different, far cheaper bucket.** `gh api -X GET search/repositories -f q='org:<org>
 created:><last-run-date> fork:false'` costs a `search` call (30/min), not a `code_search` call
 (10/hr), and is the right first move for a weekly delta.
+
+**Run `pushed:><last-run-date>` as well as `created:>`, and tree-scan every repo it returns.**
+Existing repos gain skills and manifests far more often than new repos appear. On 2026-10-16 the
+pushed-since scan (160 NVIDIA repos, core bucket only) surfaced about 20 product repos with skill
+directories that earlier code-search runs never recorded; openai, docker and nvidia covered all
+three passes with zero `code_search` calls this way. `pushed_at` moves on a push to _any_ branch
+(`docker/skills` showed as pushed with no default-branch commit since the last run), so for a
+known catalog repo, `gh api repos/<o>/<r>/commits?since=<last-run>` is the cheaper "anything
+changed?" check before a full tree read.
 
 ## `gh api search/code` operational notes
 

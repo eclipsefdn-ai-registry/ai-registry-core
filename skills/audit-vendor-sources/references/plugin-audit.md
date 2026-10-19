@@ -32,6 +32,9 @@ point, though: this runs weekly, so a missed finding this week is caught next we
    zero `search`/`code_search` quota — 74 anthropics repos and 8 docker repos each re-validated in a
    single pass on 2026-10-09. It is also strictly more reliable than code search, which under-reports
    in large repos, and it catches a manifest appearing in a repo no previous run ever cached.
+   Once an org has had one full sweep, a weekly run only needs to sweep the repos pushed since the
+   last run (`search/repositories` with `pushed:>`, per `conventions.md`), since a repo nobody
+   pushed to cannot have gained a manifest.
 2. **For each vendor in `vendors.json`** (parallelizable — dispatch one subagent per vendor for
    the research step, since vendors are fully independent; keep branch/commit work in the
    dispatching thread so git state stays predictable), do the following:
@@ -93,7 +96,10 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `test/`/`fixtures/`/`examples/` directory — these are different, tool-specific plugin
        formats or test data, never a real agent-plugins.org plugin (`.plugin/` and
        `.github/plugin/` confirmed as this kind of wrapper/duplicate location in
-       `atlassian/forge-skills`, 2026-09-18).
+       `atlassian/forge-skills`, 2026-09-18). `.github/extensions/<name>/` is **not** in this
+       class: `github/replica#.github/extensions/replica-prototype` carries a conformant root
+       `plugin.json` with Copilot-specific code in a `com.github.copilot/` subdirectory, and was
+       approved 2026-10-16.
      - For everything else, open the file and check it against the **actual published
        schema**, not against a general impression of its shape. Fetch
        `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json` (verified 2026-10-04 —

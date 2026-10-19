@@ -54,7 +54,23 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `gh api repos/<org>/skills/contents/skills?per_page=100 --jq '.[].name'` (402 entries for
        NVIDIA today). On 2026-10-09 that check would have replaced reading twelve skill bodies, all
        twelve of which turned out to be duplicates. Read a `skills/README.md` before classifying the
-       directory as canonical — it often states the mirror relationship outright.
+       directory as canonical — it often states the mirror relationship outright. For NVIDIA,
+       `NVIDIA/skills/components.d/*.yml` (plus `catalog-exceptions.yml`) lists exactly which
+       product repos are synced in; one listing answers "is this repo mirrored at all" before any
+       leaf-name matching (NeMo-Agent-Toolkit, OSMO and kubectl-nv were not, on 2026-10-16).
+     - **An approved glob on a fast-growing catalog admits unread skills every week.**
+       `gitlab-org/ai/skills` went from 38 to 56 folders between 2026-10-09 and 2026-10-16, and the
+       existing `skills/*` approval published all 18 newcomers with nobody having read them. Diff
+       the catalog listing against `knownSources`, read the new bodies, and report any that look
+       internal as a candidate for narrowing the glob to an explicit array. Don't record them as
+       covered on frontmatter alone.
+     - **`validate-vendor`'s "glob … matched no skill folders" warning on an existing approval
+       means skills moved.** `JetBrains/teamcity-cli` dropped its `skills/` directory on
+       2026-10-08 in favour of `JetBrains/teamcity-skills`. That silently emptied one approval and
+       invalidated a cached "duplicate of teamcity-cli" rejection. On that warning, find where the
+       skills went and re-check any rejection whose reason names the old location. The same
+       goes for "SKILL.md not found" on an explicit path array: `google/mantis` moved every skill
+       under `skills/` on 2026-10-17, which broke all 15 paths of an approved array at once.
    - **Filter false-positive hits before verifying anything.** `filename:SKILL.md` over-matches:
      - Skip any `SKILL.md` that lives under a repo/path already approved (or approvable) as an
        Agent Plugin's `skills/*/SKILL.md` — per `AGENTS.md`, a plugin's contained skills are
@@ -118,7 +134,10 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        four internal authoring-convention skills, 2026-10-02), and conversely treat a root-level
        `skills/` dir in a product repo as a positive signal worth checking even when that repo's
        `.agents/skills/` is entirely internal (`NVIDIA/OpenShell`: 4 customer-facing product skills
-       under `skills/`, 17 repo-internal workflow skills under `.agents/skills/`).
+       under `skills/`, 17 repo-internal workflow skills under `.agents/skills/`). A product
+       repo whose README tells users to install the skill (`youtrack skill install`,
+       `gh skill install JetBrains/youtrack-cli youtrack-cli`, 2026-10-16) has settled the
+       question for that skill.
      - **Reject a skill whose dependency on unshipped files is permanent — not merely one that
        references them.** Consolidation hashes and installs only the approved folder, so always
        list that folder's contents against what `SKILL.md` actually needs. But "routes outside
