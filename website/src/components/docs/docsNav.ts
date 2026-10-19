@@ -20,6 +20,7 @@ export const DOCS_NAV: DocsPageEntry[] = [
     label: "API",
     sections: [
       { id: "endpoints", label: "Endpoints" },
+      { id: "marketplaces", label: "Marketplaces" },
       { id: "response-shapes", label: "Response shapes" },
       { id: "schemas", label: "Schemas" },
       { id: "stability", label: "Stability" },
