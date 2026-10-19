@@ -18,6 +18,7 @@ import {
   resolveVendorMetadata,
   pickWinningGenericConfig,
   resolveMcpCrossVendorConfigs,
+  findServerKeyCollisions,
   buildToolView,
   buildToolSkillView,
   buildToolPluginView,
@@ -3939,5 +3940,159 @@ describe("buildOrgEntryView — sandbox extensions", () => {
       view.map((e) => e.sandboxExtensionId),
       ["io.github.g/kits/tools/a"],
     );
+  });
+});
+
+describe("findServerKeyCollisions", () => {
+  const remote: GenericMcpConfig = {
+    type: "streamable-http",
+    url: "https://mcp.example.com",
+  };
+
+  function withTheia(): ConsolidatedOutput {
+    const output = emptyOutput();
+    output.tools.push(
+      { id: "theia-ide", name: "Theia IDE", organizationId: "theia" },
+      { id: "theia-ide-next", name: "Theia IDE Next", organizationId: "theia" },
+    );
+    return output;
+  }
+
+  function addServer(
+    output: ConsolidatedOutput,
+    serverId: string,
+    approval: Partial<Approval>,
+  ): void {
+    output.mcp.push({
+      serverId,
+      name: serverId,
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "theia",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [],
+          ...approval,
+        },
+      ],
+    });
+  }
+
+  function handWritten(tool: string, key: string) {
+    return { tool, config: { servers: { [key]: { serverUrl: "https://x" } } } };
+  }
+
+  it("warns when two derived configs for one tool share a key", () => {
+    const output = withTheia();
+    addServer(output, "com.stripe/mcp", {
+      installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      genericConfig: { ...remote, serverKey: "pay" },
+    });
+    addServer(output, "com.supabase/mcp", {
+      installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      genericConfig: { ...remote, serverKey: "pay" },
+    });
+    resolveMcpCrossVendorConfigs(output);
+
+    const warnings = findServerKeyCollisions(output);
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /"theia-ide"/);
+    assert.match(warnings[0], /"pay"/);
+    assert.match(warnings[0], /com\.stripe\/mcp/);
+    assert.match(warnings[0], /com\.supabase\/mcp/);
+  });
+
+  it("warns when a derived config and a hand-written one share a key", () => {
+    const output = withTheia();
+    addServer(output, "com.stripe/mcp", {
+      installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      genericConfig: remote,
+    });
+    addServer(output, "io.github.someone/stripe-tools", {
+      installConfigs: [handWritten("theia-ide", "stripe")],
+    });
+    resolveMcpCrossVendorConfigs(output);
+
+    const warnings = findServerKeyCollisions(output);
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /"stripe"/);
+    assert.match(warnings[0], /com\.stripe\/mcp/);
+    assert.match(warnings[0], /io\.github\.someone\/stripe-tools/);
+  });
+
+  it("warns when two hand-written configs share a key", () => {
+    const output = withTheia();
+    addServer(output, "com.stripe/mcp", {
+      installConfigs: [handWritten("theia-ide", "mcp")],
+    });
+    addServer(output, "com.supabase/mcp", {
+      installConfigs: [handWritten("theia-ide", "mcp")],
+    });
+
+    const warnings = findServerKeyCollisions(output);
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /"theia-ide"/);
+    assert.match(warnings[0], /"mcp"/);
+    assert.match(warnings[0], /com\.stripe\/mcp/);
+    assert.match(warnings[0], /com\.supabase\/mcp/);
+  });
+
+  it("covers trust-derived configs", () => {
+    const output = withTheia();
+    output.mcp.push({
+      serverId: "com.stripe/mcp",
+      name: "stripe",
+      description: "",
+      mcpRegistryVerified: false,
+      approvals: [
+        {
+          organizationId: "eclipsesource",
+          date: "2026-08-05",
+          configHash: "abc",
+          installConfigs: [],
+          genericConfig: remote,
+        },
+      ],
+    });
+    addServer(output, "io.github.someone/stripe-tools", {
+      installConfigs: [handWritten("theia-ide", "stripe")],
+    });
+    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
+
+    const warnings = findServerKeyCollisions(output);
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /"theia-ide"/);
+  });
+
+  it("does not warn when the same key is used on different tools", () => {
+    const output = withTheia();
+    addServer(output, "com.stripe/mcp", {
+      installConfigs: [handWritten("theia-ide", "pay")],
+    });
+    addServer(output, "com.supabase/mcp", {
+      installConfigs: [handWritten("theia-ide-next", "pay")],
+    });
+
+    assert.deepEqual(findServerKeyCollisions(output), []);
+  });
+
+  it("does not warn for a single entry", () => {
+    const output = withTheia();
+    addServer(output, "com.stripe/mcp", {
+      installConfigs: [
+        { tool: "theia-ide", config: "derived" },
+        { tool: "theia-ide-next", config: "derived" },
+      ],
+      genericConfig: remote,
+    });
+    resolveMcpCrossVendorConfigs(output);
+
+    assert.deepEqual(findServerKeyCollisions(output), []);
   });
 });

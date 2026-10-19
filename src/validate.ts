@@ -13,6 +13,14 @@ import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
 import { isGlobPattern, resolveSkillPaths } from "./skill-source.js";
 import { fetchAgentCard } from "./agent-source.js";
+import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
+import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
+import {
+  derivedServerKey,
+  findKeyCollisions,
+  installedServerKey,
+  type KeyedServer,
+} from "./server-key.js";
 // Type-only, so it is erased at runtime and creates no import cycle with
 // consolidate.ts (which imports this module).
 import type { SandboxExtensionEntry } from "./consolidate.js";
@@ -58,7 +66,11 @@ export interface ApprovalData {
   serverId: string;
   date: string;
   version?: string;
-  installConfigs?: { tool: string }[];
+  config?: GenericMcpConfig;
+  installConfigs?: {
+    tool: string;
+    config?: Record<string, unknown> | "derived";
+  }[];
 }
 
 export interface ApprovalEntry {
@@ -354,6 +366,38 @@ export function validateSimpleApprovals<D>(
   return accepted;
 }
 
+// Two of a vendor's own approvals giving the same server key for one of its
+// tools: a client installing one overwrites the other, and the vendor can
+// always fix it. A derived config's key is what the tool's transform gives
+// for the approval's own generic config, the same call consolidation makes.
+// One with no generic config of its own is derived from another vendor's at
+// consolidation, which this vendor can't see, so consolidation's own
+// collision check covers it.
+export function checkServerKeyCollisions(approvals: ApprovalEntry[]): string[] {
+  const files = new Map<string, string>();
+  const servers: KeyedServer[] = [];
+  for (const { file, data } of approvals) {
+    files.set(data.serverId, file);
+    const generic = data.config;
+    for (const cfg of data.installConfigs ?? []) {
+      const config =
+        cfg.config === "derived"
+          ? generic &&
+            mcpConfigTransforms[cfg.tool]?.(
+              generic,
+              derivedServerKey(data.serverId, generic),
+            )
+          : cfg.config;
+      const key = installedServerKey(config);
+      if (key) servers.push({ tool: cfg.tool, key, serverId: data.serverId });
+    }
+  }
+  return findKeyCollisions(servers).map(
+    ({ tool, key, serverIds }) =>
+      `server key "${key}" for tool "${tool}" is used by more than one approval: ${serverIds.map((id) => `${id} (${files.get(id)})`).join(", ")} — set a different serverKey on the generic config, or rename the key in the hand-written config`,
+  );
+}
+
 // --- Core validation (pure, testable) ---
 
 export interface ValidateVendorDataOptions {
@@ -453,6 +497,10 @@ export function validateVendorData(
     toolIds,
     result,
   );
+  for (const e of checkServerKeyCollisions(result.approvals)) {
+    result.valid = false;
+    result.errors.push(e);
+  }
 
   // Skill approvals
   const seenSkillIds = new Set<string>();
