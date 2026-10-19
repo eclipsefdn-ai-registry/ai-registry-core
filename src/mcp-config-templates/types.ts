@@ -15,8 +15,11 @@ export interface GenericMcpOAuth {
  * Mirrors schemas/mcp-server-config.schema.json. `type` is required on every
  * member, so it works as a discriminant — prefer switching on it over
  * `"command" in config` probing.
+ *
+ * `notes` is open to every member. It is prose for a person, not connection
+ * info, so a transform never copies it into a tool's config.
  */
-export type GenericMcpConfig =
+export type GenericMcpConfig = { notes?: string } & (
   | {
       type: "streamable-http" | "sse";
       url: string;
@@ -34,7 +37,8 @@ export type GenericMcpConfig =
       args?: string[];
       env?: Record<string, string>;
       cwd?: string;
-    };
+    }
+);
 
 /**
  * Turns a vendor-supplied generic config into a tool's own installable

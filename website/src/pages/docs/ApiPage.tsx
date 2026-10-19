@@ -35,6 +35,12 @@ const APPROVAL_FIELDS = [
       "MCP only, and informational: the MCP registry version the organization reviewed, present only when the approval gave one. It doesn't decide what runs; the install configuration does.",
   },
   {
+    name: "genericConfig",
+    type: "object?",
+    description:
+      "MCP only: the approval's tool-agnostic connection info, as written in its root config (see mcp-server-config.schema.json), present only when the approval gave one. Its optional notes field is text for whoever sets the server up, explaining the config's placeholders; it is not part of the connection.",
+  },
+  {
     name: "viaTrust",
     type: "string?",
     description:
@@ -560,7 +566,8 @@ export function ApiPage() {
             {
               name: "instructions",
               type: "string?",
-              description: "Human-readable setup notes.",
+              description:
+                "Human-readable setup notes. On an MCP install config derived from a generic config, that generic config's notes, unless the approval wrote its own.",
             },
           ]}
         />
@@ -587,6 +594,10 @@ export function ApiPage() {
             {[
               ["organization.schema.json", "Vendor organization metadata"],
               ["mcp-approval.schema.json", "MCP server approval file"],
+              [
+                "mcp-server-config.schema.json",
+                "Generic MCP server config, the root config of an MCP approval",
+              ],
               ["skill-approval.schema.json", "Agent Skill approval file"],
               [
                 "plugin-approval.schema.json",

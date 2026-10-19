@@ -132,6 +132,8 @@ The registry publishes configuration. Install means writing that configuration w
 
 - The key inside `servers` is the local name, chosen by the organization that filed the approval. Use it as the artifact's local identity. It can collide with a server the user configured by hand, which is what the adoption path in step 5 is for.
 - `config.servers` may hold more than one entry. Install all of them or install none. Picking one silently gives the user a partial server set with no indication anything is missing.
+- `installConfigs[].instructions`, when present, is setup text for the person installing: what to put in place of a `<name>` placeholder in the config, and what a `${VAR}` reference must hold. Show it with the config, since the config may not work until those values are filled in. On an entry derived from an organization's generic config, it is that config's `notes`.
+- `approvals[].genericConfig`, when present, is the organization's tool-agnostic connection info as filed. If you build your own config from it, its `notes` is the same kind of text as `instructions`, not connection info, so leave it out of what you write.
 - `mcpRegistryVerified` means the server is listed in the Anthropic MCP registry. It says nothing about the server's behaviour or safety.
 - `publisherClaimedBy` names an organization that claims to publish the server, not merely to endorse it. Show it distinctly from endorsement if you show it at all.
 - Content hashing does not apply here. `configHash` covers the approval, and update detection uses it.
