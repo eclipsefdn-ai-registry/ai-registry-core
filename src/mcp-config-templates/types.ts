@@ -16,10 +16,12 @@ export interface GenericMcpOAuth {
  * member, so it works as a discriminant — prefer switching on it over
  * `"command" in config` probing.
  *
- * `notes` is open to every member. It is prose for a person, not connection
- * info, so a transform never copies it into a tool's config.
+ * `notes` and `serverKey` are open to every member. Neither is connection
+ * info, so a transform never copies them into a tool's config: notes is
+ * prose for a person, and serverKey reaches a transform only as the key it
+ * is given to store the server under.
  */
-export type GenericMcpConfig = { notes?: string } & (
+export type GenericMcpConfig = { notes?: string; serverKey?: string } & (
   | {
       type: "streamable-http" | "sse";
       url: string;

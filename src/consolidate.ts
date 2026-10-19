@@ -531,9 +531,23 @@ export function pickWinningGenericConfig(
   return winner.genericConfig;
 }
 
-// The key a derived install config stores the server under.
-function serverKey(serverId: string): string {
-  return serverId.split("/").pop()!;
+const GENERIC_KEY_PARTS = new Set(["mcp", "server", "mcp-server"]);
+
+// The key a derived install config stores the server under (ADR 0002): the
+// generic config's serverKey, else the serverId's last segment unless it
+// only says "mcp" or "server", in which case the nearest namespace part that
+// says more, lowercased. An id that is generic all the way keeps its last
+// segment.
+function serverKey(serverId: string, generic: GenericMcpConfig): string {
+  if (generic.serverKey) return generic.serverKey;
+  const [namespace, ...rest] = serverId.split("/");
+  const last = rest.at(-1) ?? namespace;
+  if (!GENERIC_KEY_PARTS.has(last)) return last;
+  const part = namespace
+    .split(".")
+    .reverse()
+    .find((p) => !GENERIC_KEY_PARTS.has(p.toLowerCase()));
+  return part?.toLowerCase() ?? last;
 }
 
 // cfg with its config derived from generic by the tool's registered transform,
@@ -548,7 +562,8 @@ function deriveInstallConfig(
   serverId: string,
 ): InstallConfig | undefined {
   const derived =
-    generic && mcpConfigTransforms[cfg.tool]?.(generic, serverKey(serverId));
+    generic &&
+    mcpConfigTransforms[cfg.tool]?.(generic, serverKey(serverId, generic));
   if (!derived) return undefined;
   const resolved: InstallConfig = { ...cfg, config: derived };
   if (!resolved.instructions && generic.notes) {

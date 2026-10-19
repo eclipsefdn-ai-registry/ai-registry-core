@@ -22,9 +22,12 @@ export interface InstallConfig {
 }
 
 // Mirrors GenericMcpConfig only as far as the website reads it: the
-// connection fields are printed as JSON and nothing more, while notes is
-// shown as text.
-export type GenericConfig = Record<string, unknown> & { notes?: string };
+// connection fields are printed as JSON and nothing more, notes is shown as
+// text, and serverKey names the key a client stores the server under.
+export type GenericConfig = Record<string, unknown> & {
+  notes?: string;
+  serverKey?: string;
+};
 
 export interface Approval {
   organizationId: string;

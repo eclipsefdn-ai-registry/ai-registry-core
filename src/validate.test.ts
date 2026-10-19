@@ -1413,6 +1413,32 @@ describe("validateApproval — root config and derived marker", () => {
     assert.equal(result.valid, false);
   });
 
+  it("accepts serverKey on every transport", () => {
+    for (const config of [
+      { type: "streamable-http", url: "https://mcp.example.com" },
+      { type: "sse", url: "https://mcp.example.com" },
+      { type: "ws", url: "wss://mcp.example.com" },
+      { type: "stdio", command: "npx" },
+    ]) {
+      const result = validateApproval({
+        serverId: "io.example/mcp",
+        date: "2026-08-05",
+        config: { ...config, serverKey: "example" },
+      });
+      assert.equal(result.valid, true, config.type);
+    }
+  });
+
+  // An empty key would otherwise fall back silently, hiding the typo.
+  it("rejects an empty serverKey", () => {
+    const result = validateApproval({
+      serverId: "io.example/mcp",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "npx", serverKey: "" },
+    });
+    assert.equal(result.valid, false);
+  });
+
   it('accepts an installConfigs entry with config: "derived"', () => {
     const result = validateApproval({
       serverId: "io.example/foo",

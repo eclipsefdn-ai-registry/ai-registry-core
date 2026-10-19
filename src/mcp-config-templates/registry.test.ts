@@ -23,25 +23,36 @@ describe("mcpConfigTransforms", () => {
     assert.equal(mcpConfigTransforms["hasOwnProperty"], undefined);
   });
 
-  // The docs promise that notes never reach a tool's config: on a derived
-  // card it arrives as the entry's instructions instead. Checked for every
+  // The docs promise that notes and serverKey never reach a tool's config:
+  // on a derived card notes arrives as the entry's instructions instead, and
+  // serverKey only as the key the transform is given. Checked for every
   // registered transform, so a new one can't break the promise unnoticed.
-  it("keeps notes out of every transform's output", () => {
+  it("keeps notes and serverKey out of every transform's output", () => {
     const notes = "Replace <database> with the database to connect to.";
+    const serverKey = "vendor-chosen-key";
     const configs: GenericMcpConfig[] = [
-      { type: "streamable-http", url: "https://mcp.example.com", notes },
-      { type: "sse", url: "https://mcp.example.com", notes },
-      { type: "ws", url: "wss://mcp.example.com", notes },
-      { type: "stdio", command: "npx", args: ["--db=<database>"], notes },
+      {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        notes,
+        serverKey,
+      },
+      { type: "sse", url: "https://mcp.example.com", notes, serverKey },
+      { type: "ws", url: "wss://mcp.example.com", notes, serverKey },
+      {
+        type: "stdio",
+        command: "npx",
+        args: ["--db=<database>"],
+        notes,
+        serverKey,
+      },
     ];
     for (const [tool, transform] of Object.entries(mcpConfigTransforms)) {
       for (const config of configs) {
-        const result = transform(config, "example");
-        assert.equal(
-          JSON.stringify(result ?? {}).includes("Replace <database>"),
-          false,
-          `${tool} / ${config.type}`,
-        );
+        const json = JSON.stringify(transform(config, "example") ?? {});
+        assert.equal(json.includes("Replace <database>"), false, tool);
+        assert.equal(json.includes(serverKey), false, tool);
+        assert.equal(json.includes("serverKey"), false, tool);
       }
     }
   });
