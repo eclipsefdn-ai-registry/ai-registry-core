@@ -546,7 +546,7 @@ function serverKey(serverId: string, generic: GenericMcpConfig): string {
   const part = namespace
     .split(".")
     .reverse()
-    .find((p) => !GENERIC_KEY_PARTS.has(p.toLowerCase()));
+    .find((p) => p && !GENERIC_KEY_PARTS.has(p.toLowerCase()));
   return part?.toLowerCase() ?? last;
 }
 
