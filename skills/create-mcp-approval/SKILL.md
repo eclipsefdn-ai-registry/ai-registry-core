@@ -23,7 +23,7 @@ Vendors maintain their own repositories with approval files for MCP servers they
 4. **Read the approval schema** — Fetch the schema from `https://ai.open-vsx.org/schemas/mcp-approval.schema.json` to ensure you follow the current contract.
 5. **Read tool-specific config docs** — Check `ai-docs/mcp-approval.md` in the repo. If it exists, read it to understand how to construct the `config` and `installUrl` for this vendor's tools.
 6. **Read an existing approval as reference** — Look for existing files in the `mcp/` directory. If none exist, fetch the example from `https://raw.githubusercontent.com/eclipsefdn-ai-registry/ai-registry-theia/main/mcp/io.github.ChromeDevTools--chrome-devtools-mcp.json`.
-7. **Write the generic `config`** — Unless the server's connection details are genuinely unknown, always include a root-level `config` (see "The Generic Root `config`" below). Fetch `https://ai.open-vsx.org/schemas/mcp-server-config.schema.json` for the current contract. If it contains placeholders, add `notes` explaining them (see "Explaining Placeholders with `notes`" below). This is separate from, and in addition to, the tool-specific configs in `installConfigs`.
+7. **Write the generic `config`** — Unless the server's connection details are genuinely unknown, always include a root-level `config` (see "The Generic Root `config`" below). Fetch `https://ai.open-vsx.org/schemas/mcp-server-config.schema.json` for the current contract. If it contains placeholders, add `notes` explaining them (see "Explaining Placeholders with `notes`" below). Decide whether it needs a `serverKey` (see "Naming the Server Key with `serverKey`" below). This is separate from, and in addition to, the tool-specific configs in `installConfigs`.
 8. **Generate the approval file** — Create a JSON file in the `mcp/` directory following the schema, the tool-specific docs, and the naming convention below.
 9. **Validate** — Run `npm run validate` to check the file.
 
@@ -60,6 +60,7 @@ The root-level `config` describes **one server**, tool-agnostically, with no out
 | `ws`                     | `url` (required), `headers` — WebSocket auth is header-only, no `oauth` |
 | `stdio`                  | `command` (required), `args`, `env`, `cwd`                              |
 | any                      | `notes` — see "Explaining Placeholders with `notes`" below              |
+| any                      | `serverKey` — see "Naming the Server Key with `serverKey`" below        |
 
 `"http"` is **not** accepted, even though Claude Code, VS Code and other mcp.json derivatives use it for Streamable HTTP. Write `streamable-http`; translating to a tool's own spelling is the transform's job.
 
@@ -113,6 +114,21 @@ The same text is shown for every tool: next to the generic config, and as the `i
 - **Keep it tool-neutral.** Don't name a tool's own fields (`serverAuthToken`) or behaviour ("Theia opens a browser"); that belongs in a tool-specific entry's `instructions`.
 - **Name a `${VAR}` by its bare name** — `GITHUB_TOKEN`, not `${GITHUB_TOKEN}`. A tool with no `${VAR}` expansion rewrites the reference into its own placeholder (Theia shows `<GITHUB_TOKEN>`), and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged, so name those as written.
 - **Explain, don't configure.** Anything a client needs in order to connect belongs in the config fields; transforms never read `notes`.
+
+### Naming the Server Key with `serverKey`
+
+A client stores an installed server under a key in its own settings (e.g. the name under `mcpServers`), and two servers with the same key overwrite each other. Every install config derived from the generic config, in any vendor's approval or through trust, stores the server under one key: `serverKey` if set, otherwise core's fallback:
+
+- the last segment of the `serverId`, unless it is exactly `mcp`, `server` or `mcp-server`;
+- in that case, the nearest dot-separated part of the namespace that isn't one of those, lowercased: `com.stripe/mcp` → `stripe`, `io.github.e2b-dev/mcp-server` → `e2b-dev`, `aws.api.us-east-1.ecs-mcp/server` → `ecs-mcp`;
+- if every part is one of those, the last segment after all.
+
+Set `serverKey` when:
+
+- **You are converting hand-written install configs to `"derived"`.** Set it to the key the hand-written configs use today, so users who already installed the server keep one entry instead of getting a second one under a new key.
+- **The fallback reads badly.** `io.github.grafana/mcp-grafana` falls back to `mcp-grafana`; `"serverKey": "grafana"` reads better.
+
+Otherwise leave it out. An empty string is rejected. Like `notes`, it is not connection info, and transforms never copy it into a tool's config.
 
 ## Remote Servers and OAuth (tool-specific configs)
 
