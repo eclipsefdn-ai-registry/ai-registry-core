@@ -247,6 +247,8 @@ Set `serverKey` when you replace hand-written install configs with derived ones,
 
 Like `notes`, `serverKey` is not connection info: no transform copies it into a tool's config.
 
+Validation fails when two of your approvals give the same key for one of your tools, whether the keys are derived or hand-written (a hand-written config's key is its single key under the tool's wrapper, e.g. `servers`). If approvals from different organizations collide, consolidation warns and still publishes.
+
 #### Organization-supplied metadata for servers not in the Anthropic registry
 
 Not every MCP server an organization wants to approve is registered with Anthropic yet. For these, an approval can optionally include `metadata` and `selfPublished`:

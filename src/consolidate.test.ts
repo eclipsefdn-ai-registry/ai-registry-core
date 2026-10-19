@@ -4068,6 +4068,9 @@ describe("findServerKeyCollisions", () => {
 
     assert.equal(warnings.length, 1);
     assert.match(warnings[0], /"theia-ide"/);
+    assert.match(warnings[0], /"stripe"/);
+    assert.match(warnings[0], /com\.stripe\/mcp/);
+    assert.match(warnings[0], /io\.github\.someone\/stripe-tools/);
   });
 
   it("does not warn when the same key is used on different tools", () => {
