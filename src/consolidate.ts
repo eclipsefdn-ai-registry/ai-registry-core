@@ -29,6 +29,12 @@ import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
+import {
+  derivedServerKey,
+  findKeyCollisions,
+  installedServerKey,
+  type KeyedServer,
+} from "./server-key.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -531,25 +537,6 @@ export function pickWinningGenericConfig(
   return winner.genericConfig;
 }
 
-const GENERIC_KEY_PARTS = new Set(["mcp", "server", "mcp-server"]);
-
-// The key a derived install config stores the server under (ADR 0002): the
-// generic config's serverKey, else the serverId's last segment unless it
-// only says "mcp" or "server", in which case the nearest namespace part that
-// says more, lowercased. An id that is generic all the way keeps its last
-// segment.
-function serverKey(serverId: string, generic: GenericMcpConfig): string {
-  if (generic.serverKey) return generic.serverKey;
-  const [namespace, ...rest] = serverId.split("/");
-  const last = rest.at(-1) ?? namespace;
-  if (!GENERIC_KEY_PARTS.has(last)) return last;
-  const part = namespace
-    .split(".")
-    .reverse()
-    .find((p) => p && !GENERIC_KEY_PARTS.has(p.toLowerCase()));
-  return part?.toLowerCase() ?? last;
-}
-
 // cfg with its config derived from generic by the tool's registered transform,
 // and generic's notes as its instructions if it gave none (an empty string
 // counts as none). Undefined when there's no generic config or the transform
@@ -563,7 +550,10 @@ function deriveInstallConfig(
 ): InstallConfig | undefined {
   const derived =
     generic &&
-    mcpConfigTransforms[cfg.tool]?.(generic, serverKey(serverId, generic));
+    mcpConfigTransforms[cfg.tool]?.(
+      generic,
+      derivedServerKey(serverId, generic),
+    );
   if (!derived) return undefined;
   const resolved: InstallConfig = { ...cfg, config: derived };
   if (!resolved.instructions && generic.notes) {
@@ -600,6 +590,30 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
       });
     }
   }
+}
+
+// One warning per server key that two or more published MCP servers share
+// for one tool, since a client installing one would overwrite the other.
+// Reads the key off each concrete config, so it covers derived and
+// hand-written ones alike, and must run after resolveMcpTrust and
+// resolveMcpCrossVendorConfigs have turned every "derived" into one. Warns
+// rather than fails, so one vendor's mistake doesn't break the published
+// site; a vendor's own approvals colliding is caught by its validation.
+export function findServerKeyCollisions(output: ConsolidatedOutput): string[] {
+  const servers: KeyedServer[] = [];
+  for (const entry of output.mcp) {
+    for (const approval of entry.approvals) {
+      for (const cfg of approval.installConfigs) {
+        const key = installedServerKey(cfg.config);
+        if (key)
+          servers.push({ tool: cfg.tool, key, serverId: entry.serverId });
+      }
+    }
+  }
+  return findKeyCollisions(servers).map(
+    ({ tool, key, serverIds }) =>
+      `server key "${key}" is used by more than one MCP server for tool "${tool}": ${serverIds.join(", ")} — installing one overwrites another`,
+  );
 }
 
 /**
@@ -1605,6 +1619,9 @@ export async function main(): Promise<void> {
   // "derived" requests via cross-vendor lookup
   resolveMcpTrust(output, validMcpTrusts);
   resolveMcpCrossVendorConfigs(output);
+  for (const w of findServerKeyCollisions(output)) {
+    console.warn(`  WARNING: ${w}`);
+  }
 
   // Shared by the skill, plugin and sandbox extension steps below, so a
   // repository referenced by more than one of them is listed with a single
