@@ -2869,6 +2869,7 @@ describe("resolveMcpCrossVendorConfigs", () => {
       ["io.github.grafana/mcp-grafana", "mcp-grafana"],
       ["com.Example/mcp", "example"],
       ["mcp.server/mcp-server", "mcp-server"],
+      ["com.stripe./mcp", "stripe"],
     ]) {
       it(`falls back to "${key}" for ${serverId}`, () => {
         assert.deepEqual(derivedKeys(serverId, remote), [key]);

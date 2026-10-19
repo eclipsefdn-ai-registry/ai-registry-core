@@ -151,9 +151,10 @@ export function ApprovalCard({
   );
 }
 
-// The last "/"-segment of serverId — the same rule consolidate.ts uses to
-// key a derived config's server-name entry (e.g. "review-guard" from
-// "io.github.eclipsesource/review-guard"). Not stored in genericConfig
+// The last "/"-segment of serverId (e.g. "review-guard" from
+// "io.github.eclipsesource/review-guard"). Not yet the key consolidate.ts
+// gives a derived config, which is the generic config's serverKey or the
+// ADR 0002 fallback, so the two can differ. Not stored in genericConfig
 // itself (that would duplicate serverId as a second, driftable identity) —
 // computed here purely so the copy box can show a paste-ready, name-keyed
 // snippet.

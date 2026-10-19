@@ -51,5 +51,5 @@ export type GenericMcpConfig = { notes?: string; serverKey?: string } & (
  */
 export type McpConfigTransform = (
   config: GenericMcpConfig,
-  slug: string,
+  serverKey: string,
 ) => Record<string, unknown> | undefined;
