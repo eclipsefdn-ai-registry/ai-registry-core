@@ -507,6 +507,12 @@
         "type": "mcpServer",
         "reason": "Same server as the approved self-published com.docker/hub-mcp. docker/hub-mcp has had a server.json declaring this name since 2026-08-27 (commit 139e322), but /v0.1/servers/io.github.docker%2Fhub-mcp/versions returns 404, so it is not registered. If it gets registered, move the approval to the registry-listed id instead of adding a second entry.",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "https://ai-backend-service.docker.com/mcp",
+        "type": "mcpServer",
+        "reason": "REVISIT next run: Docker docs MCP server (tool search_docker_docs), introduced with the docker-docs skill in docker/skills 38df58b (2026-10-19, plugin-mcp.json). Not yet verified or approved.",
+        "checkedAt": "2026-10-20"
       }
     ]
   },

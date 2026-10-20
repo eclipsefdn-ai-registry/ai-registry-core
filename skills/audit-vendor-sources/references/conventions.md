@@ -118,8 +118,15 @@ actually merges the first one.
 confirmed that jetbrains' 2026-10-09 PR had merged and missed that its 2026-10-02 PR (#1) was still
 open. A new finding that only edits a file which exists solely on an open PR's branch (there,
 adding `migrate-to-teamcity` to an array introduced by #1) cannot go on a `main`-based branch.
-Keep it as a separate patch and hand it to that PR's review; don't stack this week's commit onto
-an older PR's branch, which mixes two reviews into one.
+The audit itself still writes this week's findings on a fresh `main`-based branch and keeps such a
+dependent change as a separate patch; it never stacks onto the older PR's branch.
+
+**At review time, an older open audit PR is folded into one new PR, not reviewed on its own.**
+This is how the user settled it on 2026-10-19 for jetbrains #1 and nvidia #3. Re-check the old
+PR against the live sources first: did any of it reach `main`? Do its globs still match the
+folders that were reviewed? Did the bodies change? Then build one branch from `main`: the old
+PR's commit cherry-picked unchanged, this week's commit (now including the dependent patch), and
+any cleanup as its own commit. Open one PR and close the old one with a pointer to it.
 
 **There is a third place decisions live: the vendor repo's own README.** Several vendor repos carry
 a "considered and excluded" section whose entries were never mirrored into a cache `rejected` list

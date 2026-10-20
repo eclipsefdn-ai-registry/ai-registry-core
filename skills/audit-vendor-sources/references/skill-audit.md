@@ -58,12 +58,24 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `NVIDIA/skills/components.d/*.yml` (plus `catalog-exceptions.yml`) lists exactly which
        product repos are synced in; one listing answers "is this repo mirrored at all" before any
        leaf-name matching (NeMo-Agent-Toolkit, OSMO and kubectl-nv were not, on 2026-10-16).
+       **Run that check against the vendor's _existing_ product-repo approvals too, every run.**
+       A catalog can start mirroring a repo after it was approved directly. By 2026-10-19 it had
+       synced `NemoClaw`'s `nemoclaw-user-guide` (`components.d/nemoclaw.yml`) and `Megatron-LM`'s
+       `mcore-run-on-slurm` (`components.d/megatron-core.yml`), both already approved from the
+       product repo. So each was published twice under two skillIds until the direct approvals
+       were cut back.
      - **An approved glob on a fast-growing catalog admits unread skills every week.**
        `gitlab-org/ai/skills` went from 38 to 56 folders between 2026-10-09 and 2026-10-16, and the
        existing `skills/*` approval published all 18 newcomers with nobody having read them. Diff
        the catalog listing against `knownSources`, read the new bodies, and report any that look
        internal as a candidate for narrowing the glob to an explicit array. Don't record them as
-       covered on frontmatter alone.
+       covered on frontmatter alone. **Narrowing re-approves everything the glob already published,
+       so read those too.** When `gitlab-org/ai/skills` was narrowed on 2026-10-20 (53 → 47), four of
+       the six exclusions were old glob members, not newcomers (`gitlab-psql`, `gitlab-clickhouse`,
+       `postgresai`, `prep-start`). For GitLab, the internal tells were a GDK development
+       environment, `internal.gitlab.com` sources, a workflow for fixing a `gitlab-org/gitlab`
+       checkout, and named internal processes (PREP). `gitlab-org/gitlab` used only as an
+       example project is not a tell.
      - **`validate-vendor`'s "glob … matched no skill folders" warning on an existing approval
        means skills moved.** `JetBrains/teamcity-cli` dropped its `skills/` directory on
        2026-10-08 in favour of `JetBrains/teamcity-skills`. That silently emptied one approval and
@@ -235,7 +247,17 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      `source.path` entirely, which the schema supports (proven against
      `gitlab.com/gitlab-org/ci-cd/gitlab-ci-skill` and `.../github-actions-to-gitlab-ci`,
      2026-10-02). Worth searching for deliberately: a root-level skill repo is invisible to any
-     `skills/`-prefixed path grep, only to a `SKILL.md` match at depth 0.
+     `skills/`-prefixed path grep, only to a `SKILL.md` match at depth 0. **That shape is only
+     approvable when the repo is the skill.** If the root is a product codebase, the whole repo
+     becomes the payload. `NVIDIA/kubectl-nv` declares its root the skill root, which would mean an
+     82 MB Go repo with 6,000+ files under `vendor/`. It was rejected on 2026-10-19, as was
+     `NVIDIA/cloudxr-js-samples`; the MCP server built into the same tool was approved.
+     **An underscore folder whose `name` is the same words hyphenated is accepted.** The spec
+     requires `name` to equal the folder and forbids underscores in `name`, so a folder like
+     `unsafe_rust_review` can never match a valid name. `google/rust-skills` and
+     `google/safer_cffi` were approved this way on 2026-10-19. A `name` that is a _different_
+     word (`ion-2026-analyze-gnss` in `gnss_analysis_with_skills`, `cloudxr-js-sdk` in
+     `cloudxr-js-samples`) is still a real mismatch.
      **A catalog can be root-level sibling directories with no `skills/` prefix at all** —
      `google/mantis` ships 19 `mantis-*` folders directly at the repo root, each with its own
      `SKILL.md` (2026-10-09). This is the depth-0 shape one level out: invisible to any

@@ -487,8 +487,7 @@
     "lastChecked": "2026-10-16",
     "knownSources": {
       "plugins": [
-        "https://github.com/github/github-mcp-server.git#agent-plugin",
-        "https://github.com/github/replica.git#.github/extensions/replica-prototype"
+        "https://github.com/github/github-mcp-server.git#agent-plugin"
       ],
       "marketplaces": []
     },
@@ -558,6 +557,12 @@
         "type": "plugin",
         "reason": "plugin.json has no $schema and a top-level \"skills\": \"./\", so it fails agent-plugins.org 1.0.0. Same as the copilot-sdk-workshop localizations entry.",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "https://github.com/github/replica.git#.github/extensions/replica-prototype",
+        "type": "plugin",
+        "reason": "Schema-valid agent-plugins.org manifest, but the only content is a com.github.copilot client extension: no skills/, no mcp.json, so it installs empty in every client but Copilot. Revisit if it gains portable content.",
+        "checkedAt": "2026-10-20"
       }
     ]
   },

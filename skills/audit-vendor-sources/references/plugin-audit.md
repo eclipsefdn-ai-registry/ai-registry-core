@@ -96,10 +96,16 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `test/`/`fixtures/`/`examples/` directory — these are different, tool-specific plugin
        formats or test data, never a real agent-plugins.org plugin (`.plugin/` and
        `.github/plugin/` confirmed as this kind of wrapper/duplicate location in
-       `atlassian/forge-skills`, 2026-09-18). `.github/extensions/<name>/` is **not** in this
-       class: `github/replica#.github/extensions/replica-prototype` carries a conformant root
-       `plugin.json` with Copilot-specific code in a `com.github.copilot/` subdirectory, and was
-       approved 2026-10-16.
+       `atlassian/forge-skills`, 2026-09-18). `.github/extensions/<name>/` is not a wrapper path
+       in this sense — it can hold a conformant root `plugin.json` — but see the next point.
+     - **A conformant manifest with no portable content is not approved.** The spec's portable
+       core is `skills/` and `mcp.json`; reverse-domain folders are client extensions.
+       `github/replica#.github/extensions/replica-prototype` has a schema-valid `plugin.json`, and
+       all 103 of its files are a `com.github.copilot` extension. In any client but Copilot it would
+       install as an empty package. The audit approved it on 2026-10-16, and the review rejected it
+       on 2026-10-19. List the plugin directory and confirm a `skills/*/SKILL.md` or an `mcp.json`
+       exists before approving; validation's "0 skills, 0 MCP servers" is the warning sign
+       (except in the root-named-`skills` gap below).
      - For everything else, open the file and check it against the **actual published
        schema**, not against a general impression of its shape. Fetch
        `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json` (verified 2026-10-04 —

@@ -332,21 +332,21 @@
         "https://github.com/google/mcp-security.git#extensions/google-secops/skills/*",
         "https://github.com/google/adk-python.git#src/google/adk/integrations/bigquery/skills/bigquery-ai-ml",
         "https://github.com/google/adk-python.git#src/google/adk/integrations/bigquery/skills/bigquery-graph",
-        "https://github.com/google/mantis.git#mantis-advise",
-        "https://github.com/google/mantis.git#mantis-architecture",
-        "https://github.com/google/mantis.git#mantis-calibrate",
-        "https://github.com/google/mantis.git#mantis-critic",
-        "https://github.com/google/mantis.git#mantis-dedupe",
-        "https://github.com/google/mantis.git#mantis-history",
-        "https://github.com/google/mantis.git#mantis-patch",
-        "https://github.com/google/mantis.git#mantis-plan",
-        "https://github.com/google/mantis.git#mantis-reflect",
-        "https://github.com/google/mantis.git#mantis-report",
-        "https://github.com/google/mantis.git#mantis-reproduce",
-        "https://github.com/google/mantis.git#mantis-researcher",
-        "https://github.com/google/mantis.git#mantis-structural-index",
-        "https://github.com/google/mantis.git#mantis-summarize",
-        "https://github.com/google/mantis.git#mantis-threat-model",
+        "https://github.com/google/mantis.git#skills/mantis-advise",
+        "https://github.com/google/mantis.git#skills/mantis-architecture",
+        "https://github.com/google/mantis.git#skills/mantis-calibrate",
+        "https://github.com/google/mantis.git#skills/mantis-critic",
+        "https://github.com/google/mantis.git#skills/mantis-dedupe",
+        "https://github.com/google/mantis.git#skills/mantis-history",
+        "https://github.com/google/mantis.git#skills/mantis-patch",
+        "https://github.com/google/mantis.git#skills/mantis-plan",
+        "https://github.com/google/mantis.git#skills/mantis-reflect",
+        "https://github.com/google/mantis.git#skills/mantis-report",
+        "https://github.com/google/mantis.git#skills/mantis-reproduce",
+        "https://github.com/google/mantis.git#skills/mantis-researcher",
+        "https://github.com/google/mantis.git#skills/mantis-structural-index",
+        "https://github.com/google/mantis.git#skills/mantis-summarize",
+        "https://github.com/google/mantis.git#skills/mantis-threat-model",
         "https://github.com/google/xrblocks.git#skills/xb-anchors",
         "https://github.com/google/xrblocks.git#skills/xb-debug-app",
         "https://github.com/google/langextract.git#skills/langextract-usage",
@@ -433,10 +433,10 @@
         "checkedAt": "2026-10-09"
       },
       {
-        "url": "https://github.com/google/mantis.git#{mantis-chain,mantis-meta-agent,mantis-pipeline-adapter,mantis-review}",
+        "url": "https://github.com/google/mantis.git#skills/{mantis-chain,mantis-meta-agent,mantis-pipeline-adapter,mantis-review}",
         "type": "skill",
-        "reason": "Permanent dependency on an unshipped file: each cites the repo-root schema.json as the binding contract, by line range (\"schema.json lines 418-470 will reject the finding\", \"schema.json:232\") or, in mantis-pipeline-adapter, through relative links [schema.json](../schema.json) whose whole purpose is to send the reader there. None ships schema.json, none detects its absence, and none can bootstrap it — the same class as reference/skills/mantis-launch. mantis-reflect and mantis-reproduce were kept: they cite schema.json descriptively and restate the constraint inline, so they reach a working state without it. Narrowed from 19 paths to 15 on 2026-10-09.",
-        "checkedAt": "2026-10-09"
+        "reason": "Permanent dependency on an unshipped file: each cites the repo-root schema.json as the binding contract, by line range (\"schema.json lines 418-470 will reject the finding\", \"schema.json:232\") or, in mantis-pipeline-adapter, through relative links [schema.json](../schema.json) whose whole purpose is to send the reader there. None ships schema.json, none detects its absence, and none can bootstrap it — the same class as reference/skills/mantis-launch. mantis-reflect and mantis-reproduce were kept: they cite schema.json descriptively and restate the constraint inline, so they reach a working state without it. Narrowed from 19 paths to 15 on 2026-10-09. Paths moved under skills/ on 2026-10-17 (f7cbeb3, pure rename).",
+        "checkedAt": "2026-10-20"
       },
       {
         "url": "https://github.com/google/xrblocks.git#skills/{xb-add-ai,xb-add-interactions,xb-add-spatial-ui,xb-add-world-sensing,xb-build-app}",
@@ -712,6 +712,12 @@
         "type": "skill",
         "reason": "Repo-internal maintainer tooling.",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "https://github.com/JetBrains/teamcity-cli.git#skills/*",
+        "type": "skill",
+        "reason": "skills/ removed on 2026-10-08 (16f7953); all four skills moved to JetBrains/teamcity-skills. The empty io.github.jetbrains-teamcity approval was removed on 2026-10-20.",
+        "checkedAt": "2026-10-20"
       }
     ]
   },
@@ -745,10 +751,8 @@
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/commit-messages",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-agent-plan",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-babysit-mr",
-        "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-clickhouse",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-mr-description",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-pipeline-watch",
-        "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-psql",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/glab-glql",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/glab",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/handoff",
@@ -769,9 +773,7 @@
         "https://gitlab.com/gitlab-org/ci-cd/github-actions-to-gitlab-ci.git#",
         "https://gitlab.com/gitlab-org/ai/lazy-mcp.git#skills/lazy-mcp-cli",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/adr-review",
-        "https://gitlab.com/gitlab-org/ai/skills.git#skills/postgresai",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/prep-review",
-        "https://gitlab.com/gitlab-org/ai/skills.git#skills/prep-start",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/rust-compile-memory",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/rust-unsafe-ffi-review",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/story-creator",
@@ -789,14 +791,14 @@
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/iterate",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/mcp-creator",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/mcp-review",
-        "https://gitlab.com/gitlab-org/ai/skills.git#skills/mr-label",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/natural-writing-style",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/nix",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/refactor",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/rust-idioms",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/rust-performance-optimizer",
         "https://gitlab.com/gitlab-org/ai/skills.git#skills/spec-create",
-        "https://gitlab.com/gitlab-org/ai/skills.git#skills/threat-model-create"
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/threat-model-create",
+        "https://gitlab.com/gitlab-org/ai/skills.git#skills/iteratotron"
       ]
     },
     "rejected": [
@@ -919,6 +921,42 @@
         "type": "skill",
         "reason": "Team-internal: Growth team's 'curated collection of OpenCode agent skills for GitLab development workflows' (cycle-time/AI retros, epic status updates, GLEX gitlab-experiment gem); <team>/skills pattern.",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/ai/skills.git#skills/mr-label",
+        "type": "skill",
+        "reason": "Applies GitLab's own MR type/subtype label taxonomy; all four sources are on internal.gitlab.com. Excluded when skills/* was narrowed to an explicit list on 2026-10-20.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-rails-fix",
+        "type": "skill",
+        "reason": "Issue-to-MR bug-fix workflow for a gitlab-org/gitlab checkout (CE/EE layout, GDK): contributor tooling for GitLab itself. Excluded when skills/* was narrowed to an explicit list on 2026-10-20.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-psql",
+        "type": "skill",
+        "reason": "Inspects the PostgreSQL databases of GitLab's own GDK development environment. Excluded when skills/* was narrowed to an explicit list on 2026-10-20.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/ai/skills.git#skills/gitlab-clickhouse",
+        "type": "skill",
+        "reason": "Inspects GDK's local ClickHouse; GitLab contributor tooling. Excluded when skills/* was narrowed to an explicit list on 2026-10-20.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/ai/skills.git#skills/postgresai",
+        "type": "skill",
+        "reason": "GitLab's database-review tooling on Database Lab thin clones, maintained in gitlab-org/gitlab. Excluded when skills/* was narrowed to an explicit list on 2026-10-20.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://gitlab.com/gitlab-org/ai/skills.git#skills/prep-start",
+        "type": "skill",
+        "reason": "GitLab's internal Platform Readiness Enablement Process. Excluded when skills/* was narrowed to an explicit list on 2026-10-20.",
+        "checkedAt": "2026-10-20"
       }
     ]
   },
@@ -1122,9 +1160,6 @@
     "knownSources": {
       "skills": [
         "https://github.com/NVIDIA/Megatron-LM.git#skills/mcore-migrate-gpt-to-hybrid",
-        "https://github.com/NVIDIA/Megatron-LM.git#skills/mcore-run-on-slurm",
-        "https://github.com/NVIDIA/NemoClaw.git#.agents/skills/nemoclaw-user-guide",
-        "https://github.com/NVIDIA/NemoClaw.git#.agents/skills/nemoclaw-skills-guide",
         "https://github.com/NVIDIA/SkillSpector.git#skills/*",
         "https://github.com/NVIDIA/TensorRT.git#.agents/skills/*",
         "https://github.com/NVIDIA/TensorRT-LLM.git#.claude/skills/trtllm-serve-config-guide",
@@ -1159,8 +1194,7 @@
         "https://github.com/NVIDIA/NeMo-Agent-Toolkit.git#skills/nat-telemetry",
         "https://github.com/NVIDIA/NeMo-Agent-Toolkit.git#skills/nat-mcp-and-serving",
         "https://github.com/NVIDIA/OSMO.git#skills/osmo-user",
-        "https://github.com/NVIDIA/OSMO.git#skills/osmo-admin",
-        "https://github.com/NVIDIA/kubectl-nv.git#"
+        "https://github.com/NVIDIA/OSMO.git#skills/osmo-admin"
       ]
     },
     "rejected": [
@@ -1337,6 +1371,30 @@
         "type": "skill",
         "reason": "REVISIT. 11 l8k CLI skills, largely customer-facing (Network Operator discover/generate/deploy/validate), but the mandatory prerequisite k8s-launch-kit-shared opens with source-development guidance (repo AGENTS.md, openspec, make build) and every sibling depends on it. Not narrowed this run.",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "https://github.com/NVIDIA/kubectl-nv.git",
+        "type": "skill",
+        "reason": "Root SKILL.md declares the repo root the skill root, so the payload would be the whole 82 MB Go repo (6,000+ files under vendor/). Same objection as cloudxr-js-samples; revisit if the skill moves into its own folder. The kubectl-nv MCP server is approved.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://github.com/NVIDIA/NemoClaw.git#.agents/skills/nemoclaw-user-guide",
+        "type": "skill",
+        "reason": "Republished through the NVIDIA/skills catalog (components.d/nemoclaw.yml), which io.github.nvidia already approves; NemoClaw's skills/README.md names it the one customer-facing skill. Approval removed 2026-10-20 as a duplicate.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://github.com/NVIDIA/NemoClaw.git#.agents/skills/nemoclaw-skills-guide",
+        "type": "skill",
+        "reason": "Routes an agent to the repo's own skills, maintainer and contributor stages included: repo-internal. NemoClaw does not list it as customer-facing. Approval removed 2026-10-20.",
+        "checkedAt": "2026-10-20"
+      },
+      {
+        "url": "https://github.com/NVIDIA/Megatron-LM.git#skills/mcore-run-on-slurm",
+        "type": "skill",
+        "reason": "Now synced into the NVIDIA/skills catalog (components.d/megatron-core.yml), so io.github.nvidia publishes it; dropped from io.github.nvidia-megatron-lm on 2026-10-20 as a duplicate.",
+        "checkedAt": "2026-10-20"
       }
     ]
   }
