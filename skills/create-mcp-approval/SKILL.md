@@ -130,6 +130,8 @@ Set `serverKey` when:
 
 Otherwise leave it out. An empty string is rejected. Like `notes`, it is not connection info, and transforms never copy it into a tool's config.
 
+Validation fails when two of your approvals give one of your tools the same key, derived or hand-written. It can only check tools whose config format core knows (`mcpServerPaths` in core's `src/mcp-config-templates/registry.ts`); for any other tool, make sure the keys differ yourself.
+
 ## Remote Servers and OAuth (tool-specific configs)
 
 This section is about the `config` inside an **`installConfigs` entry** — the target tool's own format — not the generic root `config` above.

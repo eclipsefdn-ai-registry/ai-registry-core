@@ -27,13 +27,12 @@ import {
 } from "./marketplace-source.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
-import { deriveToolConfig } from "./mcp-config-templates/registry.js";
-import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 import {
-  groupCollidingServers,
-  installedServerKey,
-  type KeyedServer,
-} from "./server-key.js";
+  deriveToolConfig,
+  toolServerKey,
+} from "./mcp-config-templates/registry.js";
+import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
+import { groupCollidingServers, type KeyedServer } from "./server-key.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -588,9 +587,10 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
 
 // One warning per server key that two or more published MCP servers share
 // for one tool, since a client installing one would overwrite the other.
-// Reads the key off each concrete config, so it covers derived and
-// hand-written ones alike, and must run after resolveMcpTrust and
-// resolveMcpCrossVendorConfigs have turned every "derived" into one. Warns
+// Reads the key off each concrete config with toolServerKey, so it covers
+// derived and hand-written ones alike, skips tools whose format core doesn't
+// know, and must run after resolveMcpTrust and resolveMcpCrossVendorConfigs
+// have turned every "derived" into one. Warns
 // rather than fails, so one vendor's mistake doesn't break the published
 // site; a vendor's own approvals colliding is caught by its validation.
 export function findServerKeyCollisions(output: ConsolidatedOutput): string[] {
@@ -598,7 +598,7 @@ export function findServerKeyCollisions(output: ConsolidatedOutput): string[] {
   for (const entry of output.mcp) {
     for (const approval of entry.approvals) {
       for (const cfg of approval.installConfigs) {
-        const key = installedServerKey(cfg.config);
+        const key = toolServerKey(cfg.tool, cfg.config);
         if (key)
           servers.push({ tool: cfg.tool, key, serverId: entry.serverId });
       }
