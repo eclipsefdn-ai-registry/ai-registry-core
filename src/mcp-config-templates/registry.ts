@@ -17,10 +17,10 @@ export const mcpConfigTransforms: Record<string, McpConfigTransform> =
   });
 
 // The tool config a derived install config gets: the tool's transform run on
-// generic, storing the server under the ADR 0002 server key. Undefined when
-// the tool has no transform or it can't represent generic. Consolidation and
-// vendor validation both derive through this, so validation's server key
-// collision check sees the key consolidation publishes.
+// generic, storing the server under its server key. Undefined when the tool
+// has no transform or it can't represent generic. Consolidation and vendor
+// validation both derive through this, so validation's server key collision
+// check sees the key consolidation publishes.
 export function deriveToolConfig(
   tool: string,
   serverId: string,

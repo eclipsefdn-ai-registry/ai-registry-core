@@ -6,11 +6,10 @@ import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 
 const GENERIC_KEY_PARTS = new Set(["mcp", "server", "mcp-server"]);
 
-// The key a derived install config stores the server under (ADR 0002): the
-// generic config's serverKey, else the serverId's last segment unless it
-// only says "mcp" or "server", in which case the nearest namespace part that
-// says more, lowercased. An id that is generic all the way keeps its last
-// segment.
+// The key a derived install config stores the server under: the generic
+// config's serverKey, else the serverId's last segment unless it only says
+// "mcp" or "server", in which case the nearest namespace part that says
+// more, lowercased. An id that is generic all the way keeps its last segment.
 export function derivedServerKey(
   serverId: string,
   generic: GenericMcpConfig,

@@ -12,7 +12,7 @@
     "serverKey": {
       "type": "string",
       "minLength": 1,
-      "description": "The key a client stores this server under in its own settings (e.g. the name under mcpServers). Every installConfigs entry derived from this config, in this approval, in another vendor's, or through trust, stores the server under it. Leave it out and the key is the last segment of the serverId, unless that segment is exactly mcp, server or mcp-server: then it is the nearest dot-separated part of the namespace that isn't one of those, lowercased (com.stripe/mcp gives stripe, io.github.e2b-dev/mcp-server gives e2b-dev). Set it to keep a key users already have installed, or when the default reads badly. Not connection info, so no transform copies it into a tool's config."
+      "description": "The key a client stores this server under in its own settings (e.g. the name under mcpServers). Every installConfigs entry derived from this config, in this approval, in another vendor's, or through trust, stores the server under it. Leave it out and the key is the last segment of the serverId, unless that segment is exactly mcp, server or mcp-server: then it is the nearest dot-separated part of the namespace that isn't one of those, lowercased (com.stripe/mcp gives stripe, io.github.e2b-dev/mcp-server gives e2b-dev); and if every part is one of those, the last segment after all (mcp.server/mcp-server gives mcp-server). Set it to keep a key users already have installed, or when the default reads badly. Not connection info, so no transform copies it into a tool's config."
     }
   },
   "oneOf": [
