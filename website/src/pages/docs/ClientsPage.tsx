@@ -86,6 +86,16 @@ export function ClientsPage() {
           organization, or it can show the approval chain behind each artifact.
           Both are valid; the second gives the user something to evaluate.
         </p>
+        <p className="mb-3 leading-relaxed">
+          An organization approving an artifact it wrote itself leaves the same
+          record as one approving somebody else's, and the registry does not
+          check who owns the source.{" "}
+          <strong>Do not read authorship into an approval</strong>, or into an
+          organization's source repository matching its name. The one place a
+          publisher is named is <InlineCode>selfPublished</InlineCode> on an MCP
+          approval, which is the organization's own claim rather than anything
+          verified.
+        </p>
         <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
           <li className="leading-relaxed">
             MCP servers are described by configuration, not by content. The
@@ -164,6 +174,15 @@ export function ClientsPage() {
           <InlineCode>agents.json</InlineCode> scope the other way, to one
           artifact type across the whole registry. Reach for these when your
           client's boundary is an organization or a type rather than a tool.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          An organization-scoped feed exists whether or not that organization
+          provides tools, which makes it the one to follow for a client whose
+          boundary is a vetted list: an organization can approve artifacts
+          purely to publish what it allows, with no{" "}
+          <InlineCode>tools</InlineCode> and no install configuration anywhere.
+          Such a feed carries no <InlineCode>installConfigs</InlineCode> to act
+          on, so decide how your client installs what it finds there.
         </p>
         <p className="mb-3 leading-relaxed">
           Both keep every entry's <InlineCode>approvals</InlineCode> and{" "}
@@ -609,9 +628,9 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           An installed artifact vanishing from the feed can mean an organization
           withdrew its approval, or that consolidation skipped the entry because
-          its source was briefly unreachable, or that a vendor retargeted the
-          approval, or that an id was renamed. The data does not distinguish
-          them.
+          its source was briefly unreachable, or that the organization
+          retargeted the approval, or that an id was renamed. The data does not
+          distinguish them.
         </p>
         <p className="mb-3 leading-relaxed">
           Surface it and act on nothing. Mark the artifact as no longer listed,
@@ -835,7 +854,7 @@ export function ClientsPage() {
 
       <DocsSection id="deep-links">
         <p className="mb-3 leading-relaxed">
-          A vendor declaring an install URL prefix in its{" "}
+          An organization declaring an install URL prefix in its{" "}
           <InlineCode>organization.json</InlineCode> causes consolidation to
           mint an <InlineCode>installUrl</InlineCode> for every approval
           targeting that tool. Handling these is optional, so ignore{" "}
@@ -913,7 +932,7 @@ export function ClientsPage() {
           The <InlineCode>inferred</InlineCode> flag is worth surfacing in any
           of these. It marks an organization pre-seeded from a public source
           rather than one participating in the registry directly, which is a
-          different kind of approval than a vendor filing its own.
+          different kind of approval than an organization filing its own.
         </p>
         <h3 className="font-semibold mt-5 mb-2">Auto-update policy</h3>
         <p className="mb-3 leading-relaxed">

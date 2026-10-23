@@ -1,6 +1,6 @@
 # Deep links
 
-A vendor declaring `skillInstallUrlPrefix`, `mcpInstallUrlPrefix`, `pluginInstallUrlPrefix`, or `agentInstallUrlPrefix` in its `organization.json` causes consolidation to mint an `installUrl` for every approval targeting that tool:
+An organization declaring `skillInstallUrlPrefix`, `mcpInstallUrlPrefix`, `pluginInstallUrlPrefix`, or `agentInstallUrlPrefix` in its `organization.json` causes consolidation to mint an `installUrl` for every approval targeting that tool:
 
 ```json
 "installConfigs": [

@@ -687,7 +687,7 @@ interface HasOrganizationId {
 }
 
 // Unlike buildToolEntryView, install configs are never stripped: the org
-// whitelist view is meant to show everything an org approved, including
+// allowlist view is meant to show everything an org approved, including
 // other orgs' approvals of the same artifact (e.g. "also approved by"), so
 // filtering to the matching org's approvals alone would throw that context
 // away for no benefit — nothing in installConfigs is org-specific.
