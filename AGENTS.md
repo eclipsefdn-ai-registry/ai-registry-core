@@ -52,7 +52,7 @@ src/
   marketplace-source.ts     Marketplace expansion (parse marketplace file, resolve + derive plugin IDs)
   sandbox-source.ts         Sandbox extension enrichment (clone, discover tools/* and features/*, parse spec, hash)
   git-source.ts             Shared git helpers (clone at a ref, list remote branches, decide whether latest needs a second fetch and record it)
-  server-key.ts             Server keys (the ADR 0002 rule, reading a config's key, grouping collisions)
+  server-key.ts             Server keys (deriving one from a generic config, reading a config's key, grouping collisions)
   anthropic-registry.ts     MCP server metadata lookup
   cli-validate.ts           CLI entry: validate a vendor repo
   cli-consolidate.ts        CLI entry: consolidate all vendors
