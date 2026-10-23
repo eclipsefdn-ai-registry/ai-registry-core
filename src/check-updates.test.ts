@@ -338,17 +338,17 @@ describe("summarize", () => {
     });
   });
 
-  // A full SHA is a fixed point by its form alone, which is all a feed from
-  // before source.pinned has to go on.
-  it("counts a full-SHA ref with no latestHash as unchecked in a feed without pinned", () => {
-    const older = skill({
-      source: { url: "https://github.com/example/skills.git", ref: COMMIT },
-      latestCommit: undefined,
-      latestHash: undefined,
-    });
-    assert.deepEqual(summarize(feed({ skills: [older] })), {
+  // The ls-remote that sets latestHash also sets pinned, so a ref with
+  // neither is a failed lookup, whether a tag or a full SHA.
+  it("counts a ref with neither pinned nor latestHash as unchecked", () => {
+    const url = "https://github.com/example/skills.git";
+    const failed = [
+      skill({ source: { url, ref: "v1.2.0" } }),
+      skill({ source: { url, ref: COMMIT } }),
+    ].map((e) => ({ ...e, latestCommit: undefined, latestHash: undefined }));
+    assert.deepEqual(summarize(feed({ skills: failed })), {
       behind: 0,
-      unchecked: 1,
+      unchecked: 2,
     });
   });
 
@@ -365,14 +365,28 @@ describe("summarize", () => {
     });
   });
 
-  // Without source.pinned, v1.2.0 could be a branch.
-  it("doesn't count an unclassified named ref as unchecked", () => {
-    const unclassified = skill({
-      source: { url: "https://github.com/example/skills.git", ref: "v1.2.0" },
+  // The counts cover what the listing does, so a marketplace pinning a plugin
+  // by sha can't give "1 entry behind" with nothing listed.
+  it("doesn't count an entry with no direct approval", () => {
+    const viaMarketplace = [
+      {
+        organizationId: "initech",
+        date: "2026-09-01",
+        configHash: "c",
+        installConfigs: [],
+        sourcedFrom: {
+          marketplaceUrl: "https://github.com/example/marketplace.git",
+          format: "codex" as const,
+        },
+      },
+    ];
+    const behind = plugin({ approvals: viaMarketplace });
+    const unknown = plugin({
+      approvals: viaMarketplace,
       latestCommit: undefined,
       latestHash: undefined,
     });
-    assert.deepEqual(summarize(feed({ skills: [unclassified] })), {
+    assert.deepEqual(summarize(feed({ plugins: [behind, unknown] })), {
       behind: 0,
       unchecked: 0,
     });

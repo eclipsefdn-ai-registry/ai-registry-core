@@ -56,6 +56,15 @@ interface Checkable {
   }[];
 }
 
+/**
+ * Only a direct approval has an approval file that a PR can change. A
+ * trust-derived one is the trusted organization's, listed through its own
+ * approval, and a marketplace-derived one names the marketplace.
+ */
+function directApprovals(entry: Checkable): Checkable["approvals"] {
+  return entry.approvals.filter((a) => !a.viaTrust && !a.sourcedFrom);
+}
+
 function behindApprovals<E extends Checkable>(
   type: ArtifactType,
   entries: E[],
@@ -64,11 +73,7 @@ function behindApprovals<E extends Checkable>(
   const found: BehindApproval[] = [];
   for (const entry of entries) {
     if (!isBehind(entry)) continue;
-    // Only a direct approval has an approval file that a PR can change. A
-    // trust-derived one is the trusted organization's, listed through its
-    // own approval, and a marketplace-derived one names the marketplace.
-    for (const approval of entry.approvals) {
-      if (approval.viaTrust || approval.sourcedFrom) continue;
+    for (const approval of directApprovals(entry)) {
       found.push({
         organizationId: approval.organizationId,
         type,
@@ -109,21 +114,26 @@ export function findBehindApprovals(feed: Feed): BehindApproval[] {
   ];
 }
 
-// The same pattern consolidation's checkout uses (COMMIT_SHA_PATTERN in
-// git-source.ts): only a full SHA is a commit, a short one is a name.
-const COMMIT_SHA = /^[0-9a-f]{40}$/i;
-
 /**
- * Whether an entry is pinned, as far as the feed says: source.pinned, or for
- * a feed from before it, a full commit SHA, which is fixed by its form alone.
- * A named ref without source.pinned could be a branch, so it doesn't count.
+ * Whether consolidation couldn't find out if a pinned entry is behind: it has
+ * a ref, no latestHash, and isn't known to be a branch. The ls-remote that
+ * sets latestHash also sets source.pinned, so a ref without either is a
+ * failed lookup, whether the ref is a tag or a full SHA. A tracking entry
+ * can't fall behind, so it's never unchecked.
  */
-function isPinned(entry: Checkable): boolean {
-  if (entry.source.pinned !== undefined) return entry.source.pinned;
-  return entry.source.ref !== undefined && COMMIT_SHA.test(entry.source.ref);
+function isUnchecked(entry: Checkable): boolean {
+  return (
+    entry.latestHash === undefined &&
+    entry.source.ref !== undefined &&
+    entry.source.pinned !== false
+  );
 }
 
-/** How many entries the feed shows behind, and how many pins it couldn't check. */
+/**
+ * How many entries the feed shows behind, and how many pins it couldn't
+ * check. Counts only entries with a direct approval, the same ones
+ * findBehindApprovals lists, so the counts match the listing.
+ */
 export interface Summary {
   behind: number;
   unchecked: number;
@@ -135,11 +145,10 @@ export function summarize(feed: Feed): Summary {
     ...feed.plugins,
     ...feed.sandboxTools,
     ...feed.sandboxFeatures,
-  ];
+  ].filter((e) => directApprovals(e).length > 0);
   return {
     behind: entries.filter(isBehind).length,
-    unchecked: entries.filter((e) => e.latestHash === undefined && isPinned(e))
-      .length,
+    unchecked: entries.filter(isUnchecked).length,
   };
 }
 
