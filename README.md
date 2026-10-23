@@ -167,7 +167,7 @@ It is worth supplying, because it is what lets other vendors set `"config": "der
 - **`type`** is **required** on every variant, and is what selects the variant: `streamable-http` or `sse` for a remote server, `ws` for WebSocket, `stdio` for a local command. Note that mcp.json-style client files (Claude Code, VS Code and derivatives) spell Streamable HTTP as `"http"` — that spelling is **not** accepted here, so the registry has exactly one canonical value per transport.
 - **Remote** (`streamable-http` / `sse`) takes `url`, optional `headers`, and optional `oauth`. **`ws`** takes `url` and `headers` only — WebSocket auth is header-only.
 - **Local** (`stdio`) takes `command`, optional `args`, `env` and `cwd`.
-- **Every variant** also takes optional `notes`, described below.
+- **Every variant** also takes optional `notes` and `serverKey`, described below.
 
 ##### Two placeholder conventions
 
@@ -211,6 +211,43 @@ A placeholder says that a value is needed, not what it is. `notes` is plain text
 `notes` is not connection info, so no transform copies it into a tool's config, and the website leaves it out of what the generic config's copy button copies. It is shown next to the generic config, and it becomes the `instructions` of every `installConfigs` entry derived from this config that has none of its own — including the entries trust delegation creates, which otherwise have no instructions at all.
 
 Since the same text appears for every tool, keep it tool-neutral, and name a `${VAR}` reference by its bare name (`GITHUB_TOKEN`, not `${GITHUB_TOKEN}`): Theia's transform turns the reference into `<GITHUB_TOKEN>`, and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged.
+
+##### Naming the server key with `serverKey`
+
+A client stores an installed server under a key in its own settings, e.g. the name under `mcpServers`. Two servers with the same key overwrite each other. Every `installConfigs` entry derived from a generic config stores the server under the same key, whether it was derived in the same approval, in another vendor's approval, or through trust.
+
+Without `serverKey`, core picks the key from the `serverId`:
+
+- the last segment, unless it is exactly `mcp`, `server` or `mcp-server`;
+- in that case, the nearest dot-separated part of the namespace that isn't one of those, lowercased;
+- if every part is one of those, the last segment after all.
+
+| `serverId`                         | Key           |
+| :--------------------------------- | :------------ |
+| `com.stripe/mcp`                   | `stripe`      |
+| `com.cloudflare.mcp/mcp`           | `cloudflare`  |
+| `io.github.e2b-dev/mcp-server`     | `e2b-dev`     |
+| `aws.api.us-east-1.ecs-mcp/server` | `ecs-mcp`     |
+| `io.github.grafana/mcp-grafana`    | `mcp-grafana` |
+
+Set `serverKey` when you replace hand-written install configs with derived ones, so users who already installed the server keep one entry under the key they have instead of getting a second one. Set it too when the default reads badly, e.g. `"serverKey": "grafana"` for `io.github.grafana/mcp-grafana`.
+
+```json
+{
+  "serverId": "io.github.grafana/mcp-grafana",
+  "date": "2026-10-19",
+  "config": {
+    "type": "stdio",
+    "command": "mcp-grafana",
+    "env": { "GRAFANA_API_KEY": "${GRAFANA_API_KEY}" },
+    "serverKey": "grafana"
+  }
+}
+```
+
+Like `notes`, `serverKey` is not connection info: no transform copies it into a tool's config.
+
+Validation fails when two of your approvals give the same key for one of your tools, whether the keys are derived or hand-written. Core reads the key where each tool's config keeps its servers, e.g. under `servers` for Theia and `mcpServers` for Kiro, listed per tool in `mcpServerPaths` in `src/mcp-config-templates/registry.ts`. Configs for a tool that isn't listed there aren't checked. If approvals from different organizations collide, consolidation warns and still publishes.
 
 #### Vendor-supplied metadata for servers not in the Anthropic registry
 
