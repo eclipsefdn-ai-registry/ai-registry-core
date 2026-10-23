@@ -25,23 +25,25 @@ export function derivedServerKey(
   return part?.toLowerCase() ?? last;
 }
 
-// The key a concrete tool config stores its server under: the single key
-// under the tool's single wrapper, e.g. Theia's `servers` or Kiro's
-// `mcpServers`. Every transform's output and every hand-written config has
-// that shape, so no per-tool wrapper name is needed. Undefined for anything
-// else, which has no one key to collide on.
-export function installedServerKey(config: unknown): string | undefined {
-  const wrapper = soleEntry(config);
-  if (!wrapper || typeof wrapper.value !== "object") return undefined;
-  return soleEntry(wrapper.value)?.key;
+// The key a concrete tool config stores its server under: the single key in
+// the server map at path, e.g. ["servers"] for Theia. Undefined for a config
+// with no one server there, which has no one key to collide on.
+export function installedServerKey(
+  config: unknown,
+  path: readonly string[],
+): string | undefined {
+  let servers = config;
+  for (const part of path) {
+    if (!isPlainObject(servers)) return undefined;
+    servers = Object.hasOwn(servers, part) ? servers[part] : undefined;
+  }
+  if (!isPlainObject(servers)) return undefined;
+  const keys = Object.keys(servers);
+  return keys.length === 1 ? keys[0] : undefined;
 }
 
-function soleEntry(obj: unknown): { key: string; value: unknown } | undefined {
-  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return undefined;
-  const entries = Object.entries(obj);
-  if (entries.length !== 1) return undefined;
-  const [key, value] = entries[0];
-  return { key, value };
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 export interface KeyedServer {

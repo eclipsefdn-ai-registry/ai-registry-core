@@ -2084,6 +2084,41 @@ describe("validateVendorData — server key collisions", () => {
     assert.equal(result.valid, true);
   });
 
+  it("fails when two kiro configs share a key under mcpServers", () => {
+    const kiroOrg = { ...validOrg, tools: [{ id: "kiro", name: "Kiro" }] };
+    const kiro = (key: string) => ({
+      tool: "kiro",
+      config: { mcpServers: { [key]: { url: "https://x" } } },
+    });
+    const result = validateVendorData(kiroOrg, [
+      mcp("com.stripe/mcp", { installConfigs: [kiro("pay")] }),
+      mcp("com.supabase/mcp", { installConfigs: [kiro("pay")] }),
+    ] as never);
+
+    assert.equal(result.valid, false);
+    assert.ok(
+      result.errors.some((e) => e.includes('server key "pay" for tool "kiro"')),
+    );
+  });
+
+  it("doesn't check a tool with no known server path", () => {
+    const otherOrg = {
+      ...validOrg,
+      tools: [{ id: "other-tool", name: "Other Tool" }],
+    };
+    const result = validateVendorData(otherOrg, [
+      mcp("com.stripe/mcp", {
+        installConfigs: [handWritten("other-tool", "mcp")],
+      }),
+      mcp("com.supabase/mcp", {
+        installConfigs: [handWritten("other-tool", "mcp")],
+      }),
+    ] as never);
+
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.valid, true);
+  });
+
   it("passes when the serverKeys tell apart ids the fallback would not", () => {
     const result = validateVendorData(theiaOrg, [
       mcp("com.stripe/mcp", {

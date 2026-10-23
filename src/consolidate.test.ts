@@ -3977,6 +3977,23 @@ describe("findServerKeyCollisions", () => {
     assert.match(warnings[0], /com\.supabase\/mcp/);
   });
 
+  it("doesn't check a tool with no known server path", () => {
+    const output = emptyOutput();
+    output.tools.push({
+      id: "other-tool",
+      name: "Other Tool",
+      organizationId: "theia",
+    });
+    addServer(output, "com.stripe/mcp", {
+      installConfigs: [handWritten("other-tool", "mcp")],
+    });
+    addServer(output, "com.supabase/mcp", {
+      installConfigs: [handWritten("other-tool", "mcp")],
+    });
+
+    assert.deepEqual(findServerKeyCollisions(output), []);
+  });
+
   it("covers trust-derived configs", () => {
     const output = withTheia();
     output.mcp.push({
