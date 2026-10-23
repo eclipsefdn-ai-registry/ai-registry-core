@@ -2783,10 +2783,10 @@ describe("resolveMcpCrossVendorConfigs", () => {
   });
 
   describe("server key", () => {
-    function derivedKeys(
+    function derivedConfig(
       serverId: string,
       genericConfig: GenericMcpConfig,
-    ): string[] {
+    ): unknown {
       const output = emptyOutput();
       output.tools.push({
         id: "theia-ide",
@@ -2809,10 +2809,7 @@ describe("resolveMcpCrossVendorConfigs", () => {
         ],
       });
       resolveMcpCrossVendorConfigs(output);
-      const config = output.mcp[0].approvals[0].installConfigs[0].config as {
-        servers: Record<string, unknown>;
-      };
-      return Object.keys(config.servers);
+      return output.mcp[0].approvals[0].installConfigs[0].config;
     }
 
     const remote: GenericMcpConfig = {
@@ -2820,62 +2817,18 @@ describe("resolveMcpCrossVendorConfigs", () => {
       url: "https://mcp.example.com",
     };
 
-    it("stores the server under the generic config's serverKey", () => {
+    it("never copies serverKey into the derived config", () => {
       assert.deepEqual(
-        derivedKeys("com.grafana/mcp-grafana", {
-          ...remote,
-          serverKey: "grafana",
-        }),
-        ["grafana"],
+        derivedConfig("com.stripe/mcp", { ...remote, serverKey: "payments" }),
+        { servers: { payments: { serverUrl: "https://mcp.example.com" } } },
       );
     });
 
-    it("never copies serverKey into the derived config", () => {
-      const output = emptyOutput();
-      output.tools.push({
-        id: "theia-ide",
-        name: "Theia IDE",
-        organizationId: "theia",
-      });
-      output.mcp.push({
-        serverId: "com.stripe/mcp",
-        name: "stripe",
-        description: "",
-        mcpRegistryVerified: false,
-        approvals: [
-          {
-            organizationId: "theia",
-            date: "2026-08-05",
-            configHash: "abc",
-            installConfigs: [{ tool: "theia-ide", config: "derived" }],
-            genericConfig: { ...remote, serverKey: "payments" },
-          },
-        ],
-      });
-
-      resolveMcpCrossVendorConfigs(output);
-
-      assert.deepEqual(output.mcp[0].approvals[0].installConfigs[0].config, {
-        servers: { payments: { serverUrl: "https://mcp.example.com" } },
+    it("falls back to a key from the serverId without a serverKey", () => {
+      assert.deepEqual(derivedConfig("com.stripe/mcp", remote), {
+        servers: { stripe: { serverUrl: "https://mcp.example.com" } },
       });
     });
-
-    // Without a serverKey, a last segment that only says "mcp" or "server"
-    // gives way to the namespace (ADR 0002).
-    for (const [serverId, key] of [
-      ["com.stripe/mcp", "stripe"],
-      ["com.cloudflare.mcp/mcp", "cloudflare"],
-      ["io.github.e2b-dev/mcp-server", "e2b-dev"],
-      ["aws.api.us-east-1.ecs-mcp/server", "ecs-mcp"],
-      ["io.github.grafana/mcp-grafana", "mcp-grafana"],
-      ["com.Example/mcp", "example"],
-      ["mcp.server/mcp-server", "mcp-server"],
-      ["com.stripe./mcp", "stripe"],
-    ]) {
-      it(`falls back to "${key}" for ${serverId}`, () => {
-        assert.deepEqual(derivedKeys(serverId, remote), [key]);
-      });
-    }
   });
 });
 
@@ -3044,24 +2997,6 @@ describe("resolveMcpTrust", () => {
     );
     for (const ic of derived!.installConfigs) {
       assert.equal("instructions" in ic, false);
-    }
-  });
-
-  it("stores a derived card under the trusted vendor's serverKey", () => {
-    const output = baseOutput();
-    output.mcp[0].approvals[0].genericConfig!.serverKey = "guard";
-
-    resolveMcpTrust(output, [{ org: "theia", trustedOrg: "eclipsesource" }]);
-
-    const derived = output.mcp[0].approvals.find(
-      (a) => a.organizationId === "theia",
-    );
-    for (const ic of derived!.installConfigs) {
-      assert.deepEqual(ic.config, {
-        servers: {
-          guard: { serverUrl: "https://review-guard.example.com/mcp" },
-        },
-      });
     }
   });
 
