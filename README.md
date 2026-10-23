@@ -357,10 +357,12 @@ See the [Theia organization repo](https://github.com/eclipsefdn-ai-registry/ai-r
 Three reasons to register, all of them first-class and all using the files described above:
 
 - **You provide a tool.** Declare it in `tools` and give your approvals install configurations, and your tool reads its own feed at `tools/<tool-id>.json`.
-- **You want to publish a whitelist for your own organization.** Approve what you have vetted and it is published at `orgs/<org-id>.json` and on your organization page. Note that the registry is public, so a list you curate for internal use is visible to everyone.
-- **You publish your own artifacts.** Approving them here lists them with their provenance and source, attached to your organization.
+- **You want to publish an allowlist for your own organization.** Approve what you have vetted and it is published at `orgs/<org-id>.json` and on your organization page. Note that the registry is public, so a list you curate for internal use is visible to everyone.
+- **You publish your own artifacts.** Approving them here lists them in the registry with their source.
 
 Only the first needs a `tools` array; it is optional, and leaving it out is supported rather than a workaround. The registry does not distinguish the last two — both are an organization and its approvals.
+
+**Listing or approving an artifact does not make an organization its author or owner.** The registry does not verify who wrote an artifact or who owns its source. An approval says only that the organization stands behind the artifact, and an organization approving its own work leaves exactly the same record as one approving somebody else's.
 
 1. Request an organization repository by [opening an issue](https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues) on this repo describing your organization and the artifacts you plan to approve
 2. We create a new repository for you from a template, with the structure above and CI (the [validate workflow](https://github.com/eclipsefdn-ai-registry/ai-registry-theia/blob/main/.github/workflows/validate.yml)) already set up — you only need to fill in your `organization.json` and add approval files in `mcp/`, `skills/`, `plugins/`, `agents/`, and/or `sandbox-extensions/`

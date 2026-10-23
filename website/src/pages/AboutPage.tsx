@@ -86,7 +86,7 @@ export function AboutPage() {
           exactly what you approved, ready to install.
         </p>
         <h3 className="font-semibold mt-5 mb-2">
-          Publish a whitelist for your organization
+          Publish an allowlist for your organization
         </h3>
         <p className="mb-3 leading-relaxed text-card-foreground">
           You do not need a tool of your own. Approve the artifacts you have
@@ -101,9 +101,19 @@ export function AboutPage() {
         <h3 className="font-semibold mt-5 mb-2">Publish your own artifacts</h3>
         <p className="mb-3 leading-relaxed text-card-foreground">
           If you build MCP servers, skills, plugins, agents, or sandbox
-          extensions, approving them here lists them with their provenance and
-          their source attached to your organization. This takes the same shape
-          as a whitelist: no tools, no install configuration needed.
+          extensions, approve them here to list them in the registry with their
+          source. This takes the same shape as an allowlist: no tools, no
+          install configuration needed.
+        </p>
+        <p className="mb-3 leading-relaxed text-card-foreground">
+          <strong>
+            Listing or approving an artifact does not make an organization its
+            author or owner.
+          </strong>{" "}
+          The registry does not verify who wrote an artifact or who owns its
+          source. An approval says only that the organization stands behind the
+          artifact, and an organization approving its own work leaves exactly
+          the same record as one approving somebody else's.
         </p>
         <p className="mb-3 leading-relaxed text-card-foreground">
           Ready to register? See{" "}

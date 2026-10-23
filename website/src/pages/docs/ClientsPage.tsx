@@ -89,11 +89,12 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           An organization approving an artifact it wrote itself leaves the same
           record as one approving somebody else's, and the registry does not
-          check who owns the source. Do not read authorship into an approval, or
-          into an organization's source repository matching its name. The one
-          place a publisher is named is <InlineCode>selfPublished</InlineCode>{" "}
-          on an MCP approval, which is the organization's own claim rather than
-          anything verified.
+          check who owns the source.{" "}
+          <strong>Do not read authorship into an approval</strong>, or into an
+          organization's source repository matching its name. The one place a
+          publisher is named is <InlineCode>selfPublished</InlineCode> on an MCP
+          approval, which is the organization's own claim rather than anything
+          verified.
         </p>
         <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
           <li className="leading-relaxed">
