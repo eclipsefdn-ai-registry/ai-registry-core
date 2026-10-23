@@ -19,12 +19,13 @@ The registry records that a named organization **endorsed** an artifact on a dat
 
 It does not test, audit, sandbox, or certify anything. Endorsement is per organization, not a registry-wide certification. A client can present its per-tool list as its own and never name another organization, or it can show the endorsement chain behind each artifact. Both are valid; the second gives the user something to evaluate.
 
-Five limits shape everything below:
+Six limits shape everything below:
 
 - MCP servers are described by configuration, not by content. The registry publishes the command or URL to run. Nothing in the feed covers the server's code, and that code can change under a stable command at any time.
-- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push, and `source.commit`, the commit that run checked out and hashed. Both can also carry an optional `source.ref` (a git tag, branch, or full commit SHA) naming the revision the organization endorsed instead of the default branch. The ref says what was endorsed and the commit says what was hashed, so fetch `source.commit` to verify the hash. With no `source.ref`, the endorsement follows the default branch and `source.commit` moves with it on every run. Each entry also carries `latestCommit` and `latestHash`, what the source ships at the same path now, whenever consolidation could find that out. They show when a pinned endorsement has fallen behind its source, and they are never something to install. See [what the source ships now](references/staying-current.md#what-the-source-ships-now).
+- Skills and plugins carry a content hash of their source as of the last consolidation run, which happens daily and on vendor push, and `source.commit`, the commit that run checked out and hashed. Both can also carry an optional `source.ref` (a git tag, branch, or full commit SHA) naming the revision the organization endorsed instead of the default branch. The ref says what was endorsed and the commit says what was hashed, so fetch `source.commit` to verify the hash. With no `source.ref`, the endorsement follows the default branch and `source.commit` moves with it on every run. `source.pinned` says whether the ref is a fixed point: `true` for a tag or a full commit SHA, `false` for a branch or no ref, and absent when consolidation couldn't tell. Each entry also carries `latestCommit` and `latestHash`, what the source ships at the same path now, whenever consolidation could find that out. They show when a pinned endorsement has fallen behind its source, and they are never something to install. See [what the source ships now](references/staying-current.md#what-the-source-ships-now).
 - Agents carry a content hash too, but of a single fetched Agent Card JSON file, not a directory — there is no path to pin.
-- Sandbox extensions carry a content hash of their directory, a `source.commit`, and `latestCommit` and `latestHash`, all the same way. They can also name a revision: `source.ref` holds a git tag, branch, or full commit SHA when the organization endorsed one. A branch ref is still a moving target, so read the ref rather than treating its presence as a pin.
+- Sandbox extensions carry a content hash of their directory, a `source.commit`, and `latestCommit` and `latestHash`, all the same way. They can also name a revision: `source.ref` holds a git tag, branch, or full commit SHA when the organization endorsed one. A branch ref is still a moving target, so read `source.pinned` rather than treating the ref's presence as a pin.
+- An entry's `source` is one organization's. When organizations endorse one ID at different sources, the entry publishes the first one collected, and `source.pinned`, `contentHash`, and the latest fields all describe that one. Another endorsement on the same entry may have named a different ref, and nothing in the feed says so.
 - Withdrawing an endorsement removes the entry from the feed, but so does a source that was briefly unreachable when consolidation ran. Nothing in the data separates the two, so there is no revocation signal a client can act on. See [Disappearing entries](#disappearing-entries).
 
 ## The data
@@ -350,6 +351,7 @@ Removing artifacts automatically deletes working installations whenever a source
 
 - [ ] Compare `latestHash` with `contentHash`, never `latestCommit` with `source.commit`
 - [ ] Treat a missing `latestHash` as unknown rather than behind
+- [ ] Tell a pin from a branch by `source.pinned`, not by the ref's name, and treat a missing one as unknown
 - [ ] Word a difference without a direction, since the default branch can be behind a pinned tag
 - [ ] State the endorsed revision and any change together, and never call a pinned endorsement outdated or stale
 - [ ] Show `generatedAt` next to anything derived from the latest fields

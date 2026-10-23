@@ -193,13 +193,16 @@ export interface SkillEntry {
   name: string;
   description: string;
   // commit is output only, set at enrichment: the commit contentHash was
-  // computed at, whether or not ref pinned one. Same on PluginEntry and
+  // computed at, whether or not ref pinned one. pinned is output only too:
+  // whether ref names a fixed point, a tag or a full commit SHA, rather than
+  // a branch (see sourcePinned in git-source.ts). Same on PluginEntry and
   // SandboxExtensionEntry.
   source: {
     url: string;
     path?: string | string[];
     ref?: string;
     commit?: string;
+    pinned?: boolean;
   };
   contentHash: string;
   // Output only, set at enrichment: what the source ships at this entry's
@@ -252,7 +255,14 @@ export interface PluginEntry {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string; ref?: string; commit?: string };
+  // see SkillEntry
+  source: {
+    url: string;
+    path?: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
   contentHash: string;
   // see SkillEntry
   latestCommit?: string;
@@ -344,7 +354,14 @@ export interface SandboxExtensionEntry {
   // and what `enclave add --name` matches on
   extensionName: string;
   description: string;
-  source: { url: string; path: string; ref?: string; commit?: string };
+  // see SkillEntry
+  source: {
+    url: string;
+    path: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
   contentHash: string;
   // see SkillEntry
   latestCommit?: string;
@@ -780,6 +797,12 @@ export function addPluginApproval(
     // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a
     // genuine mismatch between vendors' claims is surfaced, not hidden,
     // but doesn't fail the shared build.
+    //
+    // Everything enrichment resolves later, source.pinned, contentHash and
+    // the latest fields, then describes the winner's source alone, while the
+    // other approvals are published on the entry as if they shared it. That
+    // holds for every type that keeps one source per entry, until a source is
+    // published per approval.
     console.warn(
       `  WARNING: plugin "${approvalData.pluginId}" approved with a different source by "${organizationId}" — using "${pluginEntry.approvals[0]?.organizationId}"'s (first collected)`,
     );

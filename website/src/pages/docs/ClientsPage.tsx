@@ -104,8 +104,11 @@ export function ClientsPage() {
             <InlineCode>source.commit</InlineCode> to verify the hash. With no{" "}
             <InlineCode>source.ref</InlineCode>, the approval follows the
             default branch and <InlineCode>source.commit</InlineCode> moves with
-            it on every run. Each entry also carries{" "}
-            <InlineCode>latestCommit</InlineCode> and{" "}
+            it on every run. <InlineCode>source.pinned</InlineCode> says whether
+            the ref is a fixed point: <InlineCode>true</InlineCode> for a tag or
+            a full commit SHA, <InlineCode>false</InlineCode> for a branch or no
+            ref, and absent when consolidation couldn't tell. Each entry also
+            carries <InlineCode>latestCommit</InlineCode> and{" "}
             <InlineCode>latestHash</InlineCode>, what the source ships at the
             same path now, whenever consolidation could find that out. They show
             when a pinned approval has fallen behind its source, and they are
@@ -126,8 +129,18 @@ export function ClientsPage() {
             <InlineCode>latestHash</InlineCode>, all the same way. They can also
             name a specific revision: <InlineCode>source.ref</InlineCode> holds
             a git tag, branch, or full commit SHA when the organization approved
-            one. A branch is still a moving target, so read the ref rather than
-            treating its presence as a pin.
+            one. A branch is still a moving target, so read{" "}
+            <InlineCode>source.pinned</InlineCode> rather than treating the
+            ref's presence as a pin.
+          </li>
+          <li className="leading-relaxed">
+            An entry's <InlineCode>source</InlineCode> is one organization's.
+            When organizations approve one ID at different sources, the entry
+            publishes the first one collected, and{" "}
+            <InlineCode>source.pinned</InlineCode>,{" "}
+            <InlineCode>contentHash</InlineCode>, and the latest fields all
+            describe that one. Another approval on the same entry may have named
+            a different ref, and nothing in the feed says so.
           </li>
           <li className="leading-relaxed">
             Withdrawing an approval removes the entry from the feed, but so does
@@ -698,7 +711,23 @@ export function ClientsPage() {
             <InlineCode>source.commit</InlineCode> and{" "}
             <InlineCode>contentHash</InlineCode> by construction. A tag or a
             full commit SHA is a fixed point, and the default branch can move
-            past it.
+            past it. Read <InlineCode>source.pinned</InlineCode> to tell them
+            apart rather than guessing from the name, since{" "}
+            <InlineCode>v1.2.0</InlineCode> can be a branch:{" "}
+            <InlineCode>true</InlineCode> for a tag or full SHA,{" "}
+            <InlineCode>false</InlineCode> for a branch or no ref. It is absent
+            in feeds that predate it and when consolidation couldn't list the
+            source's branches. Treat that as unknown, except that a full
+            40-character SHA is always pinned.
+          </li>
+          <li className="leading-relaxed">
+            <strong>A marketplace's pin is the marketplace's.</strong> A plugin
+            approval carrying <InlineCode>sourcedFrom</InlineCode> came from an
+            organization approving a vendor's marketplace file, which
+            consolidation reads again on every run. Its ref, and with it{" "}
+            <InlineCode>source.pinned</InlineCode>, is whatever that marketplace
+            lists now, and the vendor can move it to new content that nobody
+            approved.
           </li>
           <li className="leading-relaxed">
             <strong>Absent means unknown.</strong> Both fields are missing when
@@ -977,6 +1006,7 @@ export function ClientsPage() {
           items={[
             "Compare latestHash with contentHash, never latestCommit with source.commit",
             "Treat a missing latestHash as unknown rather than behind",
+            "Tell a pin from a branch by source.pinned, not by the ref's name, and treat a missing one as unknown",
             "Word a difference without a direction, since the default branch can be behind a pinned tag",
             "State the approved revision and any change together, and never call a pinned approval outdated or stale",
             "Show generatedAt next to anything derived from the latest fields",

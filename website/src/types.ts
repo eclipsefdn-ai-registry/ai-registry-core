@@ -66,9 +66,11 @@ export interface Skill {
   name: string;
   description: string;
   // pinned says whether ref names a fixed point, a tag or a full commit SHA,
-  // rather than a branch. Absent in feeds that don't carry it, which reads as
-  // unknown rather than false: a named ref could be either. Same on Plugin and
-  // SandboxExtension.
+  // rather than a branch, and is false with no ref. Absent in feeds that
+  // predate it and when consolidation couldn't list the source's branches,
+  // which reads as unknown rather than false: a named ref could be either.
+  // It describes the ref above, which is one organization's when approvals
+  // name different sources. Same on Plugin and SandboxExtension.
   source: {
     url: string;
     path?: string;
