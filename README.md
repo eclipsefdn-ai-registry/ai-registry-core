@@ -247,7 +247,7 @@ Set `serverKey` when you replace hand-written install configs with derived ones,
 
 Like `notes`, `serverKey` is not connection info: no transform copies it into a tool's config.
 
-Validation fails when two of your approvals give the same key for one of your tools, whether the keys are derived or hand-written (a hand-written config's key is its single key under the tool's wrapper, e.g. `servers`). If approvals from different organizations collide, consolidation warns and still publishes.
+Validation fails when two of your approvals give the same key for one of your tools, whether the keys are derived or hand-written. Core reads the key where each tool's config keeps its servers, e.g. under `servers` for Theia and `mcpServers` for Kiro, listed per tool in `mcpServerPaths` in `src/mcp-config-templates/registry.ts`. Configs for a tool that isn't listed there aren't checked. If approvals from different organizations collide, consolidation warns and still publishes.
 
 #### Organization-supplied metadata for servers not in the Anthropic registry
 

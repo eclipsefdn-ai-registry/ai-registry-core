@@ -13,13 +13,12 @@ import { fileURLToPath } from "node:url";
 import { lookupServer } from "./anthropic-registry.js";
 import { isGlobPattern, resolveSkillPaths } from "./skill-source.js";
 import { fetchAgentCard } from "./agent-source.js";
-import { deriveToolConfig } from "./mcp-config-templates/registry.js";
-import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
 import {
-  groupCollidingServers,
-  installedServerKey,
-  type KeyedServer,
-} from "./server-key.js";
+  deriveToolConfig,
+  toolServerKey,
+} from "./mcp-config-templates/registry.js";
+import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
+import { groupCollidingServers, type KeyedServer } from "./server-key.js";
 // Type-only, so it is erased at runtime and creates no import cycle with
 // consolidate.ts (which imports this module).
 import type { InstallConfig, SandboxExtensionEntry } from "./consolidate.js";
@@ -368,7 +367,8 @@ export function validateSimpleApprovals<D>(
 // for the approval's own generic config, the same derivation consolidation makes.
 // One with no generic config of its own is derived from another vendor's at
 // consolidation, which this vendor can't see, so consolidation's own
-// collision check covers it.
+// collision check covers it. A tool whose format core doesn't know isn't
+// checked, see toolServerKey.
 export function checkServerKeyCollisions(approvals: ApprovalEntry[]): string[] {
   const files = new Map<string, string>();
   const servers: KeyedServer[] = [];
@@ -380,7 +380,7 @@ export function checkServerKeyCollisions(approvals: ApprovalEntry[]): string[] {
         cfg.config === "derived"
           ? generic && deriveToolConfig(cfg.tool, data.serverId, generic)
           : cfg.config;
-      const key = installedServerKey(config);
+      const key = toolServerKey(cfg.tool, config);
       if (key) servers.push({ tool: cfg.tool, key, serverId: data.serverId });
     }
   }
