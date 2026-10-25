@@ -25,6 +25,9 @@
  * changes, while the other nineteen folders stay exactly as approved.
  */
 
+// cli/src/approvedTarget.ts mirrors approvedTarget, displayRef and the text
+// of approvedTargetText by hand: change both.
+
 // The same pattern consolidation's checkout uses (COMMIT_SHA_PATTERN in
 // src/git-source.ts): only a full SHA is a commit, a short one is a name.
 const COMMIT_SHA = /^[0-9a-f]{40}$/i;
