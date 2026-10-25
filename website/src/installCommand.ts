@@ -11,6 +11,8 @@ import { cliSource } from "./cliSource";
 const OWNER_REPO = /^[^/:]+\/[^/:]+$/;
 const GITLAB_COM = /^https:\/\/gitlab\.com\/[^/]+\/.+$/;
 
+// cli/src/skillsAdd.ts mirrors skillsCommand's rules by hand: change both.
+
 /**
  * Builds the `npx skills add` command that installs one skill at the revision
  * its approval names.

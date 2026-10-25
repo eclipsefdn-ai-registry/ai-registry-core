@@ -212,6 +212,16 @@ describe("run install skill", () => {
       assert.equal(f.installs.length, 1);
     });
 
+    // Organization names are display only, so their absence costs only the
+    // names: approvals then show the organization ids.
+    it("installs without organizations.json, naming approvers by id", async () => {
+      rmSync(join(registry, "organizations.json"));
+      const f = fake();
+      assert.equal(await run([...install, "--registry", registry], f.deps), 0);
+      assert.equal(f.installs.length, 1);
+      assert.match(f.stderr.join("\n"), /Approved by: +anthropic, 2026-01-02/);
+    });
+
     it("fails naming the file it couldn't read", async () => {
       const missing = join(registry, "missing");
       const f = fake();

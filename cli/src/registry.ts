@@ -10,12 +10,13 @@ export const DEFAULT_REGISTRY = "https://ai.open-vsx.org/api/v1/";
  * an error naming the location it couldn't read.
  */
 async function readFeedFile(registry: string, file: string): Promise<unknown> {
-  const location = /^https?:\/\//.test(registry)
+  const isUrl = /^https?:\/\//.test(registry);
+  const location = isUrl
     ? new URL(file, registry.endsWith("/") ? registry : `${registry}/`).href
     : join(registry, file);
   let text: string;
   try {
-    if (location.startsWith("http")) {
+    if (isUrl) {
       const response = await fetch(location);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       text = await response.text();

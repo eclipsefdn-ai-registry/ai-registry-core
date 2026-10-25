@@ -2,7 +2,10 @@ import type { Organization, Skill } from "./types.js";
 import { approvedTarget, approvedTargetText } from "./approvedTarget.js";
 import { sourceTreeUrl } from "./cliSource.js";
 
-const label = (name?: string) => (name ? `${name}:` : "").padEnd(16);
+/** One line of the pre-install summary; no name continues the field above. */
+export function field(name: string | undefined, value: string): string {
+  return `${(name ? `${name}:` : "").padEnd(16)}${value}`;
+}
 
 /**
  * What is about to be installed, printed before anything is: the skill, the
@@ -20,14 +23,17 @@ export function describeSkill(
     organizations.find((org) => org.id === id)?.name ?? id;
   return [
     `${skill.name} (${skill.skillId})`,
-    `${label("Source")}${sourceTreeUrl(skill.source)}`,
+    field("Source", sourceTreeUrl(skill.source)),
     ...skill.approvals.map((approval, i) => {
       const via = approval.viaTrust
         ? `, via trust in ${orgName(approval.viaTrust)}`
         : "";
-      return `${label(i === 0 ? "Approved by" : undefined)}${orgName(approval.organizationId)}, ${approval.date}${via}`;
+      return field(
+        i === 0 ? "Approved by" : undefined,
+        `${orgName(approval.organizationId)}, ${approval.date}${via}`,
+      );
     }),
-    `${label("Target")}${approvedTargetText(approvedTarget(skill), generatedAt)}`,
-    `${label("Content hash")}${skill.contentHash}`,
+    field("Target", approvedTargetText(approvedTarget(skill), generatedAt)),
+    field("Content hash", skill.contentHash),
   ];
 }
