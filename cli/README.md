@@ -6,8 +6,8 @@ and their config paths stays with that installer: this CLI adds the lookup in
 the published feed and the guardrails around it.
 
 ```bash
-ai-registry install skill <id> [--yes] [--agent <name>...] [--global] [--registry <url|path>]
-ai-registry install plugin <id> [--yes] [--target <tool>] [--scope user|project|local] [--registry <url|path>]
+ai-registry install skill <id> [--yes] [--agent <name>...] [--global] [--registry <url|path>] [--require-approval-from <org,...|off>]
+ai-registry install plugin <id> [--yes] [--target <tool>] [--scope user|project|local] [--registry <url|path>] [--require-approval-from <org,...|off>]
 ```
 
 - `install skill <id>` looks the id up in `skills.json` and installs it with
@@ -33,6 +33,39 @@ ai-registry install plugin <id> [--yes] [--target <tool>] [--scope user|project|
 consolidate` writes. Default: `https://ai.open-vsx.org/api/v1/`.
 
 Everything the CLI says goes to stderr; stdout is the installer's own output.
+
+## Approval guardrail
+
+Both install commands check who approved the entry before running anything.
+`--require-approval-from eclipse,anthropic` installs only what one of those
+organizations approved, and otherwise exits 1, naming the organizations that
+did approve it so you can decide whether to override. `off`, the default,
+installs anything the registry holds and prints who approved it.
+
+A trust-derived approval counts as the trusting organization's, since it
+delegated that judgement: if you require `theia` and Theia trusts AWS's
+approvals, an AWS approval passes, and the output says it rests on AWS.
+
+The setting comes from the first of:
+
+1. `--require-approval-from <org,...|off>`
+2. `AI_REGISTRY_REQUIRE_APPROVAL_FROM`
+3. `.ai-registry.json` in the working directory
+4. `$XDG_CONFIG_HOME/ai-registry/config.json`, by default
+   `~/.config/ai-registry/config.json`
+5. `off`
+
+Both config files hold JSON:
+
+```json
+{ "requireApprovalFrom": ["eclipse", "anthropic"] }
+```
+
+or `{ "requireApprovalFrom": "off" }`. A file without the key is skipped; one
+that can't be read as above fails the install rather than read as `off`.
+
+The guardrail binds installs that go through this CLI only. It can't stop
+anyone running `npx skills add` or `npx plugins add` directly.
 
 ## Install from source
 

@@ -1,5 +1,17 @@
 import { parseArgs } from "node:util";
-import { describePlugin, describeSkill, field } from "./describe.js";
+import { GUARDRAIL_ENV, PROJECT_CONFIG, resolveGuardrail } from "./config.js";
+import {
+  describePlugin,
+  describeSkill,
+  field,
+  organizationNamer,
+} from "./describe.js";
+import {
+  checkApprovals,
+  guardrailLines,
+  type Approval,
+  type Guardrail,
+} from "./guardrail.js";
 import {
   DEFAULT_REGISTRY,
   loadOrganizationsFeed,
@@ -25,6 +37,12 @@ Options:
                         Read the registry from this base URL or local
                         directory, such as dist/api/v1 (default:
                         $AI_REGISTRY_URL, then ${DEFAULT_REGISTRY})
+      --require-approval-from <org,...|off>
+                        Install only what one of these organizations
+                        approved; off installs anything the registry holds
+                        (default: $${GUARDRAIL_ENV}, then
+                        requireApprovalFrom in ./${PROJECT_CONFIG}, then in
+                        ~/.config/ai-registry/config.json, then off)
   -h, --help            Show this help
 
 install skill:
@@ -33,7 +51,13 @@ install skill:
 
 install plugin:
   -t, --target <tool>   Install for this tool only, such as claude-code
-  -s, --scope <scope>   user (the plugins CLI's default), project, or local`;
+  -s, --scope <scope>   user (the plugins CLI's default), project, or local
+
+The approval guardrail binds installs that go through this CLI only. It can't
+stop anyone running the installers directly, such as npx skills add.
+
+Config files hold JSON: {"requireApprovalFrom": ["eclipse", "anthropic"]}
+or {"requireApprovalFrom": "off"}. $XDG_CONFIG_HOME replaces ~/.config.`;
 
 // The flags only one install command takes, which the other rejects.
 const OWN_OPTIONS = {
@@ -47,6 +71,9 @@ export type Installer = "skills" | "plugins";
 /** Everything run touches outside the feed, so tests can stand it in. */
 export interface Deps {
   env: Record<string, string | undefined>;
+  // where the project and user config files are looked up
+  cwd: string;
+  homeDir: string;
   isTTY: boolean;
   printErr: (line: string) => void;
   confirm: (question: string) => Promise<boolean>;
@@ -69,6 +96,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
       allowPositionals: true,
       options: {
         registry: { type: "string" },
+        "require-approval-from": { type: "string" },
         yes: { type: "boolean", short: "y" },
         agent: { type: "string", short: "a", multiple: true },
         global: { type: "boolean", short: "g" },
@@ -103,9 +131,21 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     return usageError(deps, `--scope takes ${SCOPES.join(", ")}.`);
   }
 
+  let guardrail: Guardrail;
+  try {
+    guardrail = await resolveGuardrail({
+      flag: values["require-approval-from"],
+      env: deps.env,
+      cwd: deps.cwd,
+      homeDir: deps.homeDir,
+    });
+  } catch (error) {
+    deps.printErr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
   const registry =
     values.registry ?? deps.env.AI_REGISTRY_URL ?? DEFAULT_REGISTRY;
-  const context = { registry, deps };
+  const context = { registry, guardrail, deps };
 
   if (type === "skill") {
     const skill = await resolve(context, id, {
@@ -176,7 +216,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
   return confirmAndInstall(deps, "plugins", args, values.yes);
 }
 
-interface ArtifactType<T> {
+interface ArtifactType<T extends { approvals: Approval[] }> {
   type: "skill" | "plugin";
   load: (registry: string) => Promise<{ generatedAt?: string; entries: T[] }>;
   idOf: (entry: T) => string;
@@ -188,12 +228,17 @@ interface ArtifactType<T> {
 }
 
 /**
- * The step every install command shares: finds the id in its type's feed and
- * prints what it found and who approved it. Resolves to undefined, having said
- * why, when there is nothing to install.
+ * The step every install command shares: finds the id in its type's feed,
+ * prints what it found and who approved it, and holds it to the approval
+ * guardrail. Resolves to undefined, having said why, when there is nothing to
+ * install or the guardrail refuses it.
  */
-async function resolve<T>(
-  { registry, deps }: { registry: string; deps: Deps },
+async function resolve<T extends { approvals: Approval[] }>(
+  {
+    registry,
+    guardrail,
+    deps,
+  }: { registry: string; guardrail: Guardrail; deps: Deps },
   id: string,
   artifact: ArtifactType<T>,
 ): Promise<T | undefined> {
@@ -219,14 +264,19 @@ async function resolve<T>(
     );
     return undefined;
   }
-  for (const line of artifact.describe(
-    entry,
-    await organizations,
-    feed.generatedAt,
-  )) {
+  const orgs = await organizations;
+  for (const line of artifact.describe(entry, orgs, feed.generatedAt)) {
     deps.printErr(line);
   }
-  return entry;
+  const decision = checkApprovals(
+    entry.approvals,
+    guardrail.requireApprovalFrom,
+  );
+  const orgName = organizationNamer(orgs);
+  for (const line of guardrailLines(decision, guardrail, orgName)) {
+    deps.printErr(line);
+  }
+  return decision.allowed ? entry : undefined;
 }
 
 /** Prints the command, asks unless told not to, then hands over. */

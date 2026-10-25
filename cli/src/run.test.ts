@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { GUARDRAIL_ENV as ENV } from "./config.js";
 import { run, type Deps } from "./run.js";
 import type { Plugin, Skill } from "./types.js";
 
@@ -62,6 +63,9 @@ function fake(overrides: Partial<Deps> = {}, exitCode = 0): Fake {
     questions,
     deps: {
       env: {},
+      // nowhere: no config file is read unless a test writes one
+      cwd: join(tmpdir(), "ai-registry-cli-no-project"),
+      homeDir: join(tmpdir(), "ai-registry-cli-no-home"),
       isTTY: false,
       printErr: (line) => stderr.push(line),
       confirm: async (question) => {
@@ -414,6 +418,245 @@ describe("run install plugin", () => {
   });
 });
 
+describe("run approval guardrail", () => {
+  let dir: string;
+  let registry: string;
+  let project: string;
+  let home: string;
+  const install = (...flags: string[]) => [
+    "install",
+    "skill",
+    CODE_REVIEW.skillId,
+    "--registry",
+    registry,
+    "--yes",
+    ...flags,
+  ];
+  const writeConfig = (path: string, config: unknown) => {
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, JSON.stringify(config));
+  };
+  const projectConfig = () => join(project, ".ai-registry.json");
+  const userConfig = () => join(home, ".config", "ai-registry", "config.json");
+  const inDirs = (overrides: Partial<Deps> = {}) =>
+    fake({ cwd: project, homeDir: home, ...overrides });
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "ai-registry-cli-"));
+    registry = join(dir, "registry");
+    project = join(dir, "project");
+    home = join(dir, "home");
+    for (const d of [registry, project, home]) mkdirSync(d);
+    writeRegistry(registry, [
+      {
+        ...CODE_REVIEW,
+        approvals: [
+          { organizationId: "anthropic", date: "2026-01-02" },
+          {
+            organizationId: "theia",
+            date: "2026-01-02",
+            viaTrust: "anthropic",
+          },
+        ],
+      },
+    ]);
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("is off by default: installs and prints who approved it", async () => {
+    const f = inDirs();
+    assert.equal(await run(install(), f.deps), 0);
+    assert.equal(f.installs.length, 1);
+    const out = f.stderr.join("\n");
+    assert.match(out, /Approved by: +Anthropic, 2026-01-02/);
+    assert.match(out, /Guardrail: +off \(default\)/);
+  });
+
+  it("refuses, exits non-zero and names the approvers when none is trusted", async () => {
+    const f = inDirs();
+    const code = await run(
+      install("--require-approval-from", "eclipse,acme"),
+      f.deps,
+    );
+    assert.equal(code, 1);
+    assert.deepEqual(f.installs, []);
+    const out = f.stderr.join("\n");
+    assert.match(out, /Not installing: none of eclipse, acme approved it/);
+    assert.match(
+      out,
+      /approved by Anthropic \(anthropic\); theia \(theia\), via trust in Anthropic/,
+    );
+  });
+
+  it("installs on a trust-derived approval, showing the delegation", async () => {
+    const f = inDirs();
+    assert.equal(
+      await run(install("--require-approval-from", "theia"), f.deps),
+      0,
+    );
+    assert.equal(f.installs.length, 1);
+    assert.match(f.stderr.join("\n"), /met by theia, via trust in Anthropic/);
+  });
+
+  it("checks before printing the installer command", async () => {
+    const f = inDirs();
+    await run(install("--require-approval-from", "eclipse"), f.deps);
+    assert.ok(!f.stderr.some((line) => line.startsWith("Command:")));
+  });
+
+  it("applies to install plugin too", async () => {
+    writeRegistry(
+      registry,
+      [CODE_REVIEW],
+      [
+        {
+          pluginId: "io.github.acme/kit",
+          name: "kit",
+          description: "A kit",
+          source: { url: "https://github.com/acme/kit.git" },
+          contentHash: "aa11bb22cc33",
+          containedSkills: [],
+          containedMcpServers: [],
+          approvals: [{ organizationId: "anthropic", date: "2026-01-02" }],
+        },
+      ],
+    );
+    const f = inDirs();
+    const code = await run(
+      [
+        "install",
+        "plugin",
+        "io.github.acme/kit",
+        "--registry",
+        registry,
+        "--yes",
+        "--require-approval-from",
+        "eclipse",
+      ],
+      f.deps,
+    );
+    assert.equal(code, 1);
+    assert.deepEqual(f.installs, []);
+  });
+
+  describe("precedence: flag, env, project config, user config, default", () => {
+    it("reads the user config", async () => {
+      writeConfig(userConfig(), { requireApprovalFrom: ["eclipse"] });
+      const f = inDirs();
+      assert.equal(await run(install(), f.deps), 1);
+      assert.match(
+        f.stderr.join("\n"),
+        new RegExp(`required by ${userConfig()}`),
+      );
+    });
+
+    it("reads the user config under XDG_CONFIG_HOME when set", async () => {
+      const xdg = join(dir, "xdg");
+      writeConfig(join(xdg, "ai-registry", "config.json"), {
+        requireApprovalFrom: ["eclipse"],
+      });
+      const f = inDirs({ env: { XDG_CONFIG_HOME: xdg } });
+      assert.equal(await run(install(), f.deps), 1);
+    });
+
+    it("prefers the project config over the user config", async () => {
+      writeConfig(userConfig(), { requireApprovalFrom: ["eclipse"] });
+      writeConfig(projectConfig(), { requireApprovalFrom: ["anthropic"] });
+      const f = inDirs();
+      assert.equal(await run(install(), f.deps), 0);
+      assert.match(
+        f.stderr.join("\n"),
+        new RegExp(`requires anthropic \\(${projectConfig()}\\)`),
+      );
+    });
+
+    it("lets the project config turn off what the user config requires", async () => {
+      writeConfig(userConfig(), { requireApprovalFrom: ["eclipse"] });
+      writeConfig(projectConfig(), { requireApprovalFrom: "off" });
+      const f = inDirs();
+      assert.equal(await run(install(), f.deps), 0);
+    });
+
+    it("skips a config file that doesn't set it", async () => {
+      writeConfig(userConfig(), { requireApprovalFrom: ["eclipse"] });
+      writeConfig(projectConfig(), {});
+      const f = inDirs();
+      assert.equal(await run(install(), f.deps), 1);
+    });
+
+    it("reads an empty environment variable as unset", async () => {
+      writeConfig(projectConfig(), { requireApprovalFrom: ["eclipse"] });
+      const f = inDirs({ env: { [ENV]: "" } });
+      assert.equal(await run(install(), f.deps), 1);
+      assert.match(f.stderr.join("\n"), /none of eclipse approved it/);
+    });
+
+    it("ignores a relative XDG_CONFIG_HOME, as the XDG spec says", async () => {
+      writeConfig(userConfig(), { requireApprovalFrom: ["eclipse"] });
+      const f = inDirs({ env: { XDG_CONFIG_HOME: "relative" } });
+      assert.equal(await run(install(), f.deps), 1);
+    });
+
+    it("prefers the environment variable over the config files", async () => {
+      writeConfig(projectConfig(), { requireApprovalFrom: ["eclipse"] });
+      const f = inDirs({ env: { [ENV]: "anthropic" } });
+      assert.equal(await run(install(), f.deps), 0);
+      assert.match(
+        f.stderr.join("\n"),
+        new RegExp(`requires anthropic \\(${ENV}\\)`),
+      );
+    });
+
+    it("prefers the flag over the environment variable", async () => {
+      const f = inDirs({ env: { [ENV]: "eclipse" } });
+      assert.equal(
+        await run(install("--require-approval-from", "off"), f.deps),
+        0,
+      );
+      assert.match(
+        f.stderr.join("\n"),
+        /Guardrail: +off \(--require-approval-from\)/,
+      );
+    });
+  });
+
+  describe("a setting it can't read fails rather than read as off", () => {
+    for (const [what, config] of [
+      ["invalid JSON", "{"],
+      ["an empty list", { requireApprovalFrom: [] }],
+      ["a string other than off", { requireApprovalFrom: "eclipse" }],
+      ["a list with a non-string", { requireApprovalFrom: ["eclipse", 1] }],
+      ["off inside a list", { requireApprovalFrom: ["off"] }],
+    ] as const) {
+      it(`in a config file: ${what}`, async () => {
+        mkdirSync(project, { recursive: true });
+        writeFileSync(
+          projectConfig(),
+          typeof config === "string" ? config : JSON.stringify(config),
+        );
+        const f = inDirs();
+        assert.equal(await run(install(), f.deps), 1);
+        assert.deepEqual(f.installs, []);
+        assert.ok(f.stderr.some((line) => line.includes(projectConfig())));
+      });
+    }
+
+    it("in the environment variable", async () => {
+      const f = inDirs({ env: { [ENV]: " , " } });
+      assert.equal(await run(install(), f.deps), 1);
+      assert.match(f.stderr.join("\n"), new RegExp(ENV));
+    });
+
+    it("in the flag", async () => {
+      const f = inDirs();
+      assert.equal(
+        await run(install("--require-approval-from", ","), f.deps),
+        1,
+      );
+      assert.match(f.stderr.join("\n"), /--require-approval-from/);
+    });
+  });
+});
+
 describe("run usage", () => {
   for (const argv of [
     [],
@@ -441,5 +684,11 @@ describe("run usage", () => {
     const f = fake();
     assert.equal(await run(["--help"], f.deps), 0);
     assert.match(f.stderr.join("\n"), /Usage: ai-registry install skill <id>/);
+  });
+
+  it("says in --help what the guardrail can't stop", async () => {
+    const f = fake();
+    await run(["--help"], f.deps);
+    assert.match(f.stderr.join("\n"), /npx skills add/);
   });
 });
