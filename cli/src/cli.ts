@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { run } from "./run.js";
@@ -16,6 +17,8 @@ const SKILLS_BIN = join(
 
 process.exitCode = await run(process.argv.slice(2), {
   env: process.env,
+  cwd: process.cwd(),
+  homeDir: homedir(),
   isTTY: Boolean(process.stdin.isTTY && process.stderr.isTTY),
   printErr: (line) => console.error(line),
   confirm: async (question) => {

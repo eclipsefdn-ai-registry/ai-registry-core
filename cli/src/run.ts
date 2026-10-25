@@ -1,5 +1,7 @@
 import { parseArgs } from "node:util";
-import { describeSkill, field } from "./describeSkill.js";
+import { GUARDRAIL_ENV, PROJECT_CONFIG, resolveGuardrail } from "./config.js";
+import { describeSkill, field, organizationNamer } from "./describeSkill.js";
+import { checkApprovals, guardrailLines, type Guardrail } from "./guardrail.js";
 import {
   DEFAULT_REGISTRY,
   loadOrganizationsFeed,
@@ -22,11 +24,26 @@ Options:
                         Read the registry from this base URL or local
                         directory, such as dist/api/v1 (default:
                         $AI_REGISTRY_URL, then ${DEFAULT_REGISTRY})
-  -h, --help            Show this help`;
+      --require-approval-from <org,...|off>
+                        Install only what one of these organizations
+                        approved; off installs anything the registry holds
+                        (default: $${GUARDRAIL_ENV}, then
+                        requireApprovalFrom in ./${PROJECT_CONFIG}, then in
+                        ~/.config/ai-registry/config.json, then off)
+  -h, --help            Show this help
+
+The approval guardrail binds installs that go through this CLI only. It can't
+stop anyone running the installers directly, such as npx skills add.
+
+Config files hold JSON: {"requireApprovalFrom": ["eclipse", "anthropic"]}
+or {"requireApprovalFrom": "off"}. $XDG_CONFIG_HOME replaces ~/.config.`;
 
 /** Everything run touches outside the feed, so tests can stand it in. */
 export interface Deps {
   env: Record<string, string | undefined>;
+  // where the project and user config files are looked up
+  cwd: string;
+  homeDir: string;
   isTTY: boolean;
   printErr: (line: string) => void;
   confirm: (question: string) => Promise<boolean>;
@@ -49,6 +66,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
       allowPositionals: true,
       options: {
         registry: { type: "string" },
+        "require-approval-from": { type: "string" },
         yes: { type: "boolean", short: "y" },
         agent: { type: "string", short: "a", multiple: true },
         global: { type: "boolean", short: "g" },
@@ -68,6 +86,18 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     return usageError(deps);
   }
 
+  let guardrail: Guardrail;
+  try {
+    guardrail = await resolveGuardrail({
+      flag: values["require-approval-from"],
+      env: deps.env,
+      cwd: deps.cwd,
+      homeDir: deps.homeDir,
+    });
+  } catch (error) {
+    deps.printErr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
   const registry =
     values.registry ?? deps.env.AI_REGISTRY_URL ?? DEFAULT_REGISTRY;
   // Organization names are display only: without them approvals show ids,
@@ -91,13 +121,22 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     deps.printErr(`No skill with id ${id} in the registry at ${registry}.`);
     return 1;
   }
-  for (const line of describeSkill(
-    skill,
-    await organizations,
-    skillsFeed.generatedAt,
+  const orgs = await organizations;
+  for (const line of describeSkill(skill, orgs, skillsFeed.generatedAt)) {
+    deps.printErr(line);
+  }
+  const decision = checkApprovals(
+    skill.approvals,
+    guardrail.requireApprovalFrom,
+  );
+  for (const line of guardrailLines(
+    decision,
+    guardrail,
+    organizationNamer(orgs),
   )) {
     deps.printErr(line);
   }
+  if (!decision.allowed) return 1;
 
   const args = skillsAddArgs(skill, {
     yes: values.yes,

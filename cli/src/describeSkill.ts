@@ -2,6 +2,13 @@ import type { Organization, Skill } from "./types.js";
 import { approvedTarget, approvedTargetText } from "./approvedTarget.js";
 import { sourceTreeUrl } from "./cliSource.js";
 
+/** Names an organization for display, falling back to its id. */
+export function organizationNamer(
+  organizations: Organization[],
+): (id: string) => string {
+  return (id) => organizations.find((org) => org.id === id)?.name ?? id;
+}
+
 /** One line of the pre-install summary; no name continues the field above. */
 export function field(name: string | undefined, value: string): string {
   return `${(name ? `${name}:` : "").padEnd(16)}${value}`;
@@ -19,8 +26,7 @@ export function describeSkill(
   organizations: Organization[],
   generatedAt?: string,
 ): string[] {
-  const orgName = (id: string) =>
-    organizations.find((org) => org.id === id)?.name ?? id;
+  const orgName = organizationNamer(organizations);
   return [
     `${skill.name} (${skill.skillId})`,
     field("Source", sourceTreeUrl(skill.source)),
