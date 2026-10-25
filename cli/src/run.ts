@@ -1,12 +1,12 @@
 import { parseArgs } from "node:util";
-import { describeSkill } from "./describeSkill.js";
+import { describeSkill, field } from "./describeSkill.js";
 import {
   DEFAULT_REGISTRY,
   loadOrganizationsFeed,
   loadSkillsFeed,
 } from "./registry.js";
 import { skillsAddArgs } from "./skillsAdd.js";
-import type { OrganizationsFeed, SkillsFeed } from "./types.js";
+import type { SkillsFeed } from "./types.js";
 
 const USAGE = `Usage: ai-registry install skill <id> [options]
 
@@ -70,13 +70,15 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
 
   const registry =
     values.registry ?? deps.env.AI_REGISTRY_URL ?? DEFAULT_REGISTRY;
+  // Organization names are display only: without them approvals show ids,
+  // which is no reason to refuse an install.
+  const organizations = loadOrganizationsFeed(registry).then(
+    (feed) => feed.organizations,
+    () => [],
+  );
   let skillsFeed: SkillsFeed;
-  let orgsFeed: OrganizationsFeed;
   try {
-    [skillsFeed, orgsFeed] = await Promise.all([
-      loadSkillsFeed(registry),
-      loadOrganizationsFeed(registry),
-    ]);
+    skillsFeed = await loadSkillsFeed(registry);
   } catch (error) {
     deps.printErr(error instanceof Error ? error.message : String(error));
     return 1;
@@ -91,7 +93,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
   }
   for (const line of describeSkill(
     skill,
-    orgsFeed.organizations,
+    await organizations,
     skillsFeed.generatedAt,
   )) {
     deps.printErr(line);
@@ -110,7 +112,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     );
     return 1;
   }
-  deps.printErr(`Command:        skills ${args.join(" ")}`);
+  deps.printErr(field("Command", `skills ${args.join(" ")}`));
 
   if (!values.yes) {
     // An agent can't answer a prompt, so waiting for one would hang it.
