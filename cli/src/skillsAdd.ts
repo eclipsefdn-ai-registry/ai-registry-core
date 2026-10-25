@@ -12,7 +12,7 @@ const OWNER_REPO = /^[^/:]+\/[^/:]+$/;
 const GITLAB_COM = /^https:\/\/gitlab\.com\/[^/]+\/.+$/;
 
 /** What the user may pass through to the installer; nothing else is. */
-export interface InstallerOptions {
+export interface SkillInstallerOptions {
   // skip the installer's own prompts, using the agents it detects
   yes?: boolean;
   agents?: string[];
@@ -31,7 +31,7 @@ export interface InstallerOptions {
  */
 export function skillsAddArgs(
   skill: Pick<Skill, "name" | "source" | "contentHash" | "latestHash">,
-  options: InstallerOptions,
+  options: SkillInstallerOptions,
 ): string[] | undefined {
   const source = cliSource(skill.source.url);
   const { ref, commit } = skill.source;

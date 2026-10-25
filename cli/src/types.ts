@@ -44,3 +44,48 @@ export interface OrganizationsFeed {
   generatedAt?: string;
   organizations: Organization[];
 }
+
+export interface PluginApproval {
+  organizationId: string;
+  date: string;
+  viaTrust?: string;
+  // set when the organization approved a marketplace file that lists this
+  // plugin, rather than this plugin itself
+  sourcedFrom?: { marketplaceUrl: string; format: string };
+}
+
+export interface ContainedSkill {
+  name: string;
+  description: string;
+  path: string;
+}
+
+export interface ContainedMcpServer {
+  name: string;
+  transport: string;
+}
+
+export interface Plugin {
+  pluginId: string;
+  name: string;
+  description: string;
+  version?: string;
+  // see Skill
+  source: {
+    url: string;
+    path?: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
+  contentHash: string;
+  latestHash?: string;
+  containedSkills: ContainedSkill[];
+  containedMcpServers: ContainedMcpServer[];
+  approvals: PluginApproval[];
+}
+
+export interface PluginsFeed {
+  generatedAt?: string;
+  plugins: Plugin[];
+}

@@ -61,6 +61,8 @@ export function skillsCommand(
  * as unreachable as a tag. The plugins CLI takes a source and nothing else, so
  * a plugin in a subdirectory resolves by discovery rather than by path. Remove
  * the suppression once the CLI can target a ref.
+ *
+ * cli/src/pluginsAdd.ts mirrors this rule by hand: change both.
  */
 export function pluginsCommand(
   plugin: Pick<Plugin, "source">,

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run, type Deps } from "./run.js";
-import type { Skill } from "./types.js";
+import type { Plugin, Skill } from "./types.js";
 
 const GENERATED_AT = "2026-10-25T06:20:00.490Z";
 
@@ -23,10 +23,18 @@ const CODE_REVIEW: Skill = {
 };
 
 // A local registry, laid out like the dist/api/v1/ consolidation writes.
-function writeRegistry(dir: string, skills: Skill[]): void {
+function writeRegistry(
+  dir: string,
+  skills: Skill[],
+  plugins: Plugin[] = [],
+): void {
   writeFileSync(
     join(dir, "skills.json"),
     JSON.stringify({ generatedAt: GENERATED_AT, skills }),
+  );
+  writeFileSync(
+    join(dir, "plugins.json"),
+    JSON.stringify({ generatedAt: GENERATED_AT, plugins }),
   );
   writeFileSync(
     join(dir, "organizations.json"),
@@ -60,8 +68,8 @@ function fake(overrides: Partial<Deps> = {}, exitCode = 0): Fake {
         questions.push(question);
         return true;
       },
-      runSkills: async (args) => {
-        installs.push(args);
+      runInstaller: async (installer, args) => {
+        installs.push([installer, ...args]);
         return exitCode;
       },
       ...overrides,
@@ -92,7 +100,7 @@ describe("run install skill", () => {
     );
     assert.equal(code, 0);
     assert.deepEqual(f.installs, [
-      ["add", "anthropics/skills", "--skill", "code-review", "-y"],
+      ["skills", "add", "anthropics/skills", "--skill", "code-review", "-y"],
     ]);
     const out = f.stderr.join("\n");
     assert.match(out, /Approved by: +Anthropic, 2026-01-02/);
@@ -147,7 +155,7 @@ describe("run install skill", () => {
       assert.equal(code, 0);
       assert.equal(f.questions.length, 1);
       assert.deepEqual(f.installs, [
-        ["add", "anthropics/skills", "--skill", "code-review"],
+        ["skills", "add", "anthropics/skills", "--skill", "code-review"],
       ]);
     });
   });
@@ -236,12 +244,185 @@ describe("run install skill", () => {
   });
 });
 
+const COMMIT = "7b4a44e40e0112233445566778899aabbccddeef";
+
+const KIT: Plugin = {
+  pluginId: "io.github.acme/kit",
+  name: "kit",
+  description: "A kit",
+  source: { url: "https://github.com/acme/kit.git", commit: COMMIT },
+  contentHash: "aa11bb22cc33",
+  latestHash: "aa11bb22cc33",
+  containedSkills: [
+    { name: "lint", description: "Lints", path: "skills/lint" },
+  ],
+  containedMcpServers: [{ name: "kit-server", transport: "stdio" }],
+  approvals: [
+    {
+      organizationId: "anthropic",
+      date: "2026-01-02",
+      sourcedFrom: {
+        marketplaceUrl: "https://github.com/acme/market",
+        format: "claude",
+      },
+    },
+  ],
+};
+
+describe("run install plugin", () => {
+  let registry: string;
+  const install = (plugin: Plugin, ...flags: string[]) => [
+    "install",
+    "plugin",
+    plugin.pluginId,
+    "--registry",
+    registry,
+    ...flags,
+  ];
+  const withRegistry = (plugins: Plugin[]) =>
+    writeRegistry(registry, [CODE_REVIEW], plugins);
+  beforeEach(() => {
+    registry = mkdtempSync(join(tmpdir(), "ai-registry-cli-"));
+    withRegistry([KIT]);
+  });
+  afterEach(() => rmSync(registry, { recursive: true, force: true }));
+
+  it("lists approvals, provenance and contents, then installs through the plugins CLI", async () => {
+    const f = fake();
+    const code = await run(
+      install(KIT, "--yes", "--target", "claude-code", "--scope", "project"),
+      f.deps,
+    );
+    assert.equal(code, 0);
+    assert.deepEqual(f.installs, [
+      [
+        "plugins",
+        "add",
+        "acme/kit",
+        "--target",
+        "claude-code",
+        "--scope",
+        "project",
+        "-y",
+      ],
+    ]);
+    const out = f.stderr.join("\n");
+    assert.match(
+      out,
+      /Approved by: +Anthropic, 2026-01-02, through the marketplace at https:\/\/github\.com\/acme\/market/,
+    );
+    assert.match(out, /Skills: +lint/);
+    assert.match(out, /MCP servers: +kit-server \(stdio\)/);
+    assert.match(
+      out,
+      /Command: +plugins add acme\/kit --target claude-code --scope project -y/,
+    );
+  });
+
+  it("fails on an id the registry doesn't hold, without running the installer", async () => {
+    const f = fake();
+    const code = await run(
+      [
+        "install",
+        "plugin",
+        "io.github.nobody/nothing",
+        "--registry",
+        registry,
+        "--yes",
+      ],
+      f.deps,
+    );
+    assert.equal(code, 1);
+    assert.deepEqual(f.installs, []);
+    assert.match(
+      f.stderr.join("\n"),
+      /No plugin with id io\.github\.nobody\/nothing in the registry at /,
+    );
+  });
+
+  // Ids are only unique within a type.
+  it("doesn't find a skill id among plugins", async () => {
+    const f = fake();
+    const code = await run(
+      [
+        "install",
+        "plugin",
+        CODE_REVIEW.skillId,
+        "--registry",
+        registry,
+        "--yes",
+      ],
+      f.deps,
+    );
+    assert.equal(code, 1);
+    assert.deepEqual(f.installs, []);
+  });
+
+  it("refuses a plugin whose approval names a ref, printing how to install it by hand", async () => {
+    const pinned: Plugin = {
+      ...KIT,
+      source: {
+        ...KIT.source,
+        path: "plugins/kit",
+        ref: "v1.0.0",
+        pinned: true,
+      },
+    };
+    withRegistry([pinned]);
+    const f = fake();
+    const code = await run(install(pinned, "--yes"), f.deps);
+    assert.equal(code, 1);
+    assert.deepEqual(f.installs, []);
+    const out = f.stderr.join("\n");
+    assert.match(out, /can't install v1\.0\.0/);
+    assert.match(out, /git clone https:\/\/github\.com\/acme\/kit kit/);
+    assert.match(out, new RegExp(`git -C kit checkout ${COMMIT}`));
+    assert.match(out, /npx plugins@1\.3\.5 add \.\/kit\/plugins\/kit/);
+  });
+
+  describe("a plugin in a subdirectory, which may have unapproved neighbours", () => {
+    const nested: Plugin = {
+      ...KIT,
+      source: { ...KIT.source, path: "plugins/kit" },
+    };
+    beforeEach(() => withRegistry([nested]));
+
+    // Without a terminal the plugins CLI installs every plugin it discovers.
+    it("refuses without a terminal, even with --yes", async () => {
+      const f = fake({ isTTY: false });
+      const code = await run(install(nested, "--yes"), f.deps);
+      assert.equal(code, 1);
+      assert.deepEqual(f.installs, []);
+      assert.match(f.stderr.join("\n"), /every plugin/);
+    });
+
+    it("on a terminal, leaves the choice to the installer's picker and says what to keep", async () => {
+      const f = fake({ isTTY: true });
+      const code = await run(install(nested, "--yes"), f.deps);
+      assert.equal(code, 0);
+      assert.deepEqual(f.questions, []);
+      assert.deepEqual(f.installs, [["plugins", "add", "acme/kit"]]);
+      assert.match(f.stderr.join("\n"), /keep only kit selected/);
+    });
+  });
+
+  it("asks before installing without --yes", async () => {
+    const f = fake({ isTTY: true });
+    assert.equal(await run(install(KIT), f.deps), 0);
+    assert.equal(f.questions.length, 1);
+    assert.deepEqual(f.installs, [["plugins", "add", "acme/kit"]]);
+  });
+});
+
 describe("run usage", () => {
   for (const argv of [
     [],
     ["install"],
     ["install", "skill"],
-    ["install", "plugin", "some/id"],
+    ["install", "agent", "some/id"],
+    ["install", "skill", "some/id", "--target", "claude-code"],
+    ["install", "plugin", "some/id", "--agent", "claude-code"],
+    ["install", "plugin", "some/id", "--scope", "everywhere"],
     ["install", "skill", "some/id", "--bogus"],
     ["install", "skill", "some/id", "extra"],
   ]) {

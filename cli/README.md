@@ -7,6 +7,7 @@ the published feed and the guardrails around it.
 
 ```bash
 ai-registry install skill <id> [--yes] [--agent <name>...] [--global] [--registry <url|path>]
+ai-registry install plugin <id> [--yes] [--target <tool>] [--scope user|project|local] [--registry <url|path>]
 ```
 
 - `install skill <id>` looks the id up in `skills.json` and installs it with
@@ -14,8 +15,18 @@ ai-registry install skill <id> [--yes] [--agent <name>...] [--global] [--registr
   approval names. An id the registry doesn't hold fails without running
   anything, and so does an approval the skills CLI can't install at that
   revision: it never falls back to the default branch.
-- `--yes` skips the confirmation and is forwarded to the skills CLI, which then
-  installs to the agents it detects. Without a terminal to confirm on, the CLI
+- `install plugin <id>` looks the id up in `plugins.json` and installs it with
+  the [plugins CLI](https://www.npmjs.com/package/plugins), after listing the
+  skills and MCP servers it brings along and any marketplace an approval came
+  through. The plugins CLI always installs the default branch, so an approval
+  that names a ref is refused, with the git commands to install it by hand.
+  It also installs every plugin it finds in the repository when not asked, so
+  a plugin in a subdirectory only installs from a terminal, where its picker
+  lets you keep just the approved one. `--target` and `--scope` (`user`,
+  `project` or `local`) are forwarded to it.
+- `--yes` skips the confirmation and is forwarded to the installer, which then
+  installs to the tools it detects, except for a plugin in a
+  subdirectory, which always goes through the plugins CLI's picker. Without a terminal to confirm on, the CLI
   fails rather than wait for an answer.
 - `--registry` (or `AI_REGISTRY_URL`) points it at another registry, either a
   base URL or a local directory such as the `dist/api/v1/` that `npm run

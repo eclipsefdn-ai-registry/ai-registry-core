@@ -4,7 +4,7 @@
  * Strips a trailing slash, then a trailing `.git`, from a `source.url`. Both
  * are valid in an approval file and both break a CLI argument or a link.
  */
-function normalizeRepoUrl(url: string): string {
+export function normalizeRepoUrl(url: string): string {
   return url.replace(/\/+$/, "").replace(/\.git$/, "");
 }
 

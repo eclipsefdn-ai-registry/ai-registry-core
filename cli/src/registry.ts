@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { OrganizationsFeed, SkillsFeed } from "./types.js";
+import type { OrganizationsFeed, PluginsFeed, SkillsFeed } from "./types.js";
 
 export const DEFAULT_REGISTRY = "https://ai.open-vsx.org/api/v1/";
 
@@ -57,4 +57,8 @@ export function loadOrganizationsFeed(
   registry: string,
 ): Promise<OrganizationsFeed> {
   return readFeedList(registry, "organizations.json", "organizations");
+}
+
+export function loadPluginsFeed(registry: string): Promise<PluginsFeed> {
+  return readFeedList(registry, "plugins.json", "plugins");
 }
