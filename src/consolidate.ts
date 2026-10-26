@@ -25,6 +25,11 @@ import {
   fetchMarketplaceEntries,
   derivePluginIdFromSource,
 } from "./marketplace-source.js";
+import {
+  buildMarketplace,
+  buildOrgMarketplace,
+  type MarketplaceFile,
+} from "./marketplace-output.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
 import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
@@ -755,6 +760,12 @@ export function addPluginApproval(
   organizationId: string,
   output: ConsolidatedOutput,
   sourcedFrom?: { marketplaceUrl: string; format: string },
+  // Collects "<pluginId>::<organizationId>" for each approval whose source
+  // lost to an earlier one, so the published marketplaces can leave that
+  // organization off an entry it never approved at this revision. Kept out of
+  // ConsolidatedOutput deliberately: it decides what to publish, it isn't
+  // itself published. See marketplace-output.ts.
+  sourceMismatches?: Set<string>,
 ): void {
   const { entry: pluginEntry, created } = findOrCreate(
     output.plugins,
@@ -783,6 +794,7 @@ export function addPluginApproval(
     console.warn(
       `  WARNING: plugin "${approvalData.pluginId}" approved with a different source by "${organizationId}" — using "${pluginEntry.approvals[0]?.organizationId}"'s (first collected)`,
     );
+    sourceMismatches?.add(`${approvalData.pluginId}::${organizationId}`);
   }
 
   const configHash = configHashOf(approvalData);
@@ -824,6 +836,7 @@ export function addPluginApproval(
 export function expandMarketplaceApprovals(
   pending: PendingMarketplace[],
   output: ConsolidatedOutput,
+  sourceMismatches?: Set<string>,
 ): void {
   if (pending.length === 0) return;
 
@@ -879,6 +892,7 @@ export function expandMarketplaceApprovals(
             organizationId,
             output,
             { marketplaceUrl: url, format },
+            sourceMismatches,
           );
           console.log(`  Collected plugin (via marketplace): ${pluginId}`);
         } catch (err) {
@@ -1289,6 +1303,7 @@ function collectVendorData(
   sandboxExtensionTrusts: TrustEntry[],
   pendingMarketplaces: PendingMarketplace[],
   pendingSandboxExtensions: PendingSandboxExtension[],
+  pluginSourceMismatches: Set<string>,
 ): void {
   const result = validateVendorFiles(vendorPath, vendorId);
 
@@ -1323,7 +1338,13 @@ function collectVendorData(
   }
 
   for (const { data } of result.pluginApprovals) {
-    addPluginApproval(data as PluginApprovalData, vendorId, output);
+    addPluginApproval(
+      data as PluginApprovalData,
+      vendorId,
+      output,
+      undefined,
+      pluginSourceMismatches,
+    );
     console.log(`  Collected plugin: ${data.pluginId}`);
   }
 
@@ -1388,12 +1409,25 @@ function writeJson(filePath: string, data: unknown): void {
 // latestCommit/latestHash values in it. A client reading only
 // tools/<id>.json needs the date as much as one reading all.json, so no file
 // is left without it.
-function writeOutput(output: ConsolidatedOutput, generatedAt: string): void {
+function writeOutput(
+  output: ConsolidatedOutput,
+  generatedAt: string,
+  pluginSourceMismatches: Set<string>,
+): void {
   const outputDir = resolve(ROOT, "dist/api/v1");
   mkdirSync(outputDir, { recursive: true });
 
   const write = (filePath: string, data: object): void => {
     writeJson(filePath, { generatedAt, ...data });
+    console.log(`Written: ${filePath}`);
+  };
+
+  // The marketplace files are the one exception to the rule above. Their schema
+  // is Anthropic's, where an unknown top-level key is a validation warning, so
+  // they carry no generatedAt: extending someone else's contract to satisfy
+  // ours is the wrong trade. See marketplace-output.ts.
+  const writeMarketplace = (filePath: string, data: MarketplaceFile): void => {
+    writeJson(filePath, data);
     console.log(`Written: ${filePath}`);
   };
 
@@ -1435,6 +1469,14 @@ function writeOutput(output: ConsolidatedOutput, generatedAt: string): void {
   mkdirSync(orgsDir, { recursive: true });
 
   for (const org of output.organizations) {
+    // Built first, so orgs/<id>.json can say whether the file exists: an
+    // organization can list plugins and still get none (see buildOrgMarketplace).
+    const marketplace = buildOrgMarketplace(
+      output.plugins,
+      org,
+      pluginSourceMismatches,
+    );
+
     write(resolve(orgsDir, `${org.id}.json`), {
       mcp: buildOrgEntryView(org.id, output.mcp),
       skills: buildOrgEntryView(org.id, output.skills),
@@ -1442,8 +1484,23 @@ function writeOutput(output: ConsolidatedOutput, generatedAt: string): void {
       agents: buildOrgEntryView(org.id, output.agents),
       sandboxTools: buildOrgEntryView(org.id, output.sandboxTools),
       sandboxFeatures: buildOrgEntryView(org.id, output.sandboxFeatures),
+      hasMarketplace: marketplace !== undefined,
     });
+
+    // orgs/<id>/marketplace.json and orgs/<id>.json sit side by side.
+    if (!marketplace) continue;
+    const orgMarketplaceDir = resolve(orgsDir, org.id);
+    mkdirSync(orgMarketplaceDir, { recursive: true });
+    writeMarketplace(
+      resolve(orgMarketplaceDir, "marketplace.json"),
+      marketplace,
+    );
   }
+
+  writeMarketplace(
+    resolve(outputDir, "marketplace.json"),
+    buildMarketplace(output.plugins, undefined, pluginSourceMismatches),
+  );
 
   console.log(`\n  Organizations: ${output.organizations.length}`);
   console.log(`  Tools: ${output.tools.length}`);
@@ -1481,6 +1538,9 @@ export async function main(): Promise<void> {
   const agentTrusts: TrustEntry[] = [];
   const sandboxExtensionTrusts: TrustEntry[] = [];
   const pendingMarketplaces: PendingMarketplace[] = [];
+  // See addPluginApproval: approvals whose source lost to an earlier one, kept
+  // for the marketplace files and not published.
+  const pluginSourceMismatches = new Set<string>();
   const pendingSandboxExtensions: PendingSandboxExtension[] = [];
 
   // Step 1: Collect all vendor data (fails build on any error)
@@ -1505,6 +1565,7 @@ export async function main(): Promise<void> {
         sandboxExtensionTrusts,
         pendingMarketplaces,
         pendingSandboxExtensions,
+        pluginSourceMismatches,
       );
       console.log();
     }
@@ -1609,7 +1670,11 @@ export async function main(): Promise<void> {
 
   // Step 2c-pre: Expand marketplace approvals into plugin approvals (network:
   // fetches and parses each approved marketplace file)
-  expandMarketplaceApprovals(pendingMarketplaces, output);
+  expandMarketplaceApprovals(
+    pendingMarketplaces,
+    output,
+    pluginSourceMismatches,
+  );
 
   // Step 2c: Enrich plugins with source metadata (skips unreachable sources)
   output.plugins = enrichPluginMetadata(output.plugins, remote);
@@ -1662,5 +1727,5 @@ export async function main(): Promise<void> {
   output.sandboxFeatures.sort((a, b) =>
     a.sandboxExtensionId.localeCompare(b.sandboxExtensionId),
   );
-  writeOutput(output, generatedAt);
+  writeOutput(output, generatedAt, pluginSourceMismatches);
 }
