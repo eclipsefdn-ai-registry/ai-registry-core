@@ -152,6 +152,8 @@ Alongside `installConfigs`, an approval can carry a root-level `config`: generic
 
 It is worth supplying, because it is what lets other organizations set `"config": "derived"` on an `installConfigs` entry and have their tool's config generated from it — including organizations that approve the same server later, and tools that don't exist yet. An approval with no root `config` can only ever offer hand-written install configs.
 
+The tools with a transform today are Theia (`theia-ide`, `theia-ide-next`) and Kiro (`kiro`), registered in `src/mcp-config-templates/registry.ts`. An install config for any other tool is still written by hand.
+
 ```json
 {
   "serverId": "io.example/some-server",
@@ -180,7 +182,7 @@ They are not interchangeable, and which one to use depends on **who resolves the
 
 Secrets **must** be written as `${VAR}` references, never as literals. `oauth.clientSecret` enforces this with a pattern; `headers` and `env` cannot enforce it (a header value is typically `"Bearer ${TOKEN}"`, so the reference is embedded rather than the whole value) and rely on review.
 
-A tool that has no `${VAR}` expansion of its own gets these rewritten by its transform — Theia's, for instance, turns `${TOKEN}` into a `<TOKEN>` placeholder for the user to fill in.
+A tool that has no `${VAR}` expansion of its own gets these rewritten by its transform — Theia's, for instance, turns `${TOKEN}` into a `<TOKEN>` placeholder for the user to fill in. A tool that expands them itself gets them as written — Kiro's transform keeps `${TOKEN}`, and Kiro resolves it.
 
 ##### Explaining placeholders with `notes`
 
@@ -210,7 +212,7 @@ A placeholder says that a value is needed, not what it is. `notes` is plain text
 
 `notes` is not connection info, so no transform copies it into a tool's config, and the website leaves it out of what the generic config's copy button copies. It is shown next to the generic config, and it becomes the `instructions` of every `installConfigs` entry derived from this config that has none of its own — including the entries trust delegation creates, which otherwise have no instructions at all.
 
-Since the same text appears for every tool, keep it tool-neutral, and name a `${VAR}` reference by its bare name (`GITHUB_TOKEN`, not `${GITHUB_TOKEN}`): Theia's transform turns the reference into `<GITHUB_TOKEN>`, and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged.
+Since the same text appears for every tool, keep it tool-neutral, and name a `${VAR}` reference by its bare name (`GITHUB_TOKEN`, not `${GITHUB_TOKEN}`): Theia's transform turns the reference into `<GITHUB_TOKEN>`, Kiro's keeps `${GITHUB_TOKEN}`, and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged.
 
 ##### Naming the server key with `serverKey`
 
