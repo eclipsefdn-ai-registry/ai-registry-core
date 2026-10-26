@@ -333,6 +333,17 @@ export function ClientsPage() {
             <InlineCode>notes</InlineCode>.
           </li>
           <li className="leading-relaxed">
+            An install config is derived from an organization's generic config
+            by its tool's transform in core. The tools with one today are Theia
+            (<InlineCode>theia-ide</InlineCode>,{" "}
+            <InlineCode>theia-ide-next</InlineCode>) and Kiro (
+            <InlineCode>kiro</InlineCode>). Each handles a{" "}
+            <InlineCode>{"${VAR}"}</InlineCode> reference the way its tool
+            needs: Kiro's keeps <InlineCode>{"${VAR}"}</InlineCode> as written,
+            since Kiro resolves it, and Theia's puts a{" "}
+            <InlineCode>&lt;VAR&gt;</InlineCode> placeholder in its place.
+          </li>
+          <li className="leading-relaxed">
             <InlineCode>approvals[].genericConfig</InlineCode>, when present, is
             the organization's tool-agnostic connection info as filed. If you
             build your own config from it, its <InlineCode>notes</InlineCode> is

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mcpConfigTransforms, toolServerKey } from "./registry.js";
 import { theiaMcpConfigTransform } from "./theia.js";
+import { kiroMcpConfigTransform } from "./kiro.js";
 import type { GenericMcpConfig } from "./types.js";
 
 describe("mcpConfigTransforms", () => {
@@ -11,6 +12,10 @@ describe("mcpConfigTransforms", () => {
       mcpConfigTransforms["theia-ide-next"],
       theiaMcpConfigTransform,
     );
+  });
+
+  it("registers kiroMcpConfigTransform for kiro", () => {
+    assert.equal(mcpConfigTransforms["kiro"], kiroMcpConfigTransform);
   });
 
   it("has no entry for an unregistered tool id", () => {
