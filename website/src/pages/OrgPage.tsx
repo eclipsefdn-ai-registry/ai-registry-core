@@ -301,10 +301,10 @@ export function OrgPage() {
 
       {tab === "plugins" && (
         <>
-          {/* Only organizations with at least one approved plugin get a
-              marketplace file, which is the same condition consolidation
-              writes one under. */}
-          {(data.plugins ?? []).length > 0 && (
+          {/* Consolidation says whether it wrote the file, rather than this
+              guessing from the plugin list: an organization can list plugins
+              whose every entry was left out of its marketplace. */}
+          {data.hasMarketplace && (
             <div className="mb-8">
               <InstallFromCli
                 label="Add in Claude Code"

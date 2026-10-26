@@ -76,7 +76,7 @@ export interface MarketplaceFile {
   plugins: MarketplaceEntry[];
 }
 
-// Absent builds the aggregate of every approved plugin. Present filters to one
+// Absent builds the aggregate across every organization. Present filters to one
 // organization's approvals, which is the form an enterprise subscribes to:
 // trust here is per organization, and a merged catalog would flatten it.
 export type MarketplaceOrg = Pick<Organization, "id" | "name">;
@@ -165,6 +165,11 @@ function entrySource(source: PluginEntry["source"]): MarketplaceEntrySource {
 // would make it an instruction to install what they didn't approve. Their own
 // revision can't take its place either — only the winning one was fetched and
 // hashed.
+//
+// An approval copied through trust is keyed under the trusting organization,
+// but the revision it vouches for is the trusted one's, so it is checked
+// against the organization it came from. Trust is single-hop and only copies
+// direct approvals, so viaTrust always names that organization.
 function entryApprovals(
   plugin: PluginEntry,
   orgId: string | undefined,
@@ -173,7 +178,10 @@ function entryApprovals(
   return plugin.approvals
     .filter((a) => !orgId || a.organizationId === orgId)
     .filter(
-      (a) => !sourceMismatches.has(`${plugin.pluginId}::${a.organizationId}`),
+      (a) =>
+        !sourceMismatches.has(
+          `${plugin.pluginId}::${a.viaTrust ?? a.organizationId}`,
+        ),
     )
     .map(({ organizationId, date, viaTrust, sourcedFrom }) => {
       const approval: MarketplaceEntryApproval = { organizationId, date };
@@ -289,4 +297,21 @@ export function buildMarketplace(
     owner: OWNER,
     plugins: entries,
   };
+}
+
+/**
+ * One organization's marketplace, or undefined when it would list nothing: an
+ * empty catalog is a dead end for whoever added it, and a validation warning,
+ * so no file is written for it. Asked of the built marketplace rather than of
+ * the plugins, so it also holds for an organization whose every entry was
+ * skipped. consolidate.ts publishes the answer as orgs/<id>.json's
+ * hasMarketplace, so the website never offers a URL that isn't there.
+ */
+export function buildOrgMarketplace(
+  plugins: PluginEntry[],
+  org: MarketplaceOrg,
+  sourceMismatches: ReadonlySet<string> = new Set(),
+): MarketplaceFile | undefined {
+  const marketplace = buildMarketplace(plugins, org, sourceMismatches);
+  return marketplace.plugins.length > 0 ? marketplace : undefined;
 }

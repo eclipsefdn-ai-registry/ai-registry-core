@@ -243,12 +243,22 @@ export function ApiPage() {
         <CodeBlock>{`claude plugin marketplace add ${BASE_URL}api/v1/orgs/google/marketplace.json
 claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
-          There is one file per organization that has approved at least one
-          plugin, plus the aggregate. The per-organization file is the one to
-          subscribe to: trust in this registry is held by an organization, so
-          adding the marketplaces of the organizations you trust is what
-          composes a catalog. The aggregate holds every approved plugin
-          regardless of who approved it.
+          There is one file per organization with at least one plugin to list,
+          plus the aggregate. The per-organization file is the one to subscribe
+          to: trust in this registry is held by an organization, so adding the
+          marketplaces of the organizations you trust is what composes a
+          catalog. The aggregate holds approved plugins regardless of who
+          approved them.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Not every approved plugin is listed. One is left out when its{" "}
+          <InlineCode>pluginId</InlineCode> doesn't make a valid entry name, or
+          makes the same one as another plugin. An approval is left out when it
+          named a different revision from the one the registry fetched and
+          hashed for that plugin, directly or through trust. So an organization
+          can approve plugins and still have no file;{" "}
+          <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> says whether it has
+          one in <InlineCode>hasMarketplace</InlineCode>.
         </p>
         <p className="mb-3 leading-relaxed">
           Every entry pins <InlineCode>sha</InlineCode> to{" "}
@@ -276,7 +286,8 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
           <InlineCode>all.json</InlineCode> returns an object with all eight
           top-level keys. <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode>{" "}
-          returns the six artifact-type keys, filtered;{" "}
+          returns the six artifact-type keys, filtered, plus{" "}
+          <InlineCode>hasMarketplace</InlineCode>;{" "}
           <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> returns the four
           that carry install configs (<InlineCode>mcp</InlineCode>,{" "}
           <InlineCode>skills</InlineCode>, <InlineCode>plugins</InlineCode>,{" "}

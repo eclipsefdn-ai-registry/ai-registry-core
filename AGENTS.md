@@ -25,7 +25,7 @@ Organizations can provide tools (with `installConfigs`) or just approve artifact
 
 ## Published marketplaces
 
-The registry also publishes its approved plugins back out as Claude Code plugin marketplaces: `marketplace.json` (every approved plugin) and `orgs/<id>/marketplace.json` (one per organization that approved at least one, and none for the others). A client adds one with `claude plugin marketplace add <url>` instead of reading the registry. Per-organization is the form to subscribe to, since trust here is held by an organization and a merged catalog flattens it.
+The registry also publishes its approved plugins back out as Claude Code plugin marketplaces: `marketplace.json` (the aggregate) and `orgs/<id>/marketplace.json` (one per organization with at least one plugin to list, and none for the others, which `orgs/<id>.json` records as `hasMarketplace`). Not every approved plugin is listed: one whose id makes no valid entry name, or the same one as another plugin's, is skipped with a warning, and an approval that named a different revision from the one fetched, directly or through trust, is left off. A client adds one with `claude plugin marketplace add <url>` instead of reading the registry. Per-organization is the form to subscribe to, since trust here is held by an organization and a merged catalog flattens it.
 
 This is the opposite direction from `marketplaces/*.json` approvals, which consume a vendor's marketplace file — `src/marketplace-output.ts` writes, `src/marketplace-source.ts` reads.
 

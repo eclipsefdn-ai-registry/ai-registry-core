@@ -27,6 +27,7 @@ import {
 } from "./marketplace-source.js";
 import {
   buildMarketplace,
+  buildOrgMarketplace,
   type MarketplaceFile,
 } from "./marketplace-output.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
@@ -1448,6 +1449,14 @@ function writeOutput(
   mkdirSync(orgsDir, { recursive: true });
 
   for (const org of output.organizations) {
+    // Built first, so orgs/<id>.json can say whether the file exists: an
+    // organization can list plugins and still get none (see buildOrgMarketplace).
+    const marketplace = buildOrgMarketplace(
+      output.plugins,
+      org,
+      pluginSourceMismatches,
+    );
+
     write(resolve(orgsDir, `${org.id}.json`), {
       mcp: buildOrgEntryView(org.id, output.mcp),
       skills: buildOrgEntryView(org.id, output.skills),
@@ -1455,19 +1464,11 @@ function writeOutput(
       agents: buildOrgEntryView(org.id, output.agents),
       sandboxTools: buildOrgEntryView(org.id, output.sandboxTools),
       sandboxFeatures: buildOrgEntryView(org.id, output.sandboxFeatures),
+      hasMarketplace: marketplace !== undefined,
     });
 
-    // An organization with nothing to list gets no marketplace file: an empty
-    // catalog is a dead end for whoever added it, and a validation warning.
-    // Asked of the built marketplace rather than of the plugins, so it still
-    // holds for an organization whose every entry was skipped.
     // orgs/<id>/marketplace.json and orgs/<id>.json sit side by side.
-    const marketplace = buildMarketplace(
-      output.plugins,
-      org,
-      pluginSourceMismatches,
-    );
-    if (marketplace.plugins.length === 0) continue;
+    if (!marketplace) continue;
     const orgMarketplaceDir = resolve(orgsDir, org.id);
     mkdirSync(orgMarketplaceDir, { recursive: true });
     writeMarketplace(

@@ -49,13 +49,17 @@ wrapping 954 of them would mean hosting content the registry only hashes today.
 ## Files
 
 ```
-dist/api/v1/marketplace.json              aggregate — every approved plugin
-dist/api/v1/orgs/<id>/marketplace.json    one per organization with ≥1 plugin approval
+dist/api/v1/marketplace.json              aggregate — every approved plugin that can be listed
+dist/api/v1/orgs/<id>/marketplace.json    one per organization with ≥1 plugin to list
 ```
 
-An organization with no plugin approvals gets no file. An empty `plugins` array
-is a `claude plugin validate` warning and a dead end for the user who added it.
-`orgs/<id>.json` and `orgs/<id>/marketplace.json` coexist on a static host.
+An organization with nothing to list gets no file. An empty `plugins` array is a
+`claude plugin validate` warning and a dead end for the user who added it. That
+is decided on the built marketplace, not the approvals, so an organization whose
+every entry was skipped gets none either. `orgs/<id>.json` records the outcome
+as `hasMarketplace`, which the organization page reads instead of guessing from
+its plugin list. `orgs/<id>.json` and `orgs/<id>/marketplace.json` coexist on a
+static host.
 
 Per-organization is the primary form. Trust in this registry is per
 organization, so a single merged catalog would flatten the distinction the
@@ -74,8 +78,9 @@ aggregate exists for discovery and demonstration.
 | `plugins`     | entries, sorted by `name`                                       |
 
 Neither name collides with Anthropic's reserved marketplace names, and both
-satisfy the `[A-Za-z0-9._-]` identifier rule. `buildMarketplace` throws if a
-future organization id does not.
+satisfy the `[A-Za-z0-9._-]` identifier rule. `buildMarketplace` doesn't check
+the organization's: the organization schema already restricts an id to
+`^[a-z0-9-]+$`, fatally, before consolidation runs.
 
 `forceRemoveDeletedPlugins` is left unset. Setting it would uninstall a dropped
 plugin from users' machines — real revocation reach, and the most dangerous
@@ -159,12 +164,16 @@ organization never saw — publishing that as an install instruction in their ow
 marketplace would be wrong, and their revision can't take its place because only
 the winning one was fetched and hashed. `addPluginApproval` records the loser
 where it already warns, and that record is threaded through the build rather
-than published.
+than published. An approval copied through trust is checked against the
+organization it was copied from, since it vouches for that organization's
+revision.
 
 ## Code
 
-`src/marketplace-output.ts` exports `buildMarketplace(plugins, options)`, a pure
-function with no I/O, called from consolidation's write step. It imports
+`src/marketplace-output.ts` exports `buildMarketplace(plugins, org?,
+sourceMismatches?)` and `buildOrgMarketplace(plugins, org, sourceMismatches?)`, which
+returns undefined when an organization would get an empty file. Both are pure
+functions with no I/O, called from consolidation's write step. It imports
 `PluginEntry` as a type only, so nothing is added to the runtime import graph.
 
 This is a deliberate exception to the convention that tool-specific rendering
@@ -175,9 +184,9 @@ AGENTS.md records the distinction.
 Tests are pure-function tests in `src/marketplace-output.test.ts`: name
 derivation, the `git-subdir`/`url` split, ref and sha emission, the full-SHA
 guard, per-organization filtering of both entries and their approvals, dropping
-an approval that named another revision, sort order, and the two skip rules with
-their warnings. Whether an organization with nothing to list gets a file at all
-is decided in `consolidate.ts`, and covered there.
+an approval that named another revision (directly or through trust), sort
+order, the two skip rules with their warnings, and `buildOrgMarketplace` having no
+file for an organization with nothing to list.
 
 ## Website and docs
 
@@ -185,8 +194,8 @@ is decided in `consolidate.ts`, and covered there.
   `claude plugin marketplace add <url>` command, reusing `InstallFromCli`.
 - `/docs/api` documents both endpoints and states the Claude-only limitation.
 
-Nothing in the website reads these files back, so `website/src/types.ts` is
-unchanged.
+Nothing in the website reads these files back. `website/src/types.ts` gains
+only `hasMarketplace`, read from `orgs/<id>.json`.
 
 ## Known limits
 

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildMarketplace,
   marketplaceEntryName,
+  buildOrgMarketplace,
 } from "./marketplace-output.js";
 import type { PluginEntry } from "./consolidate.js";
 
@@ -221,6 +222,35 @@ describe("buildMarketplace per organization", () => {
     assert.equal(aws.plugins.length, 1);
   });
 
+  it("leaves off an approval trusted from an organization that approved another revision", () => {
+    const shared = plugin({
+      pluginId: "io.github.acme/one",
+      approvals: [
+        approved("aws"),
+        approved("google"),
+        { ...approved("theia"), viaTrust: "google" },
+        { ...approved("eclipse"), viaTrust: "aws" },
+      ],
+    });
+    const mismatches = new Set(["io.github.acme/one::google"]);
+
+    // Theia's approval is Google's, copied through trust, so it vouches for
+    // the revision Google approved, not the AWS one the entry pins. Eclipse's
+    // is AWS's, the revision the entry pins, so it stays.
+    const all = buildMarketplace([shared], undefined, mismatches);
+    assert.deepEqual(
+      all.plugins[0].metadata.approvals.map((a) => a.organizationId),
+      ["aws", "eclipse"],
+    );
+
+    const theia = buildMarketplace(
+      [shared],
+      { id: "theia", name: "Theia" },
+      mismatches,
+    );
+    assert.deepEqual(theia.plugins, []);
+  });
+
   it("carries viaTrust and sourcedFrom, and drops approval fields a client can't use", () => {
     const sourcedFrom = {
       marketplaceUrl: "https://github.com/google/skills.git",
@@ -239,6 +269,36 @@ describe("buildMarketplace per organization", () => {
         sourcedFrom,
       },
     ]);
+  });
+});
+
+// --- buildOrgMarketplace ---
+
+describe("buildOrgMarketplace", () => {
+  const google = { id: "google", name: "Google" };
+
+  it("builds the organization's marketplace when it lists something", () => {
+    assert.equal(buildOrgMarketplace([plugin()], google)?.plugins.length, 1);
+  });
+
+  it("has none for an organization that approved no plugin", () => {
+    assert.equal(
+      buildOrgMarketplace([plugin()], { id: "aws", name: "AWS" }),
+      undefined,
+    );
+  });
+
+  it("has none for an organization whose every approval was left off", () => {
+    // Google approves, but at a revision that lost to another organization's,
+    // so orgs/google.json lists the plugin while no marketplace file exists.
+    assert.equal(
+      buildOrgMarketplace(
+        [plugin({ pluginId: "io.github.acme/one" })],
+        google,
+        new Set(["io.github.acme/one::google"]),
+      ),
+      undefined,
+    );
   });
 });
 

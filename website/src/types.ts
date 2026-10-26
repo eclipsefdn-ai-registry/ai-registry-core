@@ -207,4 +207,8 @@ export interface RegistryData {
   agents: Agent[];
   sandboxTools: SandboxExtension[];
   sandboxFeatures: SandboxExtension[];
+  // Only orgs/<id>.json carries it: whether orgs/<id>/marketplace.json was
+  // written. An organization can list plugins and still have none, when every
+  // entry was left out of it (see src/marketplace-output.ts).
+  hasMarketplace?: boolean;
 }
