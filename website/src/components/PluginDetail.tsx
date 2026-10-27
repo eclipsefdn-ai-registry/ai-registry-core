@@ -9,10 +9,12 @@ import type {
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
 import { sourceTreeUrl } from "../cliSource";
-import { pluginsCommand } from "../installCommand";
+import { kiroPowerUrl, pluginsCommand } from "../installCommand";
 import { sourceLinkTitle } from "../approvedTarget";
 import { InstallFromCli, InstallFromCliUnavailable } from "./InstallFromCli";
 import { ApprovedTarget } from "./ApprovedTarget";
+
+const OTHER_AGENTS_LABEL = "Install in other agents";
 
 export function PluginDetail({
   plugin,
@@ -124,10 +126,28 @@ export function PluginDetail({
         ))}
       </div>
 
+      <InstallFromCli
+        label="Install in Kiro"
+        command={kiroPowerUrl(plugin)}
+        help={
+          <>
+            In Kiro, open{" "}
+            <strong>
+              Powers → Add Custom Power → Import power from GitHub
+            </strong>{" "}
+            and paste this URL. It installs exactly the approved commit.
+          </>
+        }
+      />
+
       {installCommand ? (
-        <InstallFromCli command={installCommand} />
+        <InstallFromCli
+          label={OTHER_AGENTS_LABEL}
+          lead="For other agents that support Agent Plugins, run:"
+          command={installCommand}
+        />
       ) : (
-        <InstallFromCliUnavailable>
+        <InstallFromCliUnavailable label={OTHER_AGENTS_LABEL}>
           Installing the approved version isn't currently possible with{" "}
           <code>npx plugins add</code>. This approval names{" "}
           <code>{plugin.source.ref}</code>, and the plugins CLI always installs
