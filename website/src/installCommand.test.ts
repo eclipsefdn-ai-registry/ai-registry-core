@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pluginsCommand, skillsCommand } from "./installCommand";
+import { kiroPowerUrl, pluginsCommand, skillsCommand } from "./installCommand";
 import type { Plugin, Skill } from "./types";
 
 const COMMIT = "7b4a44e40e0112233445566778899aabbccddeef";
@@ -165,5 +165,29 @@ describe("pluginsCommand", () => {
 
   it("offers no command for a ref the feed hasn't classified", () => {
     assert.equal(pluginsCommand(plugin({ ref: "0.3.10" })), undefined);
+  });
+});
+
+describe("kiroPowerUrl", () => {
+  it("points at the plugin's folder at the approved commit", () => {
+    assert.equal(
+      kiroPowerUrl({
+        source: {
+          url: "https://github.com/aws/agent-toolkit-for-aws.git",
+          path: "plugins/aws-agents",
+          commit: COMMIT,
+        },
+      }),
+      `https://github.com/aws/agent-toolkit-for-aws/tree/${COMMIT}/plugins/aws-agents`,
+    );
+  });
+
+  // Unlike pluginsCommand, a ref doesn't stop it, and a tag goes over as the
+  // commit it was hashed at, since a tag can be moved.
+  it("pins a plugin approved at a tag to its commit", () => {
+    assert.equal(
+      kiroPowerUrl(plugin({ ref: "0.3.11", pinned: true, commit: COMMIT })),
+      `https://github.com/gemini-cli-extensions/looker/tree/${COMMIT}`,
+    );
   });
 });

@@ -8,17 +8,23 @@ import { useState } from "react";
  * convenience derived from metadata it happens to hold. The header row and copy
  * affordance mirror `CollapsibleJson` so both copy boxes on the site behave the
  * same.
+ *
+ * `command` is whatever gets copied, a URL included, as for Kiro.
  */
 export function InstallFromCli({
   command,
+  lead,
   note,
   label = "Install from CLI",
 }: {
   command: string;
+  // Said before the command, where the reader needs it to know what the
+  // command is for or, for a URL, where to paste it; `note` comes after it.
+  lead?: React.ReactNode;
   note?: React.ReactNode;
-  // Overridden where one named CLI owns the artifact type outright, e.g.
-  // "Install in Enclave" for sandbox extensions, so the box says which tool
-  // the command is for rather than leaving the reader to infer it.
+  // Overridden to say which tool the command is for rather than leaving the
+  // reader to infer it, e.g. "Install in Enclave" for sandbox extensions and
+  // "Install in Kiro" for plugins.
   label?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -44,6 +50,7 @@ export function InstallFromCli({
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
+      {lead && <p className="mt-2 text-xs text-muted-foreground">{lead}</p>}
       <pre className="mt-2 bg-background border border-border p-3 rounded-md overflow-x-auto text-xs leading-relaxed">
         {command}
       </pre>
@@ -58,14 +65,14 @@ export function InstallFromCli({
  */
 export function InstallFromCliUnavailable({
   children,
+  label = "Install from CLI",
 }: {
   children: React.ReactNode;
+  label?: string;
 }) {
   return (
     <div className="mt-6">
-      <span className="text-sm font-medium text-muted-foreground">
-        Install from CLI
-      </span>
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
       <p className="mt-2 text-xs text-muted-foreground">{children}</p>
     </div>
   );
