@@ -340,6 +340,24 @@ export function ClientsPage() {
             connection info, so leave it out of what you write.
           </li>
           <li className="leading-relaxed">
+            Store a server you build from <InlineCode>genericConfig</InlineCode>{" "}
+            under its <InlineCode>serverKey</InlineCode>, which is also the key
+            every install config derived from it uses, so your client stores it
+            under the same name as a client installing from one of those.{" "}
+            <InlineCode>serverKey</InlineCode> is not connection info either, so
+            leave it out of the config too. When it's absent, use the last
+            segment of the <InlineCode>serverId</InlineCode>, unless that
+            segment is exactly <InlineCode>mcp</InlineCode>,{" "}
+            <InlineCode>server</InlineCode> or{" "}
+            <InlineCode>mcp-server</InlineCode>. In that case, use the nearest
+            dot-separated part of the namespace that isn't one of those,
+            lowercased (<InlineCode>com.stripe/mcp</InlineCode> →{" "}
+            <InlineCode>stripe</InlineCode>,{" "}
+            <InlineCode>aws.api.us-east-1.ecs-mcp/server</InlineCode> →{" "}
+            <InlineCode>ecs-mcp</InlineCode>). If every part is one of those,
+            use the last segment after all.
+          </li>
+          <li className="leading-relaxed">
             <InlineCode>mcpRegistryVerified</InlineCode> means the server is
             listed in the Anthropic MCP registry. It says nothing about the
             server's behaviour or safety.

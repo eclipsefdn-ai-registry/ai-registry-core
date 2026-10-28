@@ -27,8 +27,12 @@ import {
 } from "./marketplace-source.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
-import { mcpConfigTransforms } from "./mcp-config-templates/registry.js";
+import {
+  deriveToolConfig,
+  toolServerKey,
+} from "./mcp-config-templates/registry.js";
 import type { GenericMcpConfig } from "./mcp-config-templates/types.js";
+import { groupCollidingServers, type KeyedServer } from "./server-key.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -535,13 +539,14 @@ export function pickWinningGenericConfig(
 // and generic's notes as its instructions if it gave none (an empty string
 // counts as none). Undefined when there's no generic config or the transform
 // can't represent it. Shared by resolveMcpCrossVendorConfigs and
-// resolveMcpTrust, so a derived entry gets the same instructions either way.
+// resolveMcpTrust, so a derived entry gets the same server key and
+// instructions either way.
 function deriveInstallConfig(
   cfg: InstallConfig,
   generic: GenericMcpConfig | undefined,
-  slug: string,
+  serverId: string,
 ): InstallConfig | undefined {
-  const derived = generic && mcpConfigTransforms[cfg.tool]?.(generic, slug);
+  const derived = generic && deriveToolConfig(cfg.tool, serverId, generic);
   if (!derived) return undefined;
   const resolved: InstallConfig = { ...cfg, config: derived };
   if (!resolved.instructions && generic.notes) {
@@ -557,7 +562,6 @@ function deriveInstallConfig(
 export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
   for (const entry of output.mcp) {
     const candidates = entry.approvals.filter((a) => a.genericConfig);
-    const slug = entry.serverId.split("/").pop()!;
 
     for (const approval of entry.approvals) {
       approval.installConfigs = approval.installConfigs.map((cfg) => {
@@ -568,7 +572,7 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
           entry.serverId,
           approval.organizationId,
         );
-        const resolved = deriveInstallConfig(cfg, winner, slug);
+        const resolved = deriveInstallConfig(cfg, winner, entry.serverId);
         if (resolved) return resolved;
 
         console.warn(
@@ -579,6 +583,31 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
       });
     }
   }
+}
+
+// One warning per server key that two or more published MCP servers share
+// for one tool, since a client installing one would overwrite the other.
+// Reads the key off each concrete config with toolServerKey, so it covers
+// derived and hand-written ones alike, skips tools whose format core doesn't
+// know, and must run after resolveMcpTrust and resolveMcpCrossVendorConfigs
+// have turned every "derived" into one. Warns
+// rather than fails, so one vendor's mistake doesn't break the published
+// site; a vendor's own approvals colliding is caught by its validation.
+export function findServerKeyCollisions(output: ConsolidatedOutput): string[] {
+  const servers: KeyedServer[] = [];
+  for (const entry of output.mcp) {
+    for (const approval of entry.approvals) {
+      for (const cfg of approval.installConfigs) {
+        const key = toolServerKey(cfg.tool, cfg.config);
+        if (key)
+          servers.push({ tool: cfg.tool, key, serverId: entry.serverId });
+      }
+    }
+  }
+  return groupCollidingServers(servers).map(
+    ({ tool, key, serverIds }) =>
+      `server key "${key}" is used by more than one MCP server for tool "${tool}": ${serverIds.join(", ")} — installing one overwrites another`,
+  );
 }
 
 /**
@@ -1068,14 +1097,16 @@ export function resolveMcpTrust(
         entry.serverId,
         trustedOrg,
       );
-      const slug = entry.serverId.split("/").pop()!;
-
       const installConfigs: InstallConfig[] = ownTools.map((tool) => {
         const installUrl = tool.mcpInstallUrlPrefix
           ? tool.mcpInstallUrlPrefix + entry.serverId
           : undefined;
 
-        const cfg = deriveInstallConfig({ tool: tool.id }, winner, slug) ?? {
+        const cfg = deriveInstallConfig(
+          { tool: tool.id },
+          winner,
+          entry.serverId,
+        ) ?? {
           tool: tool.id,
         };
         if (installUrl) cfg.installUrl = installUrl;
@@ -1582,6 +1613,9 @@ export async function main(): Promise<void> {
   // "derived" requests via cross-vendor lookup
   resolveMcpTrust(output, validMcpTrusts);
   resolveMcpCrossVendorConfigs(output);
+  for (const w of findServerKeyCollisions(output)) {
+    console.warn(`  WARNING: ${w}`);
+  }
 
   // Shared by the skill, plugin and sandbox extension steps below, so a
   // repository referenced by more than one of them is listed with a single
