@@ -129,13 +129,13 @@ export function PluginDetail({
       <InstallFromCli
         label="Install in Kiro"
         command={kiroPowerUrl(plugin)}
-        help={
+        lead={
           <>
             In Kiro, open{" "}
             <strong>
               Powers → Add Custom Power → Import power from GitHub
             </strong>{" "}
-            and paste this URL. It installs exactly the approved commit.
+            and paste:
           </>
         }
       />
@@ -143,7 +143,7 @@ export function PluginDetail({
       {installCommand ? (
         <InstallFromCli
           label={OTHER_AGENTS_LABEL}
-          lead="For other agents that support Agent Plugins, run:"
+          lead="For other agents, this plugin might be installable with:"
           command={installCommand}
         />
       ) : (

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { HelpPopover } from "./HelpPopover";
 
 /**
  * Copyable install command at the foot of a skill or plugin detail view.
@@ -16,17 +15,13 @@ export function InstallFromCli({
   command,
   lead,
   note,
-  help,
   label = "Install from CLI",
 }: {
   command: string;
   // Said before the command, where the reader needs it to know what the
-  // command is for; `note` comes after it.
+  // command is for or, for a URL, where to paste it; `note` comes after it.
   lead?: React.ReactNode;
   note?: React.ReactNode;
-  // Behind a `?` beside the label: where to put the value, when that isn't a
-  // terminal.
-  help?: React.ReactNode;
   // Overridden to say which tool the command is for rather than leaving the
   // reader to infer it, e.g. "Install in Enclave" for sandbox extensions and
   // "Install in Kiro" for plugins.
@@ -45,9 +40,8 @@ export function InstallFromCli({
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+        <span className="text-sm font-medium text-muted-foreground">
           {label}
-          {help && <HelpPopover label={`${label}: help`}>{help}</HelpPopover>}
         </span>
         <button
           className="text-xs px-2 py-0.5 border border-border rounded hover:border-primary hover:text-primary transition-colors text-muted-foreground"
