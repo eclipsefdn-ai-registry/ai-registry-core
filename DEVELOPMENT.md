@@ -36,6 +36,10 @@ npm run validate-vendor -- /path/to/vendor-repo
 # Consolidate all vendor repos (outputs to dist/api/v1/)
 npm run consolidate
 
+# Report approvals whose pinned source has changed, grouped by vendor repo
+# (reads dist/api/v1/all.json, or another path, or a published feed's URL)
+npm run check-updates -- https://ai.open-vsx.org/api/v1/all.json
+
 # Run consolidation + start local dev server (uses LOCAL_VENDORS_DIR=.. by default)
 npm run dev
 
@@ -51,6 +55,14 @@ npm run lint
 # Tests only
 npm test
 ```
+
+### Checking for updates
+
+`npm run check-updates` lists every direct approval of a skill, plugin, or sandbox extension whose source has changed since it was approved, meaning `latestHash` differs from `contentHash`. Only an approval pinned to a tag or commit can be in that state. It ends with two counts over the same directly approved entries it lists: entries behind their source, and pinned entries consolidation couldn't check, meaning they name a ref but have no `latestHash` and aren't known to track a branch. That way an empty list can't be read as "every pin is current". The command does no network work beyond reading the feed, and exits 0 whatever it finds. Vendor repos come from this checkout's `vendors.json`.
+
+Trust-derived and marketplace-derived approvals are left out, because neither has an approval file of its own to change. MCP servers and agents are left out too: an MCP approval's `version` is informational, and an agent records nothing about what was approved.
+
+There is one known false positive. When organizations approve the same ID at different sources, the entry publishes the first one collected. If that one is a behind pin, another organization's approval on the entry is listed too, even if it tracks a branch.
 
 ### Local development
 

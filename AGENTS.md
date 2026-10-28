@@ -20,6 +20,7 @@ Organizations can provide tools (with `installConfigs`) or just approve artifact
 
 - Only an approval whose `source.ref` pins a tag or commit can differ, and only once the default branch moves off it.
 - One `git ls-remote` per repository decides. Only when the branch has moved is the path fetched and hashed again, with no ref.
+- `source.pinned` records which kind the ref is, decided by that same `ls-remote`: `true` for a tag or full commit SHA, `false` for a branch or no ref. MCP approvals carry none, since their `version` is informational.
 - Behind is `latestHash !== contentHash`. Every consumer derives it, it is never stored, and it is never a commit comparison.
 - Every published file carries a `generatedAt` timestamp.
 
@@ -29,7 +30,7 @@ Organizations can provide tools (with `installConfigs`) or just approve artifact
 Vendor repos → validate → collect → enrich (MCP registry + skill sources + plugin sources + agent card fetches + sandbox extension repos) → write static JSON → deploy website
 ```
 
-Unreachable MCP servers get `mcpRegistryVerified: false`. Unreachable skill and plugin sources are skipped with a warning. Unreachable agent card URLs are skipped with a warning. An unreachable sandbox extension repository is skipped whole; a single extension failing its spec checks is skipped on its own. Failing to find out what the default branch ships now costs an entry only its `latestCommit`/`latestHash`, never the entry.
+Unreachable MCP servers get `mcpRegistryVerified: false`. Unreachable skill and plugin sources are skipped with a warning. Unreachable agent card URLs are skipped with a warning. An unreachable sandbox extension repository is skipped whole; a single extension failing its spec checks is skipped on its own. Failing to find out what the default branch ships now costs an entry only its `latestCommit`/`latestHash`, plus `source.pinned` for a named ref, never the entry.
 
 ## Key conventions
 
@@ -55,6 +56,8 @@ src/
   anthropic-registry.ts     MCP server metadata lookup
   cli-validate.ts           CLI entry: validate a vendor repo
   cli-consolidate.ts        CLI entry: consolidate all vendors
+  check-updates.ts          Approvals behind their source, read from a consolidated feed
+  cli-check-updates.ts      CLI entry: report approvals behind their source
 website/                    React + Vite static website
 skills/                     Claude Code skills for generating approvals
 vendors.json                Registered vendor repos
@@ -67,6 +70,7 @@ npm run check               # typecheck + lint + format check + tests
 npm test                    # tests only (Node.js built-in test runner via tsx)
 npm run validate-vendor -- <path>   # validate a vendor repo
 npm run consolidate         # consolidate all vendors to dist/api/v1/
+npm run check-updates -- [path|url]   # report approvals behind their source, from dist/api/v1/all.json by default
 npm run dev                 # consolidate + start website dev server
 npm run format              # auto-format with Prettier
 ```
@@ -89,5 +93,5 @@ Tests use Node.js built-in `node:test` with `assert/strict`. Pure function tests
 - The second fetch that computes `latestHash` must go through the same function that produced `contentHash`, or the two stop being comparable.
 - Website types in `website/src/types.ts` mirror but don't import from `src/consolidate.ts` — keep them in sync manually.
 - Guidance for implementing clients exists twice on purpose: `skills/implement-registry-client/` for agents, `/docs/clients` (`website/src/pages/docs/ClientsPage.tsx`) for people. Each is complete and neither links to the other, so a rule that changes needs both edited. Drift here is accepted, not a bug to fix by merging them.
-- The sandbox extension install command (`enclave tools|features add ...`) lives only in `website/src/enclaveCommand.ts` and is never written into the consolidated JSON, matching how the skill and plugin commands live only in `website/src/installCommand.ts`. It returns undefined for non-GitHub sources, since Enclave's `owner/repo` shorthand assumes github.com. The skill command carries `source.ref` as `#<ref>`, or `source.commit` in its place when `approvedTarget` says pinned, since a tag can be moved and the commit is what was hashed. The plugin command is omitted whenever the approval names a ref, branch included, because the plugins CLI can't target one; that suppression goes away once it can. Plugins also get a Kiro entry, `kiroPowerUrl`: the `sourceTreeUrl` that Kiro's "Import power from GitHub" takes, shown for every plugin with no checks, ref or not.
+- The sandbox extension install command (`enclave tools|features add ...`) lives only in `website/src/enclaveCommand.ts` and is never written into the consolidated JSON, matching how the skill and plugin commands live only in `website/src/installCommand.ts`. It returns undefined for non-GitHub sources, since Enclave's `owner/repo` shorthand assumes github.com. The skill and Enclave commands carry `source.ref` (as `#<ref>` and `--ref <ref>`), or `source.commit` in its place when `approvedTarget` says pinned, since a tag can be moved and the commit is what was hashed. The plugin command is omitted whenever the approval names a ref, branch included, because the plugins CLI can't target one; that suppression goes away once it can. Plugins also get a Kiro entry, `kiroPowerUrl`: the `sourceTreeUrl` that Kiro's "Import power from GitHub" takes, shown for every plugin with no checks, ref or not.
 - Docs pages live under `/docs` with a sidebar driven by `website/src/components/docs/docsNav.ts`. Section titles come from that file via `DocsSection`, so a section is added by adding it there and rendering `<DocsSection id="...">` on the page.
