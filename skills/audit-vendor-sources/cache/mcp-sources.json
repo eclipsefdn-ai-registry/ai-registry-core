@@ -22,7 +22,7 @@
   },
   "anthropic": {
     "githubOrgs": ["anthropics"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": []
     },
@@ -43,7 +43,7 @@
         "url": "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.anthropics",
         "type": "mcpServer",
         "reason": "Re-confirmed 2026-10-16: count 0 (also com.anthropic: 0; anthropic/claude searches return only third-party servers).",
-        "checkedAt": "2026-10-16"
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://docs.claude.com/en/docs/agents-and-tools/remote-mcp-servers",
@@ -55,7 +55,7 @@
         "url": "npm scope:@anthropic-ai",
         "type": "mcpServer",
         "reason": "Re-listed 2026-10-16: SDKs, claude-code/claude-agent-sdk binaries, sandbox-runtime, tokenizer, mcpb (MCP bundle packaging tool, not a server). No MCP server package.",
-        "checkedAt": "2026-10-16"
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "claude mcp serve (Claude Code CLI)",
@@ -74,12 +74,18 @@
         "type": "mcpServer",
         "reason": "Real initialize handshake probes return 301 HTML / empty. No Anthropic-hosted remote MCP endpoint exists at the obvious apex paths.",
         "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "https://github.com/anthropics/claude-for-financial-advisors.git#.mcp.json",
+        "type": "mcpServer",
+        "reason": "Claude-Code-native plugin bundle's .mcp.json listing third-party vendor endpoints (Orion, wealth.com, Wealthbox, Addepar, ...), not Anthropic servers.",
+        "checkedAt": "2026-10-30"
       }
     ]
   },
   "openai": {
     "githubOrgs": ["openai"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": ["com.openai/docs-mcp"]
     },
@@ -105,8 +111,14 @@
       {
         "url": "registry.modelcontextprotocol.io?search=openai",
         "type": "mcpServer",
-        "reason": "Re-checked 2026-10-16: search=openai returned 30 servers, none in com.openai/* or io.github.openai/*; search=com.openai returned 0; com.openai/docs-mcp/versions is 404, so it stays self-published. developers.openai.com/learn/docs-mcp still lists only https://developers.openai.com/mcp.",
-        "checkedAt": "2026-10-16"
+        "reason": "Re-checked 2026-10-30: search=openai returned 30 servers, none in com.openai/* or io.github.openai/*; search=com.openai and search=io.github.openai returned none; com.openai/docs-mcp/versions still 404. developers.openai.com/mcp handshake returns serverInfo openai-docs-mcp 1.0.0.",
+        "checkedAt": "2026-10-30"
+      },
+      {
+        "url": "https://pypi.org/project/mcp-openai-pro",
+        "type": "mcpServer",
+        "reason": "Third-party (AceDataCloud) proxy for the OpenAI API, not OpenAI-published.",
+        "checkedAt": "2026-10-30"
       }
     ]
   },
@@ -133,7 +145,7 @@
   },
   "google": {
     "githubOrgs": ["google", "googleapis", "googlemaps"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.googleapis/agent-registry",
@@ -218,7 +230,13 @@
         "com.googleapis.memorystore/mcp",
         "com.googleapis/app-optimize",
         "com.googleapis/agent-retrieval",
-        "com.googleapis/knowledge-catalog-data-products"
+        "com.googleapis/knowledge-catalog-data-products",
+        "com.googleapis/docs",
+        "com.googleapis/sheets",
+        "com.googleapis/slides",
+        "com.googleapis/workspace-search",
+        "com.googleapis/merchant-api",
+        "com.googleapis/merchant-api-docs"
       ]
     },
     "rejected": [
@@ -263,6 +281,24 @@
         "type": "mcpServer",
         "reason": "Registry-listed duplicates of already-approved self-published entries with identical endpoints (android-management, bigtable, design, developer-knowledge, maps-grounding-lite, stitch).",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "https://github.com/GoogleCloudPlatform/dgem.git",
+        "type": "mcpServer",
+        "reason": "GoogleCloudPlatform org not verified; build-from-source local server (./bin/dgem mcp), README says not an officially supported Google product.",
+        "checkedAt": "2026-10-30"
+      },
+      {
+        "url": "https://<region>-datalineage.googleapis.com/mcp",
+        "type": "mcpServer",
+        "reason": "53 regional variants of the already-approved global com.googleapis/data-lineage endpoint — combinatorial, covered by the global entry.",
+        "checkedAt": "2026-10-30"
+      },
+      {
+        "url": "com.googleapis.{compute,container,monitoring,run,sqladmin,firestore,datastream}/mcp",
+        "type": "mcpServer",
+        "reason": "Registry-listed duplicates of already-approved self-published entries with identical endpoints (compute-engine, gke, cloud-monitoring, cloud-run, cloud-sql, firestore, datastream).",
+        "checkedAt": "2026-10-30"
       }
     ]
   },
@@ -291,7 +327,7 @@
   },
   "jetbrains": {
     "githubOrgs": ["JetBrains", "Kotlin"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.jetbrains/mcp-server",
@@ -360,12 +396,24 @@
         "type": "mcpServer",
         "reason": "Third-party registry entry (awesome-mcps), not JetBrains.",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "io.github.Daghis/teamcity",
+        "type": "mcpServer",
+        "reason": "Registry hit under a personal account (Daghis/teamcity-mcp, owner type User), not JetBrains.",
+        "checkedAt": "2026-10-30"
+      },
+      {
+        "url": "https://github.com/JetBrains/nopressure-grok-bot-plugin.git#mcp.json",
+        "type": "mcpServer",
+        "reason": "Plugin-bundled server of a Cursor/Grok Bot plugin (https://nopressure-mcp-grok.labs.jb.gg/mcp), tool packaging rather than a standalone published server.",
+        "checkedAt": "2026-10-30"
       }
     ]
   },
   "atlassian": {
     "githubOrgs": ["atlassian", "atlassian-labs"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.atlassian/atlassian-mcp-server",
@@ -391,7 +439,7 @@
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.gitlab/mcp",
@@ -422,7 +470,7 @@
   },
   "github": {
     "githubOrgs": ["github"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": ["io.github.github/github-mcp-server"]
     },
@@ -450,14 +498,24 @@
         "type": "mcpServer",
         "reason": "Repo-local VS Code dev config, not a published server.",
         "checkedAt": "2026-10-16"
+      },
+      {
+        "url": "https://github.blog/changelog/2026-10-28-connect-your-tools-to-copilot-without-all-the-setup/",
+        "type": "mcpServer",
+        "reason": "GitHub-verified MCP servers (connectors, public preview) are third-party services (Sentry, Linear, Cloudflare, ...) GitHub curates, not GitHub-published servers.",
+        "checkedAt": "2026-10-30"
       }
     ]
   },
   "docker": {
     "githubOrgs": ["docker"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
-      "mcpServers": ["com.docker/hub-mcp", "com.docker/dhi-mcp"]
+      "mcpServers": [
+        "com.docker/hub-mcp",
+        "com.docker/dhi-mcp",
+        "com.docker/docs-mcp"
+      ]
     },
     "rejected": [
       {
@@ -506,24 +564,21 @@
         "url": "io.github.docker/hub-mcp",
         "type": "mcpServer",
         "reason": "Same server as the approved self-published com.docker/hub-mcp. docker/hub-mcp has had a server.json declaring this name since 2026-08-27 (commit 139e322), but /v0.1/servers/io.github.docker%2Fhub-mcp/versions returns 404, so it is not registered. If it gets registered, move the approval to the registry-listed id instead of adding a second entry.",
-        "checkedAt": "2026-10-16"
-      },
-      {
-        "url": "https://ai-backend-service.docker.com/mcp",
-        "type": "mcpServer",
-        "reason": "REVISIT next run: Docker docs MCP server (tool search_docker_docs), introduced with the docker-docs skill in docker/skills 38df58b (2026-10-19, plugin-mcp.json). Not yet verified or approved.",
-        "checkedAt": "2026-10-20"
+        "checkedAt": "2026-10-30"
       }
     ]
   },
   "nvidia": {
     "githubOrgs": ["NVIDIA"],
-    "lastChecked": "2026-10-16",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.nvidia.ngc.nsight.copilot.api/cuda-docs",
         "io.github.NVIDIA/elements",
-        "io.github.NVIDIA/kubectl-nv"
+        "io.github.NVIDIA/kubectl-nv",
+        "io.github.NVIDIA/multi-storage-client",
+        "com.nvidia/nvidia-app",
+        "com.nvidia/rtx-remix-toolkit"
       ]
     },
     "rejected": [
@@ -556,6 +611,18 @@
         "type": "mcpServer",
         "reason": "DeepStream Inference Builder MCP: docs publish only http://<host>:8000/mcp for a user-run server — no fixed connectable config. Also NVIDIA-AI-IOT is a same-org-family org, not independently verified as NVIDIA's own.",
         "checkedAt": "2026-10-09"
+      },
+      {
+        "url": "com.a2awire/data-nvidia-news-gpu-release-ai-chip-announcement",
+        "type": "mcpServer",
+        "reason": "Registry hit published by a third party (github.com/ee324/a2awire), not NVIDIA.",
+        "checkedAt": "2026-10-30"
+      },
+      {
+        "url": "https://github.com/NVIDIA/cccl.git#.cursor/mcp.json",
+        "type": "mcpServer",
+        "reason": "Developer-local config for the third-party mcp/sqlite image over a local benchmark DB, not an NVIDIA server.",
+        "checkedAt": "2026-10-30"
       }
     ]
   }

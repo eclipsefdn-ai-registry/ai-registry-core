@@ -63,7 +63,12 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        synced `NemoClaw`'s `nemoclaw-user-guide` (`components.d/nemoclaw.yml`) and `Megatron-LM`'s
        `mcore-run-on-slurm` (`components.d/megatron-core.yml`), both already approved from the
        product repo. So each was published twice under two skillIds until the direct approvals
-       were cut back.
+       were cut back. `gh api "repos/NVIDIA/skills/commits?path=components.d&since=<last-run>"`
+       lists the newly synced repos in one call (`nvshmem` on 2026-10-19, `dgx-spark-skills` on
+       2026-10-29). **A catalog can also republish skills rejected at their source** — the Megatron
+       `mcore-*` CI/lint/PR skills rejected on 2026-09-21 publish through the catalog glob via
+       `components.d/megatron-core.yml` — so diff the catalog's leaf names against the product-repo
+       rejections as well as against `knownSources`.
      - **An approved glob on a fast-growing catalog admits unread skills every week.**
        `gitlab-org/ai/skills` went from 38 to 56 folders between 2026-10-09 and 2026-10-16, and the
        existing `skills/*` approval published all 18 newcomers with nobody having read them. Diff
@@ -75,7 +80,22 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `postgresai`, `prep-start`). For GitLab, the internal tells were a GDK development
        environment, `internal.gitlab.com` sources, a workflow for fixing a `gitlab-org/gitlab`
        checkout, and named internal processes (PREP). `gitlab-org/gitlab` used only as an
-       example project is not a tell.
+       example project is not a tell. The 2026-10-30 newcomers added GitLab.com operations
+       (incident.io/IMOC on-call, the production Sentry instance, Kibana/Grafana feature-flag
+       rollouts), the docs.gitlab.com authoring pipeline and stable-branch backports. Inside a
+       vendor catalog, also skip a skill that calls itself "an independent community guide, not
+       official" or says it "will be removed".
+     - **An explicit path array silently misses new folders; a glob silently admits them unread.**
+       Both are caught by one call per approved catalog path:
+       `gh api "repos/<o>/<r>/commits?since=<last-run>&path=<approved-dir>"`. Over ten JetBrains
+       repos on 2026-10-30 it pinpointed the one new skill (`teamcity-onboard`) before any body was
+       read.
+     - **A vendor CLI can bundle skills deep in its own source tree and install them with its own
+       command** — `gitlab-org/cli#internal/commands/skills/bundled/assets/*`, installed by
+       `glab skills install`. Keyword project searches never surface these (the repo is just
+       `cli`); a docs search for "<cli> skills install" did. If a bundled skill shares its name with
+       an approved catalog skill (`glab`), the natural `skillId` collides: defer it for a human
+       naming decision rather than minting an odd id.
      - **`validate-vendor`'s "glob … matched no skill folders" warning on an existing approval
        means skills moved.** `JetBrains/teamcity-cli` dropped its `skills/` directory on
        2026-10-08 in favour of `JetBrains/teamcity-skills`. That silently emptied one approval and
@@ -198,7 +218,12 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        _repo_ once via `gh api repos/<o>/<r>/git/trees/HEAD?recursive=1` filtered to
        `SKILL.md|.claude-plugin/`. A root `.claude-plugin/marketplace.json` is a single decisive
        signal that the whole repo is a Claude-Code-native bundle, disposing of every `SKILL.md` in
-       it at once (killed 7 repos / ~500 hits in one pass, 2026-10-02).
+       it at once (killed 7 repos / ~500 hits in one pass, 2026-10-02). **A repo-level rejection
+       made this way expires when the repo shows up in the `pushed:>` delta.** Vendors restructure
+       these repos into a `strict: false` wrapper over root-level skill folders — the approvable
+       catalog shape — and the cached rejection then hides it: `anthropics/life-sciences` did so on
+       2026-10-23. One fetch of the marketplace file decides it: entries with `"source": "./"` plus
+       a `skills` array are the wrapper case.
      - Reject "deprecated compatibility redirect" stubs — a `SKILL.md` with well-formed
        frontmatter whose body explicitly says the skill moved/is deprecated (seen 6x in one repo,
        `awslabs/mcp`'s aurora-dsql-mcp-server skills, 2026-09-18) has no canonical content to
@@ -269,7 +294,12 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      duplicate approval of the first and its source is dropped — no error, no warning. This blocks
      the "group same-repo skills into one approval" guidance above whenever the natural base id is
      already taken by an existing glob approval; fall back to one single-path file per skill and say
-     why in the commit message.
+     why in the commit message. **Decide this before writing the file, not after validating it.**
+     A multi-path (array or glob) approval also requires a `skillId` _without_ `/`, since it acts as
+     a prefix, so the only grouped id a GitHub vendor has is `io.github.<org>` — usually already
+     taken. On 2026-10-30 `openai/php2shell-checker`'s two skills were written as
+     `io.github.openai/php2shell-checker` with a path array, failed validation, and were lost to the
+     run-once rule.
      **A vendor can keep only a `SKILL-template.md` on the default branch and assemble the real
      `SKILL.md` files onto a release branch** (`google/perfetto`'s `ai-agents` branch). Since
      ai-registry-core#123 the skill schema has `source.ref` (tag, branch, or full commit SHA), so

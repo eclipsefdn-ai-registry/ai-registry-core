@@ -132,7 +132,8 @@ any cleanup as its own commit. Open one PR and close the old one with a pointer 
 a "considered and excluded" section whose entries were never mirrored into a cache `rejected` list
 — so nothing ever re-checks them and they go stale silently (`atlassian-labs/twg-plugins` sat
 documented as excluded for a reason that had stopped being true; `ai-registry-docker`'s README
-lists `docker/sbx-kits-contrib` as rejected while a committed approval sources a skill from it).
+listed `docker/sbx-kits-contrib` as rejected while a committed approval sourced a skill from it,
+until 4b9a328 fixed it).
 Read that section as part of reading current state, re-validate each entry's _stated reason_ rather
 than trusting the verdict, and mirror anything still valid into the cache so the next run sees it.
 
@@ -254,6 +255,19 @@ three passes with zero `code_search` calls this way. `pushed_at` moves on a push
 (`docker/skills` showed as pushed with no default-branch commit since the last run), so for a
 known catalog repo, `gh api repos/<o>/<r>/commits?since=<last-run>` is the cheaper "anything
 changed?" check before a full tree read.
+
+**Check every delta listing before scanning it.** `search/repositories` returns at most 100 items
+a page: github's 122 pushed repos on 2026-10-30 needed page 2, which 403'd once and worked
+~20s later. Compare the item count against `total_count`. A rate-limited call's 403 JSON body,
+redirected into the listing file, reads as a handful of results: google lost four orgs' listings
+that way when it fired them back-to-back. Check the exit status and space the calls ~8s apart.
+
+**A recursive tree can come back `truncated: true`** (`JetBrains/intellij-plugins`, `kotlin`,
+`android`, `openai/MultiLangBench` on 2026-10-30). Follow up with direct `contents/` probes of
+`skills`, `.agents/skills`, `.claude/skills` and `.agents/plugins` instead of reading the cut-off
+tree as empty. For a weekly skill delta, comparing two trees beats reading one: take the tree at
+the last commit before `<last-run>` (`commits?until=<last-run>&per_page=1`) and at HEAD, and diff
+the `SKILL.md` paths — over 226 NVIDIA repos that cut 1,435 hits to ~35 new paths.
 
 ## `gh api search/code` operational notes
 

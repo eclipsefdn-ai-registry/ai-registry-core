@@ -119,7 +119,18 @@ vendor publishes without ever registering.
      This applies even when the containing plugin isn't agent-plugins.org-approvable — a
      Claude Code-native plugin bundle's `.mcp.json` (a `.claude-plugin/plugin.json` sibling) is
      still tool-packaging detail, not a standalone self-published server, for the same reason a
-     Claude Code-native plugin's `SKILL.md` files aren't standalone skills.
+     Claude Code-native plugin's `SKILL.md` files aren't standalone skills. **Unless the vendor
+     publishes it standalone as well.** Docker's docs server first appeared only as a
+     `plugin-mcp.json` beside the Claude/Codex/Cursor wrappers in `docker/skills`, but the same repo
+     documents manual setup for every client and `docs.docker.com/llms.txt` lists the endpoint; it
+     was approved as `com.docker/docs-mcp` on 2026-10-30. Client-neutral setup instructions or a
+     listing on the vendor's own docs domain make it a standalone candidate.
+   - **Vendor skills are a cheap source of unlisted servers.** Grep newly found skill folders'
+     `scripts/` and `references/` for `/mcp`, `mcpServers` and `127.0.0.1`. On 2026-10-30 this
+     surfaced two Merchant API servers absent from Google's Cloud catalog page (their docs live on
+     developers.google.com/merchant) and the local server built into NVIDIA App
+     (`nvidia-app/references/connection.md`). A loopback URL passes `format: uri`; put port-fallback
+     caveats in the config's `notes`.
    - **Verify every remaining candidate** against `conventions.md`'s checklist, plus: only treat a
      self-published candidate as the vendor's own if the vendor is the actual publisher/maintainer
      (confirmed via the checklist), never merely a recommended or bundled third-party server —
@@ -172,6 +183,11 @@ vendor publishes without ever registering.
      confidence level — e.g. Google's official MCP catalog page separates a "Google Workspace MCP
      Servers (Developer Preview)" table from its GA/Preview Cloud tables; approved 2026-09-18
      without distinguishing the two in the commit message, caught on review 2026-09-21.
+     **The converse goes stale too.** A self-published approval's hand-written
+     `metadata.description` can carry the old label after the vendor moves the server to GA:
+     `com.gitlab/orbit` still said "Beta" on 2026-10-30, after docs.gitlab.com announced Orbit as
+     generally available in 19.5. When release notes announce a maturity change, re-read the
+     descriptions of approved self-published servers and report the drift.
    - **If you do add a `config` (or `installConfigs`) to a registry-listed entry to fill that
      connection-info gap, don't build it from the registry's own `packages`/`packageArguments`
      data alone — cross-check the vendor's own current getting-started/setup docs page.** The

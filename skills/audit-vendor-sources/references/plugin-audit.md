@@ -34,7 +34,14 @@ point, though: this runs weekly, so a missed finding this week is caught next we
    in large repos, and it catches a manifest appearing in a repo no previous run ever cached.
    Once an org has had one full sweep, a weekly run only needs to sweep the repos pushed since the
    last run (`search/repositories` with `pushed:>`, per `conventions.md`), since a repo nobody
-   pushed to cannot have gained a manifest.
+   pushed to cannot have gained a manifest. **The root-only sweep misses subdirectories.** Re-check
+   the plugin subdir every cached self-wrapper rejection points at, too: `NVIDIA/skills`'
+   marketplace wraps `./plugins/nvidia-skills`, which gained a conformant `plugin.json` on
+   2026-10-28 while the repo root never had one. It was still rejected at review: its only skill,
+   `nvidia-skill-finder`, is also `skills/nvidia-skill-finder` in the same repo, already published
+   through the catalog glob. **A plugin whose contained skills are all already published is a
+   duplicate, not a finding** — compare its `skills/*` leaf names against the vendor's approved
+   skill sources before approving it.
 2. **For each vendor in `vendors.json`** (parallelizable — dispatch one subagent per vendor for
    the research step, since vendors are fully independent; keep branch/commit work in the
    dispatching thread so git state stays predictable), do the following:
@@ -92,7 +99,7 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        spending a manifest fetch, and queue it for recheck rather than filing a format-based
        rejection it hasn't earned yet.
      - Reject by path alone, no further check needed: anything under `.claude-plugin/`,
-       `.codex-plugin/`, `.cursor-plugin/`, `.plugin/`, `.github/plugin/`, or a
+       `.codex-plugin/`, `.cursor-plugin/`, `.antigravity-plugin/`, `.plugin/`, `.github/plugin/`, or a
        `test/`/`fixtures/`/`examples/` directory — these are different, tool-specific plugin
        formats or test data, never a real agent-plugins.org plugin (`.plugin/` and
        `.github/plugin/` confirmed as this kind of wrapper/duplicate location in
@@ -105,7 +112,10 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        install as an empty package. The audit approved it on 2026-10-16, and the review rejected it
        on 2026-10-19. List the plugin directory and confirm a `skills/*/SKILL.md` or an `mcp.json`
        exists before approving; validation's "0 skills, 0 MCP servers" is the warning sign
-       (except in the root-named-`skills` gap below).
+       (except in the root-named-`skills` gap below). **A `skills/` directory is necessary, not
+       sufficient.** By 2026-10-30 `replica-prototype` had gained three skills, and every one of
+       them drives tools only the Copilot extension provides. Read one body and check which tools
+       it calls before treating the rejection as resolved.
      - For everything else, open the file and check it against the **actual published
        schema**, not against a general impression of its shape. Fetch
        `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json` (verified 2026-10-04 —
