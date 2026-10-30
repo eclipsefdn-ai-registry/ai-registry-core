@@ -53,7 +53,7 @@
           },
           "instructions": {
             "type": "string",
-            "description": "Human-readable setup instructions"
+            "description": "Human-readable setup instructions. On an entry with config \"derived\", leave it out to inherit the notes of the generic config the entry is derived from; set it and it replaces them."
           }
         }
       }

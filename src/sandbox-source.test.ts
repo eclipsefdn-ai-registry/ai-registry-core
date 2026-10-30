@@ -14,7 +14,10 @@ import {
   type DiscoveredExtension,
 } from "./sandbox-source.js";
 import { computeContentHash } from "./skill-source.js";
-import { remoteBranchesLookup } from "./git-source.js";
+import {
+  remoteBranchesLookup,
+  type RemoteBranchesLookup,
+} from "./git-source.js";
 import type { SandboxExtensionEntry } from "./consolidate.js";
 
 // --- parseSandboxSpec ---
@@ -612,5 +615,70 @@ describe("enrichSandboxExtensions latest", () => {
       assert.equal(entry.latestCommit, undefined);
       assert.equal(entry.latestHash, undefined);
     }
+  });
+});
+
+// --- enrichSandboxExtensions pinned ---
+
+describe("enrichSandboxExtensions pinned", () => {
+  let dir: string;
+  let url: string;
+
+  before(() => {
+    dir = makeKitRepo([
+      { path: "tools/openclaw", spec: spec("sandbox", "openclaw") },
+      { path: "features/github-cli", spec: spec("mixin", "github-cli") },
+    ]);
+    url = `file://${dir}`;
+    execSync("git tag v1.0.0", { cwd: dir, stdio: "pipe" });
+    execSync("git branch develop", { cwd: dir, stdio: "pipe" });
+  });
+
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function enrich(
+    ref: string,
+    lookup: RemoteBranchesLookup = remoteBranchesLookup(),
+  ): SandboxExtensionEntry[] {
+    const { sandboxTools, sandboxFeatures } = enrichSandboxExtensions(
+      [
+        {
+          sandboxExtensionId: "io.github.acme/kits",
+          source: { url, ref },
+          approvals: [],
+        },
+      ],
+      lookup,
+    );
+    return [...sandboxTools, ...sandboxFeatures];
+  }
+
+  it("says every extension of a repository approved at a tag is pinned", () => {
+    assert.deepEqual(
+      enrich("v1.0.0").map((e) => [e.source.path, e.source.pinned]),
+      [
+        ["tools/openclaw", true],
+        ["features/github-cli", true],
+      ],
+    );
+  });
+
+  it("says every extension of a repository approved at a branch is not pinned", () => {
+    assert.deepEqual(
+      enrich("develop").map((e) => e.source.pinned),
+      [false, false],
+    );
+  });
+
+  // Without the branches, v1.0.0 could be either. The extensions are still
+  // what was approved, so only the classification goes.
+  it("leaves pinned out for a named ref when the branches can't be listed", () => {
+    const entries = enrich("v1.0.0", () => {
+      throw new Error("the remote can't be listed");
+    });
+    assert.equal(entries.length, 2);
+    for (const entry of entries) assert.equal(entry.source.pinned, undefined);
   });
 });

@@ -19,6 +19,7 @@ import {
   cloneAtRef,
   checkedOutCommit,
   recordLatest,
+  sourcePinned,
   type RemoteBranchesLookup,
 } from "./git-source.js";
 import type { PluginEntry } from "./consolidate.js";
@@ -323,6 +324,8 @@ export function enrichPluginMetadata(
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
         if (remote) {
+          const pinned = sourcePinned(entry.source, remote);
+          if (pinned !== undefined) entry.source.pinned = pinned;
           recordLatest(
             entry,
             entry.pluginId,

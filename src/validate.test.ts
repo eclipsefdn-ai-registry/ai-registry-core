@@ -1370,6 +1370,49 @@ describe("validateApproval — root config and derived marker", () => {
     assert.equal(result.valid, false);
   });
 
+  // Every branch sets additionalProperties: false, so notes has to be listed
+  // on each one, not just the one an example happens to use.
+  it("accepts notes on every transport", () => {
+    for (const config of [
+      { type: "streamable-http", url: "https://mcp.example.com" },
+      { type: "sse", url: "https://mcp.example.com" },
+      { type: "ws", url: "wss://mcp.example.com" },
+      { type: "stdio", command: "npx", args: ["--prebuilt=<database>"] },
+    ]) {
+      const result = validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: {
+          ...config,
+          notes: "Replace <database> with the database to connect to.",
+        },
+      });
+      assert.equal(result.valid, true, config.type);
+    }
+  });
+
+  it("rejects empty notes", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "npx", notes: "" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects notes that aren't a string", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        notes: ["Requires an account."],
+      },
+    });
+    assert.equal(result.valid, false);
+  });
+
   it('accepts an installConfigs entry with config: "derived"', () => {
     const result = validateApproval({
       serverId: "io.example/foo",

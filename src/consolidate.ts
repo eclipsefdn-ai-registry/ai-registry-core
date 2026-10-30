@@ -112,6 +112,11 @@ export interface InstallConfig {
   // object, or stripped back to the fields above, before the final output
   // is written — see resolveMcpCrossVendorConfigs.
   config?: Record<string, unknown> | "derived";
+  // Vendor-written setup text. An MCP entry whose config is derived, and
+  // which gave none (or an empty one), gets the notes of the generic config
+  // it was derived from: they explain that config's placeholders, and a
+  // tool's page shows installConfigs alone, never the generic config they
+  // would otherwise sit beside.
   instructions?: string;
 }
 
@@ -188,13 +193,16 @@ export interface SkillEntry {
   name: string;
   description: string;
   // commit is output only, set at enrichment: the commit contentHash was
-  // computed at, whether or not ref pinned one. Same on PluginEntry and
+  // computed at, whether or not ref pinned one. pinned is output only too:
+  // whether ref names a fixed point, a tag or a full commit SHA, rather than
+  // a branch (see sourcePinned in git-source.ts). Same on PluginEntry and
   // SandboxExtensionEntry.
   source: {
     url: string;
     path?: string | string[];
     ref?: string;
     commit?: string;
+    pinned?: boolean;
   };
   contentHash: string;
   // Output only, set at enrichment: what the source ships at this entry's
@@ -247,7 +255,14 @@ export interface PluginEntry {
   author?: string;
   homepage?: string;
   keywords?: string[];
-  source: { url: string; path?: string; ref?: string; commit?: string };
+  // see SkillEntry
+  source: {
+    url: string;
+    path?: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
   contentHash: string;
   // see SkillEntry
   latestCommit?: string;
@@ -339,7 +354,14 @@ export interface SandboxExtensionEntry {
   // and what `enclave add --name` matches on
   extensionName: string;
   description: string;
-  source: { url: string; path: string; ref?: string; commit?: string };
+  // see SkillEntry
+  source: {
+    url: string;
+    path: string;
+    ref?: string;
+    commit?: string;
+    pinned?: boolean;
+  };
   contentHash: string;
   // see SkillEntry
   latestCommit?: string;
@@ -526,6 +548,25 @@ export function pickWinningGenericConfig(
   return winner.genericConfig;
 }
 
+// cfg with its config derived from generic by the tool's registered transform,
+// and generic's notes as its instructions if it gave none (an empty string
+// counts as none). Undefined when there's no generic config or the transform
+// can't represent it. Shared by resolveMcpCrossVendorConfigs and
+// resolveMcpTrust, so a derived entry gets the same instructions either way.
+function deriveInstallConfig(
+  cfg: InstallConfig,
+  generic: GenericMcpConfig | undefined,
+  slug: string,
+): InstallConfig | undefined {
+  const derived = generic && mcpConfigTransforms[cfg.tool]?.(generic, slug);
+  if (!derived) return undefined;
+  const resolved: InstallConfig = { ...cfg, config: derived };
+  if (!resolved.instructions && generic.notes) {
+    resolved.instructions = generic.notes;
+  }
+  return resolved;
+}
+
 // Resolves any installConfigs entry still marked config: "derived" — i.e.
 // entries whose own approval had no usable root config — by looking across
 // every vendor's contribution for the same serverId. Must run after every
@@ -544,11 +585,8 @@ export function resolveMcpCrossVendorConfigs(output: ConsolidatedOutput): void {
           entry.serverId,
           approval.organizationId,
         );
-        const transform = mcpConfigTransforms[cfg.tool];
-        const derived = winner && transform?.(winner, slug);
-        if (derived) {
-          return { ...cfg, config: derived };
-        }
+        const resolved = deriveInstallConfig(cfg, winner, slug);
+        if (resolved) return resolved;
 
         console.warn(
           `  WARNING: could not derive config for tool "${cfg.tool}" on MCP server "${entry.serverId}" — no generic config available or the tool can't represent it`,
@@ -666,7 +704,7 @@ interface HasOrganizationId {
 }
 
 // Unlike buildToolEntryView, install configs are never stripped: the org
-// whitelist view is meant to show everything an org approved, including
+// allowlist view is meant to show everything an org approved, including
 // other orgs' approvals of the same artifact (e.g. "also approved by"), so
 // filtering to the matching org's approvals alone would throw that context
 // away for no benefit — nothing in installConfigs is org-specific.
@@ -759,6 +797,12 @@ export function addPluginApproval(
     // non-fatal warn-on-disagreement pattern for MCP vendor metadata: a
     // genuine mismatch between vendors' claims is surfaced, not hidden,
     // but doesn't fail the shared build.
+    //
+    // Everything enrichment resolves later, source.pinned, contentHash and
+    // the latest fields, then describes the winner's source alone, while the
+    // other approvals are published on the entry as if they shared it. That
+    // holds for every type that keeps one source per entry, until a source is
+    // published per approval.
     console.warn(
       `  WARNING: plugin "${approvalData.pluginId}" approved with a different source by "${organizationId}" — using "${pluginEntry.approvals[0]?.organizationId}"'s (first collected)`,
     );
@@ -1050,14 +1094,13 @@ export function resolveMcpTrust(
       const slug = entry.serverId.split("/").pop()!;
 
       const installConfigs: InstallConfig[] = ownTools.map((tool) => {
-        const transform = mcpConfigTransforms[tool.id];
-        const derived = winner && transform?.(winner, slug);
         const installUrl = tool.mcpInstallUrlPrefix
           ? tool.mcpInstallUrlPrefix + entry.serverId
           : undefined;
 
-        const cfg: InstallConfig = { tool: tool.id };
-        if (derived) cfg.config = derived;
+        const cfg = deriveInstallConfig({ tool: tool.id }, winner, slug) ?? {
+          tool: tool.id,
+        };
         if (installUrl) cfg.installUrl = installUrl;
         return cfg;
       });

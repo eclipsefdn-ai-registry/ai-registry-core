@@ -1,4 +1,5 @@
 import type { SandboxExtension } from "./types";
+import { approvedTarget } from "./approvedTarget";
 import { cliSource } from "./cliSource";
 
 // Enclave's `owner/repo` shorthand: exactly two segments, and no scheme or
@@ -34,7 +35,15 @@ export function enclaveCommand(
   // --name matches the spec's own name, which consolidation publishes as
   // extensionName. It is also the extension's directory name, since an
   // extension whose spec name disagrees with its directory is never published.
-  const ref = extension.source.ref ? ` --ref ${extension.source.ref}` : "";
+  //
+  // A pin goes over as the commit that was hashed, as in skillsCommand:
+  // `enclave update` follows a tag that has been moved but never re-checks a
+  // commit. A branch goes over as given, so update keeps following it. Falls
+  // back to the ref for a feed that predates source.commit.
+  const { ref, commit } = extension.source;
+  const revision =
+    approvedTarget(extension).kind === "pinned" ? (commit ?? ref) : ref;
+  const refFlag = revision ? ` --ref ${revision}` : "";
 
-  return `enclave ${verb} add ${shorthand} --name ${extension.extensionName}${ref}`;
+  return `enclave ${verb} add ${shorthand} --name ${extension.extensionName}${refFlag}`;
 }
