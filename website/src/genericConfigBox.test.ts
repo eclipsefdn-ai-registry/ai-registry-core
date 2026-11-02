@@ -18,10 +18,6 @@ describe("genericConfigBox", () => {
     assert.deepEqual(box.json, CONNECTION);
   });
 
-  it("copies the connection unwrapped, not under any key", () => {
-    assert.deepEqual(genericConfigBox(CONNECTION).json, CONNECTION);
-  });
-
   it("names the serverKey in the caveat when one is set", () => {
     const box = genericConfigBox({ ...CONNECTION, serverKey: "stripe" });
     assert.equal(

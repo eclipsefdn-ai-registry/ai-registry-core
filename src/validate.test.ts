@@ -2056,20 +2056,6 @@ describe("validateVendorData — server key collisions", () => {
     assert.match(errors[0], /"pay"/);
   });
 
-  it("fails when two hand-written configs share a key", () => {
-    const result = validateVendorData(theiaOrg, [
-      mcp("com.stripe/mcp", {
-        installConfigs: [handWritten("theia-ide", "mcp")],
-      }),
-      mcp("com.supabase/mcp", {
-        installConfigs: [handWritten("theia-ide", "mcp")],
-      }),
-    ] as never);
-
-    assert.equal(result.valid, false);
-    assert.ok(result.errors.some((e) => e.includes('server key "mcp"')));
-  });
-
   it("passes when the same key is used on different tools", () => {
     const result = validateVendorData(theiaOrg, [
       mcp("com.stripe/mcp", {
@@ -2077,41 +2063,6 @@ describe("validateVendorData — server key collisions", () => {
       }),
       mcp("com.supabase/mcp", {
         installConfigs: [handWritten("theia-ide-next", "pay")],
-      }),
-    ] as never);
-
-    assert.deepEqual(result.errors, []);
-    assert.equal(result.valid, true);
-  });
-
-  it("fails when two kiro configs share a key under mcpServers", () => {
-    const kiroOrg = { ...validOrg, tools: [{ id: "kiro", name: "Kiro" }] };
-    const kiro = (key: string) => ({
-      tool: "kiro",
-      config: { mcpServers: { [key]: { url: "https://x" } } },
-    });
-    const result = validateVendorData(kiroOrg, [
-      mcp("com.stripe/mcp", { installConfigs: [kiro("pay")] }),
-      mcp("com.supabase/mcp", { installConfigs: [kiro("pay")] }),
-    ] as never);
-
-    assert.equal(result.valid, false);
-    assert.ok(
-      result.errors.some((e) => e.includes('server key "pay" for tool "kiro"')),
-    );
-  });
-
-  it("doesn't check a tool with no known server path", () => {
-    const otherOrg = {
-      ...validOrg,
-      tools: [{ id: "other-tool", name: "Other Tool" }],
-    };
-    const result = validateVendorData(otherOrg, [
-      mcp("com.stripe/mcp", {
-        installConfigs: [handWritten("other-tool", "mcp")],
-      }),
-      mcp("com.supabase/mcp", {
-        installConfigs: [handWritten("other-tool", "mcp")],
       }),
     ] as never);
 

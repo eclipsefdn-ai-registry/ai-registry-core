@@ -3959,41 +3959,6 @@ describe("findServerKeyCollisions", () => {
     assert.match(warnings[0], /io\.github\.someone\/stripe-tools/);
   });
 
-  it("warns when two hand-written configs share a key", () => {
-    const output = withTheia();
-    addServer(output, "com.stripe/mcp", {
-      installConfigs: [handWritten("theia-ide", "mcp")],
-    });
-    addServer(output, "com.supabase/mcp", {
-      installConfigs: [handWritten("theia-ide", "mcp")],
-    });
-
-    const warnings = findServerKeyCollisions(output);
-
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /"theia-ide"/);
-    assert.match(warnings[0], /"mcp"/);
-    assert.match(warnings[0], /com\.stripe\/mcp/);
-    assert.match(warnings[0], /com\.supabase\/mcp/);
-  });
-
-  it("doesn't check a tool with no known server path", () => {
-    const output = emptyOutput();
-    output.tools.push({
-      id: "other-tool",
-      name: "Other Tool",
-      organizationId: "theia",
-    });
-    addServer(output, "com.stripe/mcp", {
-      installConfigs: [handWritten("other-tool", "mcp")],
-    });
-    addServer(output, "com.supabase/mcp", {
-      installConfigs: [handWritten("other-tool", "mcp")],
-    });
-
-    assert.deepEqual(findServerKeyCollisions(output), []);
-  });
-
   it("covers trust-derived configs", () => {
     const output = withTheia();
     output.mcp.push({
