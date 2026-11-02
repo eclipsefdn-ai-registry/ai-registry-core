@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
@@ -336,63 +336,65 @@ describe("fetchPluginManifest with ref", () => {
   });
 });
 
+// --- Source repository helpers for the enrichPluginMetadata tests ---
+
+function git(dir: string, command: string): string {
+  return execSync(`git ${command}`, { cwd: dir, stdio: "pipe" })
+    .toString()
+    .trim();
+}
+
+function initRepo(): string {
+  const dir = mkdtempSync(join(tmpdir(), "plugin-latest-src-"));
+  git(dir, "init -b main");
+  git(dir, 'config user.email "test@test.com"');
+  git(dir, 'config user.name "Test"');
+  return dir;
+}
+
+function commitAll(dir: string, message: string): string {
+  git(dir, "add -A");
+  git(dir, `commit -m ${message}`);
+  return git(dir, "rev-parse HEAD");
+}
+
+function writeManifest(
+  dir: string,
+  path: string,
+  name: string,
+  version: string,
+): void {
+  mkdirSync(join(dir, path), { recursive: true });
+  writeFileSync(
+    join(dir, path, "plugin.json"),
+    JSON.stringify({ name, version }),
+  );
+}
+
+function entry(
+  pluginId: string,
+  url: string,
+  path?: string,
+  ref?: string,
+): PluginEntry {
+  const source: PluginEntry["source"] = { url };
+  if (path !== undefined) source.path = path;
+  if (ref !== undefined) source.ref = ref;
+  return {
+    pluginId,
+    name: pluginId,
+    description: "",
+    source,
+    contentHash: "",
+    containedSkills: [],
+    containedMcpServers: [],
+    approvals: [],
+  };
+}
+
 // --- enrichPluginMetadata latestCommit and latestHash ---
 
 describe("enrichPluginMetadata latest", () => {
-  function git(dir: string, command: string): string {
-    return execSync(`git ${command}`, { cwd: dir, stdio: "pipe" })
-      .toString()
-      .trim();
-  }
-
-  function initRepo(): string {
-    const dir = mkdtempSync(join(tmpdir(), "plugin-latest-src-"));
-    git(dir, "init -b main");
-    git(dir, 'config user.email "test@test.com"');
-    git(dir, 'config user.name "Test"');
-    return dir;
-  }
-
-  function commitAll(dir: string, message: string): string {
-    git(dir, "add -A");
-    git(dir, `commit -m ${message}`);
-    return git(dir, "rev-parse HEAD");
-  }
-
-  function writeManifest(
-    dir: string,
-    path: string,
-    name: string,
-    version: string,
-  ): void {
-    mkdirSync(join(dir, path), { recursive: true });
-    writeFileSync(
-      join(dir, path, "plugin.json"),
-      JSON.stringify({ name, version }),
-    );
-  }
-
-  function entry(
-    pluginId: string,
-    url: string,
-    path?: string,
-    ref?: string,
-  ): PluginEntry {
-    const source: PluginEntry["source"] = { url };
-    if (path !== undefined) source.path = path;
-    if (ref !== undefined) source.ref = ref;
-    return {
-      pluginId,
-      name: pluginId,
-      description: "",
-      source,
-      contentHash: "",
-      containedSkills: [],
-      containedMcpServers: [],
-      approvals: [],
-    };
-  }
-
   it("compares each pinned plugin's own directory, not the repository", () => {
     const sourceDir = initRepo();
     try {
@@ -460,5 +462,54 @@ describe("enrichPluginMetadata latest", () => {
     } finally {
       rmSync(sourceDir, { recursive: true, force: true });
     }
+  });
+});
+
+// --- enrichPluginMetadata pinned ---
+
+describe("enrichPluginMetadata pinned", () => {
+  let sourceDir: string;
+  let url: string;
+
+  before(() => {
+    sourceDir = initRepo();
+    url = `file://${sourceDir}`;
+    writeManifest(sourceDir, "plugins/a", "a", "1.0.0");
+    commitAll(sourceDir, "v1");
+    git(sourceDir, "tag v1.0.0");
+    git(sourceDir, "branch develop");
+  });
+
+  after(() => {
+    rmSync(sourceDir, { recursive: true, force: true });
+  });
+
+  it("says a plugin approved at a tag is pinned", () => {
+    const [a] = enrichPluginMetadata(
+      [entry("io.example/a", url, "plugins/a", "v1.0.0")],
+      remoteBranchesLookup(),
+    );
+    assert.equal(a.source.pinned, true);
+  });
+
+  it("says a plugin approved at a branch is not pinned", () => {
+    const [a] = enrichPluginMetadata(
+      [entry("io.example/a", url, "plugins/a", "develop")],
+      remoteBranchesLookup(),
+    );
+    assert.equal(a.source.pinned, false);
+  });
+
+  // Without the branches, v1.0.0 could be either. The plugin is still what was
+  // approved, so only the classification goes.
+  it("leaves pinned out for a named ref when the branches can't be listed", () => {
+    const [a] = enrichPluginMetadata(
+      [entry("io.example/a", url, "plugins/a", "v1.0.0")],
+      () => {
+        throw new Error("the remote can't be listed");
+      },
+    );
+    assert.ok(a, "the plugin was not published");
+    assert.equal(a.source.pinned, undefined);
   });
 });

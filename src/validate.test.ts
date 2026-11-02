@@ -1370,6 +1370,75 @@ describe("validateApproval — root config and derived marker", () => {
     assert.equal(result.valid, false);
   });
 
+  // Every branch sets additionalProperties: false, so notes has to be listed
+  // on each one, not just the one an example happens to use.
+  it("accepts notes on every transport", () => {
+    for (const config of [
+      { type: "streamable-http", url: "https://mcp.example.com" },
+      { type: "sse", url: "https://mcp.example.com" },
+      { type: "ws", url: "wss://mcp.example.com" },
+      { type: "stdio", command: "npx", args: ["--prebuilt=<database>"] },
+    ]) {
+      const result = validateApproval({
+        serverId: "io.example/foo",
+        date: "2026-08-05",
+        config: {
+          ...config,
+          notes: "Replace <database> with the database to connect to.",
+        },
+      });
+      assert.equal(result.valid, true, config.type);
+    }
+  });
+
+  it("rejects empty notes", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "npx", notes: "" },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("rejects notes that aren't a string", () => {
+    const result = validateApproval({
+      serverId: "io.example/foo",
+      date: "2026-08-05",
+      config: {
+        type: "streamable-http",
+        url: "https://mcp.example.com",
+        notes: ["Requires an account."],
+      },
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it("accepts serverKey on every transport", () => {
+    for (const config of [
+      { type: "streamable-http", url: "https://mcp.example.com" },
+      { type: "sse", url: "https://mcp.example.com" },
+      { type: "ws", url: "wss://mcp.example.com" },
+      { type: "stdio", command: "npx" },
+    ]) {
+      const result = validateApproval({
+        serverId: "io.example/mcp",
+        date: "2026-08-05",
+        config: { ...config, serverKey: "example" },
+      });
+      assert.equal(result.valid, true, config.type);
+    }
+  });
+
+  // An empty key would otherwise fall back silently, hiding the typo.
+  it("rejects an empty serverKey", () => {
+    const result = validateApproval({
+      serverId: "io.example/mcp",
+      date: "2026-08-05",
+      config: { type: "stdio", command: "npx", serverKey: "" },
+    });
+    assert.equal(result.valid, false);
+  });
+
   it('accepts an installConfigs entry with config: "derived"', () => {
     const result = validateApproval({
       serverId: "io.example/foo",
@@ -1924,5 +1993,95 @@ describe("validateVendorData — sandbox extension approvals", () => {
   it("returns an empty list when the vendor has none", () => {
     const result = validateVendorData(validOrg, []);
     assert.deepEqual(result.sandboxExtensionApprovals, []);
+  });
+});
+
+describe("validateVendorData — server key collisions", () => {
+  const theiaOrg = {
+    ...validOrg,
+    tools: [
+      { id: "theia-ide", name: "Theia IDE" },
+      { id: "theia-ide-next", name: "Theia IDE Next" },
+    ],
+  };
+
+  function mcp(serverId: string, data: Record<string, unknown>) {
+    return {
+      file: serverId.replace(/\//g, "--") + ".json",
+      data: { serverId, date: "2026-05-01", ...data },
+    };
+  }
+
+  const remote = { type: "streamable-http", url: "https://mcp.example.com" };
+
+  function handWritten(tool: string, key: string) {
+    return { tool, config: { servers: { [key]: { serverUrl: "https://x" } } } };
+  }
+
+  it("fails when two own derived configs for one tool get the same key", () => {
+    const result = validateVendorData(theiaOrg, [
+      mcp("com.stripe/mcp", {
+        config: remote,
+        installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      }),
+      mcp("io.github.stripe/mcp-server", {
+        config: remote,
+        installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      }),
+    ] as never);
+
+    assert.equal(result.valid, false);
+    const errors = result.errors.filter((e) => e.includes("server key"));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /"theia-ide"/);
+    assert.match(errors[0], /"stripe"/);
+    assert.match(errors[0], /com\.stripe\/mcp/);
+    assert.match(errors[0], /io\.github\.stripe\/mcp-server/);
+  });
+
+  it("fails when a hand-written config's key matches another approval's", () => {
+    const result = validateVendorData(theiaOrg, [
+      mcp("com.stripe/mcp", {
+        config: { ...remote, serverKey: "pay" },
+        installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      }),
+      mcp("com.supabase/mcp", {
+        installConfigs: [handWritten("theia-ide", "pay")],
+      }),
+    ] as never);
+
+    assert.equal(result.valid, false);
+    const errors = result.errors.filter((e) => e.includes("server key"));
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /"pay"/);
+  });
+
+  it("passes when the same key is used on different tools", () => {
+    const result = validateVendorData(theiaOrg, [
+      mcp("com.stripe/mcp", {
+        installConfigs: [handWritten("theia-ide", "pay")],
+      }),
+      mcp("com.supabase/mcp", {
+        installConfigs: [handWritten("theia-ide-next", "pay")],
+      }),
+    ] as never);
+
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.valid, true);
+  });
+
+  it("passes when the serverKeys tell apart ids the fallback would not", () => {
+    const result = validateVendorData(theiaOrg, [
+      mcp("com.stripe/mcp", {
+        config: { ...remote, serverKey: "stripe" },
+        installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      }),
+      mcp("io.github.stripe/mcp-server", {
+        config: { ...remote, serverKey: "stripe-community" },
+        installConfigs: [{ tool: "theia-ide", config: "derived" }],
+      }),
+    ] as never);
+
+    assert.deepEqual(result.errors, []);
   });
 });

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { enclaveCommand } from "./enclaveCommand";
 import type { SandboxExtension } from "./types";
 
+const COMMIT = "2df10e2a9c4b7e1f3d5a6b8c0e2f4a6b8c0d1e3f";
+
 function extension(over: Partial<SandboxExtension> = {}): SandboxExtension {
   return {
     sandboxExtensionId:
@@ -57,6 +59,59 @@ describe("enclaveCommand", () => {
             url: "https://github.com/acme/kits.git",
             path: "tools/openclaw",
             ref: "v1.2.0",
+          },
+        }),
+      ),
+      "enclave tools add acme/kits --name openclaw --ref v1.2.0",
+    );
+  });
+
+  // enclave update follows a tag that has been moved, but never re-checks a
+  // commit, so a pin goes over as the commit that was hashed.
+  it("installs the commit that was hashed for a pinned tag", () => {
+    assert.equal(
+      enclaveCommand(
+        extension({
+          source: {
+            url: "https://github.com/acme/kits.git",
+            path: "tools/openclaw",
+            ref: "v1.2.0",
+            commit: COMMIT,
+            pinned: true,
+          },
+        }),
+      ),
+      `enclave tools add acme/kits --name openclaw --ref ${COMMIT}`,
+    );
+  });
+
+  // As given, so enclave records the branch and update keeps following it.
+  it("passes a tracked branch as given", () => {
+    assert.equal(
+      enclaveCommand(
+        extension({
+          source: {
+            url: "https://github.com/acme/kits.git",
+            path: "tools/openclaw",
+            ref: "release-1.x",
+            commit: COMMIT,
+            pinned: false,
+          },
+        }),
+      ),
+      "enclave tools add acme/kits --name openclaw --ref release-1.x",
+    );
+  });
+
+  it("falls back to the ref for a pin in a feed without source.commit", () => {
+    assert.equal(
+      enclaveCommand(
+        extension({
+          source: {
+            url: "https://github.com/acme/kits.git",
+            path: "tools/openclaw",
+            ref: "v1.2.0",
+            pinned: true,
           },
         }),
       ),

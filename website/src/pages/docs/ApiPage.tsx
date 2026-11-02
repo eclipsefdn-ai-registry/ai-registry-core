@@ -35,6 +35,12 @@ const APPROVAL_FIELDS = [
       "MCP only, and informational: the MCP registry version the organization reviewed, present only when the approval gave one. It doesn't decide what runs; the install configuration does.",
   },
   {
+    name: "genericConfig",
+    type: "object?",
+    description:
+      "MCP only: the approval's generic config, its tool-agnostic connection info as filed (see mcp-server-config.schema.json), present only when the approval gave one. Its optional notes field is text for whoever sets the server up, explaining the config's placeholders. Its optional serverKey field is the server key: what a client stores the server under, and what every install config derived from this config uses. When serverKey is absent, the server key is the serverId's last segment, unless that segment is exactly mcp, server or mcp-server; then it is the nearest dot-separated part of the namespace that isn't one of those, lowercased, or the last segment after all if every part is. Neither field is part of the connection.",
+  },
+  {
     name: "viaTrust",
     type: "string?",
     description:
@@ -106,7 +112,8 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Every organization, tool, MCP server, skill, plugin, A2A agent,
-                and sandbox extension, with approvals merged across all vendors.
+                and sandbox extension, with approvals merged across all
+                organizations.
               </td>
             </tr>
             <tr className="border-b border-border align-top">
@@ -147,7 +154,10 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Artifacts approved by one organization, across every tool, with
-                install configs kept in full. Example:{" "}
+                install configs kept in full. Defined for every organization,
+                whether or not it provides tools — for one that provides none,
+                this is the whole of what it approved, and the feed to follow
+                for the list it has vetted. Example:{" "}
                 <a
                   href={`${BASE_URL}api/v1/orgs/eclipsesource.json`}
                   className="text-primary hover:underline"
@@ -322,7 +332,7 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
 }`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
           These shapes are produced by consolidation and differ from the
-          approval files vendors write. Fields such as{" "}
+          approval files organizations write. Fields such as{" "}
           <InlineCode>approvals</InlineCode>,{" "}
           <InlineCode>contentHash</InlineCode>, and{" "}
           <InlineCode>containedSkills</InlineCode> exist only in the output.
@@ -625,7 +635,8 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
             {
               name: "instructions",
               type: "string?",
-              description: "Human-readable setup notes.",
+              description:
+                "Human-readable setup notes. On an MCP install config derived from a generic config, that generic config's notes, unless the approval wrote its own.",
             },
           ]}
         />
@@ -633,9 +644,9 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
 
       <DocsSection id="schemas">
         <p className="mb-3 leading-relaxed">
-          These schemas describe the approval files vendors write, not the API
-          responses above. Consolidation reads them, enriches them, and emits
-          the response shapes.
+          These schemas describe the approval files organizations write, not the
+          API responses above. Consolidation reads them, enriches them, and
+          emits the response shapes.
         </p>
         <table className="w-full text-sm mt-3">
           <thead>
@@ -650,8 +661,12 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
           </thead>
           <tbody>
             {[
-              ["organization.schema.json", "Vendor organization metadata"],
+              ["organization.schema.json", "Organization metadata"],
               ["mcp-approval.schema.json", "MCP server approval file"],
+              [
+                "mcp-server-config.schema.json",
+                "Generic MCP server config, the root config of an MCP approval",
+              ],
               ["skill-approval.schema.json", "Agent Skill approval file"],
               [
                 "plugin-approval.schema.json",
@@ -685,8 +700,8 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
 
       <DocsSection id="stability">
         <p className="mb-3 leading-relaxed">
-          Registry data is rebuilt whenever a vendor updates their approvals,
-          and daily to pick up changes in{" "}
+          Registry data is rebuilt whenever an organization updates their
+          approvals, and daily to pick up changes in{" "}
           <a
             href="https://registry.modelcontextprotocol.io/"
             target="_blank"

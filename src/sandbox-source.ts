@@ -10,6 +10,7 @@ import {
   cloneAtRef,
   checkedOutCommit,
   needsDefaultBranchFetch,
+  sourcePinned,
   type RemoteBranchesLookup,
 } from "./git-source.js";
 import type {
@@ -314,6 +315,7 @@ function entryFor(
   extension: DiscoveredExtension,
   metadata: SandboxExtensionMetadata,
   commit: string,
+  pinned: boolean | undefined,
 ): SandboxExtensionEntry {
   const source: SandboxExtensionEntry["source"] = {
     url: pending.source.url,
@@ -321,6 +323,7 @@ function entryFor(
   };
   if (pending.source.ref !== undefined) source.ref = pending.source.ref;
   source.commit = commit;
+  if (pinned !== undefined) source.pinned = pinned;
 
   return {
     sandboxExtensionId: `${pending.sandboxExtensionId}/${extension.path}`,
@@ -357,10 +360,16 @@ function recordLatest(
 ): void {
   if (published.length === 0) return;
 
+  // Every extension shares one pinned, which sourcePinned left out when the
+  // same failed lookup that lands here couldn't classify the ref.
+  const left =
+    published[0].source.pinned === undefined
+      ? "pinned/latestCommit/latestHash"
+      : "latestCommit/latestHash";
   const warn = (id: string, err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(
-      `  WARNING: ${id} — could not tell what the default branch ships now, published without latestCommit/latestHash`,
+      `  WARNING: ${id} — could not tell what the default branch ships now, published without ${left}`,
     );
     console.warn(`    ${message}`);
   };
@@ -489,11 +498,15 @@ export function enrichSandboxExtensions(
       }
       materializeExtensions(cloneDir, safePaths);
 
+      // Decided once per repository, like latest: every extension it yields
+      // shares the approval's ref.
+      const pinned = remote ? sourcePinned(entry.source, remote) : undefined;
+
       const published: SandboxExtensionEntry[] = [];
       for (const extension of discovered) {
         try {
           const metadata = fetchSandboxExtensionMetadata(cloneDir, extension);
-          const enriched = entryFor(entry, extension, metadata, commit);
+          const enriched = entryFor(entry, extension, metadata, commit, pinned);
           (metadata.kind === "sandbox" ? sandboxTools : sandboxFeatures).push(
             enriched,
           );

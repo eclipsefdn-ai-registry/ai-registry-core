@@ -1,6 +1,6 @@
 import type { Plugin, Skill } from "./types";
 import { approvedTarget } from "./approvedTarget";
-import { cliSource } from "./cliSource";
+import { cliSource, sourceTreeUrl } from "./cliSource";
 
 // The two source forms the skills CLI reads a `#ref` fragment from, given what
 // cliSource produces: the GitHub `owner/repo` shorthand, and a gitlab.com URL,
@@ -65,4 +65,22 @@ export function pluginsCommand(
 ): string | undefined {
   if (plugin.source.ref) return undefined;
   return `npx plugins add ${cliSource(plugin.source.url)}`;
+}
+
+/**
+ * The link Kiro's "Import power from GitHub" takes to install a plugin, which
+ * Kiro reads natively as a power.
+ *
+ * Kiro installs from `/tree/<revision>/<path>` and accepts a full commit SHA,
+ * so this pins to the commit contentHash was computed at, ref or no ref, as
+ * sourceTreeUrl does; only a feed that predates source.commit gets the ref or
+ * HEAD instead. The
+ * path is required for a plugin in a subfolder: Kiro ignores marketplace
+ * files, so the repository root alone doesn't find it.
+ *
+ * Offered for every plugin with no checks, though Kiro rejects a non-GitHub
+ * URL and won't load a plugin.json without `$schema`.
+ */
+export function kiroPowerUrl(plugin: Pick<Plugin, "source">): string {
+  return sourceTreeUrl(plugin.source);
 }
