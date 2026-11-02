@@ -52,6 +52,8 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
 
 The root-level `config` describes **one server**, tool-agnostically, with no outer `mcpServers`/`servers` wrapper. Other vendors can then set `"config": "derived"` on an `installConfigs` entry and have their tool's own config generated from yours — including vendors who approve the same server later, and tools that don't exist yet. An approval without one can only ever offer hand-written install configs, so write one whenever the connection details are known.
 
+The tools that support `"config": "derived"` today are the ones with a transform in core's `src/mcp-config-templates/registry.ts`: Theia (`theia-ide`, `theia-ide-next`) and Kiro (`kiro`). Any other tool still needs a hand-written install config.
+
 `type` is **required** and selects the variant:
 
 | `type`                   | Other fields                                                            |
@@ -70,6 +72,8 @@ Which one you use depends on **who resolves the value**:
 
 - **`${VAR}` / `${VAR:-default}`** — a reference something else resolves, from the environment or by prompting the user. Use in `headers`, `env`, `oauth.clientSecret` and `cwd`. Prefer the real environment variable name the server documents (e.g. `${GITHUB_PERSONAL_ACCESS_TOKEN}`), not a description of it.
 - **`<name>`** — a value a human has to choose, with nothing to resolve it from. Use in `args` and other free strings, e.g. `"--prebuilt=<database>"`.
+
+Each tool's transform decides what a `${VAR}` becomes. Kiro resolves `${VAR}` itself, so its transform keeps the reference as written. Theia doesn't, so its transform turns `${TOKEN}` into a `<TOKEN>` placeholder for the user to fill in.
 
 **Never write a literal secret.** `oauth.clientSecret` rejects anything that isn't a `${VAR}` reference. `headers` and `env` can't enforce it — a header value is usually `"Bearer ${TOKEN}"`, so the reference is embedded rather than the whole value — so it's on you to get right.
 
@@ -112,7 +116,7 @@ A placeholder says that a value is needed, not what it is. Whenever the config c
 The same text is shown for every tool: next to the generic config, and as the `instructions` of every install config derived from it, trust-derived ones included. So:
 
 - **Keep it tool-neutral.** Don't name a tool's own fields (`serverAuthToken`) or behaviour ("Theia opens a browser"); that belongs in a tool-specific entry's `instructions`.
-- **Name a `${VAR}` by its bare name** — `GITHUB_TOKEN`, not `${GITHUB_TOKEN}`. A tool with no `${VAR}` expansion rewrites the reference into its own placeholder (Theia shows `<GITHUB_TOKEN>`), and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged, so name those as written.
+- **Name a `${VAR}` by its bare name** — `GITHUB_TOKEN`, not `${GITHUB_TOKEN}`. A tool with no `${VAR}` expansion rewrites the reference into its own placeholder (Theia shows `<GITHUB_TOKEN>`), one that expands it keeps it as written (Kiro shows `${GITHUB_TOKEN}`), and the bare name reads correctly either way. `<name>` placeholders reach every tool unchanged, so name those as written.
 - **Explain, don't configure.** Anything a client needs in order to connect belongs in the config fields; transforms never read `notes`.
 
 ### Naming the Server Key with `serverKey`
