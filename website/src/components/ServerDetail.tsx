@@ -10,6 +10,7 @@ import type {
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
 import { hoistSharedInstructions } from "../sharedInstructions";
+import { genericConfigBox, type GenericConfigBox } from "../genericConfigBox";
 import { McpVerificationBadge } from "./McpVerificationBadge";
 
 export function ServerDetail({
@@ -52,7 +53,6 @@ export function ServerDetail({
             approval={approval}
             org={getOrg(approval.organizationId)}
             getTool={getTool}
-            serverId={server.serverId}
           />
         ))}
       </div>
@@ -102,15 +102,11 @@ export function ApprovalCard({
   approval,
   org,
   getTool,
-  serverId,
   approvedTitle = defaultApprovedTitle,
 }: {
   approval: ApprovalCardApproval;
   org: Organization | undefined;
   getTool: (id: string) => Tool | undefined;
-  // Only used for the genericConfig branch below — optional so callers with
-  // no server identity (and no genericConfig) don't need to supply one.
-  serverId?: string;
   approvedTitle?: (org: Organization) => string;
 }) {
   const badge = orgBadge(org, {
@@ -119,13 +115,12 @@ export function ApprovalCard({
   });
   // One value both renders the generic config box and tells the dedupe below
   // its notes are on screen, so the two can't disagree.
-  const generic =
-    approval.genericConfig && serverId
-      ? { config: approval.genericConfig, slug: serverIdSlug(serverId) }
-      : undefined;
+  const generic = approval.genericConfig
+    ? genericConfigBox(approval.genericConfig)
+    : undefined;
   const { hoisted, installConfigs } = hoistSharedInstructions(
     approval.installConfigs,
-    generic?.config.notes,
+    generic?.notes,
   );
   return (
     <div className="bg-background border border-border rounded-lg p-4 mb-3">
@@ -140,25 +135,13 @@ export function ApprovalCard({
         </span>
         <span className="text-muted-foreground">Approved: {approval.date}</span>
       </div>
-      {generic && (
-        <GenericConfigView config={generic.config} slug={generic.slug} />
-      )}
+      {generic && <GenericConfigView box={generic} />}
       {hoisted && <SetupText>{hoisted}</SetupText>}
       {installConfigs.map((config, j) => (
         <InstallConfigView key={j} config={config} getTool={getTool} />
       ))}
     </div>
   );
-}
-
-// The last "/"-segment of serverId — the same rule consolidate.ts uses to
-// key a derived config's server-name entry (e.g. "review-guard" from
-// "io.github.eclipsesource/review-guard"). Not stored in genericConfig
-// itself (that would duplicate serverId as a second, driftable identity) —
-// computed here purely so the copy box can show a paste-ready, name-keyed
-// snippet.
-function serverIdSlug(serverId: string): string {
-  return serverId.split("/").pop() ?? serverId;
 }
 
 // Shared by GenericConfigView and InstallConfigView — both need an
@@ -257,23 +240,12 @@ function SetupText({
   );
 }
 
-export function GenericConfigView({
-  config,
-  slug,
-}: {
-  config: GenericConfig;
-  slug: string;
-}) {
-  // notes explain the config to a person and aren't part of it, so they're
-  // shown like an install config's instructions and left out of the copy.
-  const { notes, ...connection } = config;
+// notes explain the config to a person and aren't part of it, so they're
+// shown like an install config's instructions, outside the copied JSON.
+export function GenericConfigView({ box }: { box: GenericConfigBox }) {
   return (
-    <CollapsibleJson
-      label="Generic config"
-      json={{ [slug]: connection }}
-      caveat="Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers) instead of pasting it in as shown."
-    >
-      {notes && <SetupText>{notes}</SetupText>}
+    <CollapsibleJson label="Generic config" json={box.json} caveat={box.caveat}>
+      {box.notes && <SetupText>{box.notes}</SetupText>}
     </CollapsibleJson>
   );
 }

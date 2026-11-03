@@ -346,11 +346,40 @@ export function ClientsPage() {
             <InlineCode>notes</InlineCode>.
           </li>
           <li className="leading-relaxed">
+            An install config is derived from an organization's generic config
+            by its tool's transform in core. The tools with one today are Theia
+            (<InlineCode>theia-ide</InlineCode>,{" "}
+            <InlineCode>theia-ide-next</InlineCode>) and Kiro (
+            <InlineCode>kiro</InlineCode>). Each handles a{" "}
+            <InlineCode>{"${VAR}"}</InlineCode> reference the way its tool
+            needs: Kiro's keeps <InlineCode>{"${VAR}"}</InlineCode> as written,
+            since Kiro resolves it, and Theia's puts a{" "}
+            <InlineCode>&lt;VAR&gt;</InlineCode> placeholder in its place.
+          </li>
+          <li className="leading-relaxed">
             <InlineCode>approvals[].genericConfig</InlineCode>, when present, is
             the organization's tool-agnostic connection info as filed. If you
             build your own config from it, its <InlineCode>notes</InlineCode> is
             the same kind of text as <InlineCode>instructions</InlineCode>, not
             connection info, so leave it out of what you write.
+          </li>
+          <li className="leading-relaxed">
+            Store a server you build from <InlineCode>genericConfig</InlineCode>{" "}
+            under its <InlineCode>serverKey</InlineCode>, which is also the key
+            every install config derived from it uses, so your client stores it
+            under the same name as a client installing from one of those.{" "}
+            <InlineCode>serverKey</InlineCode> is not connection info either, so
+            leave it out of the config too. When it's absent, use the last
+            segment of the <InlineCode>serverId</InlineCode>, unless that
+            segment is exactly <InlineCode>mcp</InlineCode>,{" "}
+            <InlineCode>server</InlineCode> or{" "}
+            <InlineCode>mcp-server</InlineCode>. In that case, use the nearest
+            dot-separated part of the namespace that isn't one of those,
+            lowercased (<InlineCode>com.stripe/mcp</InlineCode> →{" "}
+            <InlineCode>stripe</InlineCode>,{" "}
+            <InlineCode>aws.api.us-east-1.ecs-mcp/server</InlineCode> →{" "}
+            <InlineCode>ecs-mcp</InlineCode>). If every part is one of those,
+            use the last segment after all.
           </li>
           <li className="leading-relaxed">
             <InlineCode>mcpRegistryVerified</InlineCode> means the server is
