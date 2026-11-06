@@ -1,5 +1,6 @@
 import type { GenericMcpConfig, McpConfigTransform } from "./types.js";
 import { theiaMcpConfigTransform } from "./theia.js";
+import { kiroMcpConfigTransform } from "./kiro.js";
 import { derivedServerKey, installedServerKey } from "../server-key.js";
 
 // New tool support is a PR here (reviewed, maintainer-gated) — not a vendor
@@ -14,6 +15,7 @@ export const mcpConfigTransforms: Record<string, McpConfigTransform> =
   Object.assign(Object.create(null), {
     "theia-ide": theiaMcpConfigTransform,
     "theia-ide-next": theiaMcpConfigTransform,
+    kiro: kiroMcpConfigTransform,
   });
 
 // Where each tool's config keeps its map of servers, e.g. ["servers"] for
