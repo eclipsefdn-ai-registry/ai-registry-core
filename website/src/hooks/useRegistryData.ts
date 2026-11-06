@@ -55,6 +55,7 @@ interface ScopedData {
   agents: RegistryData["agents"];
   sandboxTools?: RegistryData["sandboxTools"];
   sandboxFeatures?: RegistryData["sandboxFeatures"];
+  hasMarketplace?: RegistryData["hasMarketplace"];
 }
 
 // Shared by useToolRegistryData and useOrgRegistryData: both fetch one
@@ -99,6 +100,7 @@ function useScopedRegistryData(
           agents: scopedData.agents ?? [],
           sandboxTools: scopedData.sandboxTools ?? [],
           sandboxFeatures: scopedData.sandboxFeatures ?? [],
+          hasMarketplace: scopedData.hasMarketplace,
         });
         setLoading(false);
       })

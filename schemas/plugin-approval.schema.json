@@ -10,7 +10,8 @@
     "pluginId": {
       "type": "string",
       "minLength": 1,
-      "description": "Plugin identifier using reverse-domain notation (e.g., io.github.gemini-cli-extensions/bigquery-data-analytics)"
+      "pattern": "^(?!.*\\.\\.)[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "Plugin identifier using reverse-domain notation (e.g., io.github.gemini-cli-extensions/bigquery-data-analytics). One '/' separator, each side starting with a letter or digit and holding only letters, digits, '.', '_' and '-'. Replacing the '/' with '.' has to produce a usable plugin marketplace entry name, which is what a client installs by."
     },
     "date": {
       "type": "string",

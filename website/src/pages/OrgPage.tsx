@@ -13,6 +13,8 @@ import { AgentDetail } from "../components/AgentDetail";
 import { SandboxExtensionList } from "../components/SandboxExtensionList";
 import { SandboxExtensionDetail } from "../components/SandboxExtensionDetail";
 import { TabButtons } from "../components/TabButtons";
+import { InstallFromCli } from "../components/InstallFromCli";
+import { marketplaceCommand } from "../marketplaceCommand";
 import { NotFoundPage } from "./NotFoundPage";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { filterByNameDescId } from "../filterArtifacts";
@@ -298,11 +300,29 @@ export function OrgPage() {
       )}
 
       {tab === "plugins" && (
-        <PluginList
-          plugins={filteredPlugins}
-          getOrg={getOrg}
-          onSelect={(id) => setSearchParams({ plugin: id })}
-        />
+        <>
+          {/* Consolidation says whether it wrote the file, rather than this
+              guessing from the plugin list: an organization can list plugins
+              whose every entry was left out of its marketplace. */}
+          {data.hasMarketplace && (
+            <div className="mb-8">
+              <InstallFromCli
+                label="Add in Claude Code"
+                command={marketplaceCommand(
+                  new URL(import.meta.env.BASE_URL, window.location.origin)
+                    .href,
+                  orgId,
+                )}
+                note={`Installs any plugin ${org?.name ?? orgId} approved, at the commit the registry verified. Claude Code only: other tools read a marketplace from a git repository.`}
+              />
+            </div>
+          )}
+          <PluginList
+            plugins={filteredPlugins}
+            getOrg={getOrg}
+            onSelect={(id) => setSearchParams({ plugin: id })}
+          />
+        </>
       )}
 
       {tab === "agents" && (

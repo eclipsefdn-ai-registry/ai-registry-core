@@ -169,6 +169,22 @@ export function ApiPage() {
             <tr className="border-b border-border align-top">
               <td className="py-2 pr-3">
                 <a
+                  href={`${BASE_URL}api/v1/marketplace.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>marketplace.json</InlineCode>
+                </a>
+                , <InlineCode>orgs/&lt;org-id&gt;/marketplace.json</InlineCode>
+              </td>
+              <td className="py-2">
+                Approved plugins as a Claude Code plugin marketplace, rather
+                than as registry data. A different shape from everything else
+                here — see <InlineCode>Marketplaces</InlineCode> below.
+              </td>
+            </tr>
+            <tr className="border-b border-border align-top">
+              <td className="py-2 pr-3">
+                <a
                   href={`${BASE_URL}api/v1/mcp.json`}
                   className="text-primary hover:underline"
                 >
@@ -228,11 +244,60 @@ export function ApiPage() {
         </p>
       </DocsSection>
 
+      <DocsSection id="marketplaces">
+        <p className="mb-3 leading-relaxed">
+          The registry also publishes its approved plugins as plugin
+          marketplaces, so a client can install from the registry instead of
+          reading it. Add one by URL:
+        </p>
+        <CodeBlock>{`claude plugin marketplace add ${BASE_URL}api/v1/orgs/google/marketplace.json
+claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
+        <p className="mb-3 leading-relaxed">
+          There is one file per organization with at least one plugin to list,
+          plus the aggregate. The per-organization file is the one to subscribe
+          to: trust in this registry is held by an organization, so adding the
+          marketplaces of the organizations you trust is what composes a
+          catalog. The aggregate holds approved plugins regardless of who
+          approved them.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Not every approved plugin is listed. One is left out when its{" "}
+          <InlineCode>pluginId</InlineCode> doesn't make a valid entry name, or
+          makes the same one as another plugin. An approval is left out when it
+          named a different revision from the one the registry fetched and
+          hashed for that plugin, directly or through trust. So an organization
+          can approve plugins and still have no file;{" "}
+          <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> says whether it has
+          one in <InlineCode>hasMarketplace</InlineCode>.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Every entry pins <InlineCode>sha</InlineCode> to{" "}
+          <InlineCode>source.commit</InlineCode>, the commit its{" "}
+          <InlineCode>contentHash</InlineCode> was computed at, so an install is
+          what the registry verified rather than whatever the branch holds now.
+          Each entry's <InlineCode>metadata</InlineCode> carries the{" "}
+          <InlineCode>pluginId</InlineCode>, a link back to its page here, the{" "}
+          <InlineCode>contentHash</InlineCode>, and the approvals themselves —
+          free-form by the format's own rules, so it travels with the plugin
+          without affecting how it installs.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          These files follow Claude Code's marketplace format, and they are the
+          only ones here that carry no <InlineCode>generatedAt</InlineCode>: the
+          schema is Anthropic's, and an unrecognised top-level key is a
+          validation warning in it. Codex and Copilot read a marketplace out of
+          a git repository rather than from a URL, so neither can add these.
+          Nothing else in this API changes shape for a tool, and these are the
+          exception.
+        </p>
+      </DocsSection>
+
       <DocsSection id="response-shapes">
         <p className="mb-3 leading-relaxed">
           <InlineCode>all.json</InlineCode> returns an object with all eight
           top-level keys. <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode>{" "}
-          returns the six artifact-type keys, filtered;{" "}
+          returns the six artifact-type keys, filtered, plus{" "}
+          <InlineCode>hasMarketplace</InlineCode>;{" "}
           <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> returns the four
           that carry install configs (<InlineCode>mcp</InlineCode>,{" "}
           <InlineCode>skills</InlineCode>, <InlineCode>plugins</InlineCode>,{" "}
