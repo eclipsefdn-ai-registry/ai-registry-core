@@ -203,7 +203,7 @@ function InstallOption({ option }: { option: PluginInstallOption }) {
           key={i}
           label={i === 0 ? option.label : "Then"}
           lead={stepLead(step)}
-          command={step.kind === "command" ? step.command : step.value}
+          command={stepValue(step)}
           note={i === option.steps.length - 1 ? warnings : undefined}
         />
       ))}
@@ -213,11 +213,20 @@ function InstallOption({ option }: { option: PluginInstallOption }) {
 
 function stepLead(step: InstallStep): React.ReactNode {
   if (step.kind === "command") return step.lead;
+  if (step.kind === "install") {
+    return <>In {step.app}, install this plugin from that marketplace:</>;
+  }
   return (
     <>
       In {step.app}, open <strong>{step.action}</strong> and paste:
     </>
   );
+}
+
+function stepValue(step: InstallStep): string {
+  if (step.kind === "command") return step.command;
+  if (step.kind === "install") return step.plugin;
+  return step.value;
 }
 
 // Renders the backtick-marked spans of an option's prose as code.

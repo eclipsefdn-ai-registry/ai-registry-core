@@ -48,6 +48,9 @@ export interface ContainedSkill {
 export interface ContainedMcpServer {
   name: string;
   transport: string;
+  // Set when the server's config references `${PLUGIN_DATA}`, which not every
+  // tool expands. Absent otherwise.
+  usesPluginData?: true;
 }
 
 /**
@@ -118,6 +121,9 @@ export function parsePluginManifest(content: string): PluginManifestFields {
 
 // --- mcp.json parsing ---
 
+// Anywhere in a server's config: args, env, cwd, headers or a URL.
+const PLUGIN_DATA = "${PLUGIN_DATA}";
+
 export function parseMcpServers(content: string): ContainedMcpServer[] {
   const data = JSON.parse(content) as { mcpServers?: unknown };
 
@@ -131,7 +137,9 @@ export function parseMcpServers(content: string): ContainedMcpServer[] {
         typeof (config as { type?: unknown }).type === "string"
           ? (config as { type: string }).type
           : "";
-      return { name, transport };
+      return JSON.stringify(config ?? null).includes(PLUGIN_DATA)
+        ? { name, transport, usesPluginData: true as const }
+        : { name, transport };
     },
   );
 }

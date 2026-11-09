@@ -230,6 +230,23 @@ describe("parseMcpServers", () => {
   it("throws on invalid JSON", () => {
     assert.throws(() => parseMcpServers("not json"));
   });
+
+  it("marks a server whose config references ${PLUGIN_DATA}, wherever it is", () => {
+    const content = JSON.stringify({
+      mcpServers: {
+        args: { type: "stdio", command: "x", args: ["${PLUGIN_DATA}/db"] },
+        env: { type: "stdio", command: "x", env: { D: "${PLUGIN_DATA}" } },
+        cwd: { type: "stdio", command: "x", cwd: "${PLUGIN_DATA}" },
+        root: { type: "stdio", command: "x", cwd: "${PLUGIN_ROOT}" },
+      },
+    });
+    assert.deepEqual(parseMcpServers(content), [
+      { name: "args", transport: "stdio", usesPluginData: true },
+      { name: "env", transport: "stdio", usesPluginData: true },
+      { name: "cwd", transport: "stdio", usesPluginData: true },
+      { name: "root", transport: "stdio" },
+    ]);
+  });
 });
 
 // --- fetchPluginManifest with ref ---
@@ -596,6 +613,34 @@ describe("fetchPluginManifest Agent Plugin conformance", () => {
       // Still a Plugin: its metadata is all there.
       assert.equal(metadata.name, "demo");
       assert.equal(metadata.containedSkills.length, 1);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("marks the contained MCP servers that use ${PLUGIN_DATA}", () => {
+    const sourceDir = initRepo();
+    try {
+      writePlugin(sourceDir, {
+        plugin: { $schema: PLUGIN_SCHEMA, name: "demo" },
+        mcp: {
+          $schema: MCP_SCHEMA,
+          mcpServers: {
+            store: {
+              type: "stdio",
+              command: "uvx",
+              args: ["--data", "${PLUGIN_DATA}/cache"],
+            },
+            remote: { type: "http", url: "https://example.com/mcp" },
+          },
+        },
+      });
+      commitAll(sourceDir, "plugin-data");
+
+      assert.deepEqual(fetchFrom(sourceDir).containedMcpServers, [
+        { name: "store", transport: "stdio", usesPluginData: true },
+        { name: "remote", transport: "http" },
+      ]);
     } finally {
       rmSync(sourceDir, { recursive: true, force: true });
     }
