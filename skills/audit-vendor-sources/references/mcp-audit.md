@@ -54,7 +54,12 @@ vendor publishes without ever registering.
      endpoints were identical to existing self-published `com.googleapis/<slug>` approvals. Match
      a registry hit's remote URL against every approval's `config.url` before calling it new;
      the same match tells a genuinely different server apart (`memorystore.googleapis.com` is
-     Valkey, not the approved `redis.googleapis.com`).
+     Valkey, not the approved `redis.googleapis.com`). **A match means the approval moves to the
+     registry id, not that the registry entry is rejected.** Rename the file and `serverId`,
+     keeping `date`, `metadata`, `config` and `selfPublished` as they are, in its own PR rather
+     than the audit commit (`ai-registry-google#9` moved 13 this way). Recording the registry
+     entry as a rejected duplicate instead keeps the minted id unverified every week: the 10-16
+     and 10-30 runs did exactly that.
    - **Self-published path (secondary, bounded)** — a vendor can ship a working MCP server (often
      bundled into a product, or a scoped npm/PyPI package) without ever submitting it to the
      registry; don't skip this just because the registry search came back empty. Aim for ≤4
@@ -151,12 +156,17 @@ vendor publishes without ever registering.
      registry-listed entry genuinely has no connection instructions surfaced anywhere by default.
      For a self-published server, write `mcp/<serverId>.json` with `metadata: { name, description
 }`, a `config` (`GenericMcpConfig`) built from the vendor's own published connection
-     instructions, and `selfPublished: true` — see `com.jetbrains/mcp-server` in
-     `ai-registry-jetbrains/mcp/` for a worked example. **Before marking a candidate
-     `selfPublished` instead of registry-listed, confirm it's actually absent from the registry**
-     with a direct check (`curl
-"https://registry.modelcontextprotocol.io/v0.1/servers/<url-encoded-serverId>/versions"` — a
-     404 confirms it; don't just assume from an earlier search not surfacing it).
+     instructions, and `selfPublished: true` when the vendor is the actual publisher — see
+     `com.jetbrains/mcp-server` in `ai-registry-jetbrains/mcp/` for a worked example.
+     `selfPublished` is the publisher claim, not a marker for "absent from the registry": it is
+     just as valid on a registry-listed approval, and absence alone never justifies it.
+     **Before treating a candidate as absent from the registry, search the vendor's namespaces
+     and match remote URLs**, not just a direct lookup of the id you'd mint. A
+     `/v0.1/servers/<url-encoded-serverId>/versions` 404 only proves that one id isn't
+     registered, and a minted id always 404s: the 2026-09-18 run confirmed 13 Google servers
+     "absent" that way, while Google had registered them as `com.googleapis.<service>/mcp` since
+     March/April 2026. Search (`?search=<namespace>`, retrying a hang) and compare every hit's
+     `remotes[].url` against the candidate's endpoint; only no match means absent.
      **`type` is required on every `config` variant, and the canonical remote spelling is
      `streamable-http` — never `http`.** Since ai-registry-core#95 the enum is
      `streamable-http`/`sse` for HTTP remotes, `ws` for WebSocket (header auth only, no OAuth),
