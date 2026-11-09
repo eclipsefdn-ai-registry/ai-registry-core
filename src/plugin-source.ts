@@ -7,7 +7,7 @@ import {
   rmSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { resolve, join, dirname } from "node:path";
+import { resolve, join, dirname, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   discoverSkillPaths,
@@ -50,6 +50,17 @@ export interface ContainedMcpServer {
   transport: string;
 }
 
+/**
+ * A marketplace file in the Plugin's repository at the approved commit: its
+ * own `name`, and the name of the entry that points at this Plugin, if one
+ * does. Both are absent when the file can't be parsed.
+ */
+export interface RepositoryMarketplaceFile {
+  path: string;
+  marketplaceName?: string;
+  entryName?: string;
+}
+
 export interface PluginMetadata extends PluginManifestFields {
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
@@ -59,6 +70,11 @@ export interface PluginMetadata extends PluginManifestFields {
   // why: one readable message per failed check, empty when it is one.
   isAgentPlugin: boolean;
   agentPluginIssues: string[];
+  // Only when fetchPluginManifest was asked to read them: one record per
+  // known marketplace file present at `commit`, and one warning per file that
+  // couldn't be parsed.
+  marketplaceFiles?: RepositoryMarketplaceFile[];
+  marketplaceFileWarnings?: string[];
 }
 
 // --- plugin.json parsing ---
@@ -141,6 +157,148 @@ export function normalizePluginPath(
 export function stripPathPrefix(fullPath: string, prefix: string): string {
   const prefixSegments = prefix.split("/").filter(Boolean).length;
   return fullPath.split("/").slice(prefixSegments).join("/");
+}
+
+// --- Marketplace files ---
+
+/**
+ * Every path a tool reads a marketplace file from, in no tool's order. Which
+ * tool reads which, and which it reads first, is the website's business, so
+ * a tool changing its rules costs a website change: this is the union, and a
+ * tool reading a new location costs one more path here.
+ */
+export const KNOWN_MARKETPLACE_FILE_PATHS = [
+  ".agents/plugins/marketplace.json",
+  ".agents/plugins/api_marketplace.json",
+  ".claude-plugin/marketplace.json",
+  ".cursor-plugin/marketplace.json",
+  "marketplace.json",
+  ".plugin/marketplace.json",
+  ".github/plugin/marketplace.json",
+];
+
+/**
+ * The repository-relative path an entry's source names, "" for the root, or
+ * undefined when the source isn't a path in this repository. Only a bare
+ * string and a `local` source count: a git URL (`url`, `git-subdir`,
+ * `github`) names some revision of some repository, which a tool fetches on
+ * its own, so it says nothing about the commit read here. A path climbing out
+ * of the repository counts as no path.
+ */
+function repositoryRelativePath(source: unknown): string | undefined {
+  let raw: unknown = source;
+  if (typeof source === "object" && source !== null) {
+    const { source: kind, path } = source as {
+      source?: unknown;
+      path?: unknown;
+    };
+    if (kind !== "local") return undefined;
+    raw = path;
+  }
+  if (typeof raw !== "string") return undefined;
+  const normalized = posix.normalize(raw).replace(/\/+$/, "");
+  if (normalized === "." || normalized === "") return "";
+  if (normalized === ".." || normalized.startsWith("../")) return undefined;
+  if (normalized.startsWith("/")) return undefined;
+  return normalized;
+}
+
+/**
+ * Reads one marketplace file: its `name`, and the first entry whose source is
+ * a repository-relative path resolving to `pluginPath` (undefined or "" for a
+ * plugin at the root). Paths resolve against the repository root, which is the
+ * marketplace root for every file in the scan list.
+ *
+ * A file that isn't JSON, or has no string `name` or no `plugins` array, gets
+ * a record with neither name and a warning: present, but of no use to a tool.
+ */
+export function readMarketplaceFile(
+  path: string,
+  content: string,
+  pluginPath: string | undefined,
+): { record: RepositoryMarketplaceFile; warning?: string } {
+  let data: unknown;
+  try {
+    data = JSON.parse(content);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      record: { path },
+      warning: `${path}: not valid JSON (${message})`,
+    };
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return { record: { path }, warning: `${path}: not a JSON object` };
+  }
+  const { name, plugins } = data as { name?: unknown; plugins?: unknown };
+  if (typeof name !== "string" || name === "") {
+    return { record: { path }, warning: `${path}: has no "name"` };
+  }
+  if (!Array.isArray(plugins)) {
+    return { record: { path }, warning: `${path}: has no "plugins" array` };
+  }
+  const target = normalizePluginPath(pluginPath) ?? "";
+  const entry = plugins.find(
+    (p): p is { name: string; source: unknown } =>
+      typeof p === "object" &&
+      p !== null &&
+      typeof (p as { name?: unknown }).name === "string" &&
+      repositoryRelativePath((p as { source?: unknown }).source) === target,
+  );
+  const record: RepositoryMarketplaceFile = { path, marketplaceName: name };
+  if (entry) record.entryName = entry.name;
+  return { record };
+}
+
+/**
+ * The known marketplace files present at `commit` in a clone, read from the
+ * commit's tree rather than the working tree, which sparse checkout narrowed
+ * to the Plugin's directory. No second clone: in a blobless clone each blob is
+ * fetched on its own, and only for a file that exists.
+ */
+function readMarketplaceFiles(
+  repoRoot: string,
+  commit: string,
+  pluginPath: string | undefined,
+): { records: RepositoryMarketplaceFile[]; warnings: string[] } {
+  const present = new Set(
+    execFileSync(
+      "git",
+      [
+        "-C",
+        repoRoot,
+        "ls-tree",
+        "--name-only",
+        commit,
+        "--",
+        ...KNOWN_MARKETPLACE_FILE_PATHS,
+      ],
+      { stdio: "pipe", encoding: "utf-8" },
+    )
+      .split("\n")
+      .filter(Boolean),
+  );
+  const records: RepositoryMarketplaceFile[] = [];
+  const warnings: string[] = [];
+  for (const path of KNOWN_MARKETPLACE_FILE_PATHS) {
+    if (!present.has(path)) continue;
+    let content: string;
+    try {
+      content = execFileSync(
+        "git",
+        ["-C", repoRoot, "cat-file", "blob", `${commit}:${path}`],
+        { stdio: "pipe", encoding: "utf-8" },
+      );
+    } catch {
+      records.push({ path });
+      warnings.push(`${path}: could not be read`);
+      continue;
+    }
+    const { record, warning } = readMarketplaceFile(path, content, pluginPath);
+    records.push(record);
+    if (warning) warnings.push(warning);
+  }
+  return { records, warnings };
 }
 
 // --- Plugin source fetching ---
@@ -226,11 +384,18 @@ function clonePluginRepo(
   return { repoRoot: cloneDir, pluginDir, commit };
 }
 
+/**
+ * `options.readMarketplaceFiles` also reads the known marketplace files at the
+ * resolved commit (see readMarketplaceFiles). Only consolidation asks for
+ * them: vendor validation does no extra network work for them, and the
+ * default-branch fetch behind latestHash doesn't need them.
+ */
 export function fetchPluginManifest(
   sourceUrl: string,
   sourcePath?: string,
   tmpDir?: string,
   ref?: string,
+  options: { readMarketplaceFiles?: boolean } = {},
 ): PluginMetadata {
   sourcePath = normalizePluginPath(sourcePath);
   const dir = tmpDir ?? join(ROOT, ".tmp-plugins");
@@ -290,7 +455,7 @@ export function fetchPluginManifest(
 
   const contentHash = computeContentHash(pluginDir);
 
-  return {
+  const metadata: PluginMetadata = {
     ...manifest,
     containedSkills,
     containedMcpServers,
@@ -299,6 +464,16 @@ export function fetchPluginManifest(
     isAgentPlugin: conformanceIssues.length === 0,
     agentPluginIssues: conformanceIssues,
   };
+  if (options.readMarketplaceFiles) {
+    const { records, warnings } = readMarketplaceFiles(
+      repoRoot,
+      commit,
+      sourcePath,
+    );
+    metadata.marketplaceFiles = records;
+    metadata.marketplaceFileWarnings = warnings;
+  }
+  return metadata;
 }
 
 // --- Enrichment (called by consolidate.ts) ---
@@ -330,6 +505,7 @@ export function enrichPluginMetadata(
           entry.source.path,
           tmpDir,
           entry.source.ref,
+          { readMarketplaceFiles: true },
         );
         entry.name = metadata.name || entry.pluginId;
         entry.description = metadata.description;
@@ -347,9 +523,14 @@ export function enrichPluginMetadata(
         } else {
           delete entry.agentPluginIssues;
         }
+        entry.marketplaceFiles = metadata.marketplaceFiles ?? [];
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
+        // Kept, and the file recorded as listing nothing.
+        for (const warning of metadata.marketplaceFileWarnings ?? []) {
+          console.warn(`    WARNING: marketplace file ${warning}`);
+        }
         // Kept, but not an Agent Plugin: say why, so the vendor can fix it.
         for (const issue of metadata.agentPluginIssues) {
           console.warn(`    WARNING: not an Agent Plugin: ${issue}`);

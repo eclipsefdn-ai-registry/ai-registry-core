@@ -19,6 +19,7 @@ import {
   enrichPluginMetadata,
   type ContainedSkill,
   type ContainedMcpServer,
+  type RepositoryMarketplaceFile,
 } from "./plugin-source.js";
 import { enrichAgentMetadata } from "./agent-source.js";
 import {
@@ -293,6 +294,14 @@ export interface PluginEntry {
   // that was left out. Empty when none does; absent in feeds that predate it,
   // which reads as unknown.
   publishedMarketplaces?: PublishedMarketplace[];
+  // Output only, set at enrichment: one record per known marketplace file
+  // (KNOWN_MARKETPLACE_FILE_PATHS) present in the repository at
+  // source.commit. entryName is set only when the file has a local or
+  // relative-path entry resolving to this plugin's path, and marketplaceName
+  // is absent when the file can't be parsed. Raw facts about files, not about
+  // tools, so a tool's rules can change on the website alone. Absent in feeds
+  // that predate it, which reads as unknown.
+  marketplaceFiles?: RepositoryMarketplaceFile[];
   approvals: PluginApproval[];
 }
 

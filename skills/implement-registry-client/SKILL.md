@@ -219,6 +219,13 @@ A plugin that conforms to the [Agent Plugins specification](https://agent-plugin
       "entryName": "io.github.gemini-cli-extensions.bigquery-data-analytics"
     }
   ],
+  "marketplaceFiles": [
+    {
+      "path": ".agents/plugins/marketplace.json",
+      "marketplaceName": "bigquery-data-analytics",
+      "entryName": "bigquery-data-analytics"
+    }
+  ],
   "approvals": [
     {
       "organizationId": "example-org",
@@ -249,9 +256,20 @@ If you hand a plugin to another tool rather than installing it yourself, the reg
 
 - Offer the `plugins` CLI (`npx plugins add <source>`) only for a plugin that isn't an Agent Plugin, and only when the approval names no `source.ref`. The CLI clones the default branch with no way to target a ref, and an Agent Plugin has tools that install it at the endorsed commit instead.
 - Offer Kiro's **Import power from GitHub** only for an Agent Plugin on github.com, as the plugin's folder at `source.commit` (`https://github.com/<owner>/<repo>/tree/<commit>/<path>`). Kiro rejects any other host and won't load a `plugin.json` without `$schema`. With no `source.commit`, offer nothing.
+- Offer Codex only for an Agent Plugin with a `source.commit`, and only when the first of `.agents/plugins/marketplace.json`, `.agents/plugins/api_marketplace.json`, `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json` that appears in `marketplaceFiles` has an `entryName`. Codex reads that first file and no other, so a listing in a later one doesn't count. The commands are `codex plugin marketplace add <source> --ref <commit>`, then `codex plugin add <entryName>@<marketplaceName>`, where `<source>` is `owner/repo` on github.com and the git URL anywhere else. `--ref` pins the marketplace file, and the repository-relative entry inside it with it, so this installs the endorsed commit whatever ref the approval names.
 - Offer Claude Code once per record in `publishedMarketplaces`, Agent Plugin or not: `claude plugin marketplace add <base>/api/v1/orgs/<orgId>/marketplace.json`, then `claude plugin install <entryName>@<marketplaceName>`. The published entry pins `sha` to `source.commit`, so this installs the endorsed commit whatever ref the approval names. With no record, no `publishedMarketplaces`, or no `source.commit`, offer nothing. Never build an entry name yourself: the plugin may have been left out of that file.
 
-A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin half of the first two rules. The ref, host and commit conditions still apply.
+A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin half of the first three rules. The ref, host, commit and marketplace-file conditions still apply.
+
+### Marketplace files in the plugin's repository
+
+`marketplaceFiles` lists the known marketplace files present in the plugin's repository at `source.commit`, one `{ path, marketplaceName, entryName }` each, in no tool's order. The paths scanned are `.agents/plugins/marketplace.json`, `.agents/plugins/api_marketplace.json`, `.claude-plugin/marketplace.json`, `.cursor-plugin/marketplace.json`, `marketplace.json`, `.plugin/marketplace.json` and `.github/plugin/marketplace.json`. A file that isn't there has no record.
+
+- `marketplaceName` is the file's own `name`.
+- `entryName` is set only when the file has an entry whose source is a path in the repository (a bare string or a `local` source) resolving to the plugin's `source.path`. An entry sourced from a git URL doesn't count, since the tool fetches that itself and it says nothing about `source.commit`.
+- A file that can't be parsed has a record with neither name.
+
+These are facts about files, not tools. Which tool reads which file, and which one first, is yours to apply, as the Codex rule above does. A missing `marketplaceFiles` means unknown.
 
 ### Install the plugin whole
 
