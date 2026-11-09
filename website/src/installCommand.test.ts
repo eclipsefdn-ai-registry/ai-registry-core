@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { kiroPowerUrl, pluginsCommand, skillsCommand } from "./installCommand";
+import { pluginInstallOptions, skillsCommand } from "./installCommand";
 import type { Plugin, Skill } from "./types";
 
 const COMMIT = "7b4a44e40e0112233445566778899aabbccddeef";
@@ -140,54 +140,127 @@ describe("skillsCommand", () => {
   });
 });
 
-describe("pluginsCommand", () => {
-  it("offers a command when the approval names no ref", () => {
-    assert.equal(
-      pluginsCommand(plugin()),
-      "npx plugins add gemini-cli-extensions/looker",
-    );
+// The options for a plugin, keyed by tool, so each rule is asserted on its own.
+function optionsFor(source: Partial<Plugin["source"]> = {}) {
+  const options = pluginInstallOptions(plugin(source));
+  return {
+    tools: options.map((option) => option.tool),
+    kiro: options.find((option) => option.tool === "kiro"),
+    npxPlugins: options.find((option) => option.tool === "npx-plugins"),
+  };
+}
+
+function kiroFor(link: string) {
+  return {
+    tool: "kiro",
+    label: "Install in Kiro",
+    steps: [
+      {
+        kind: "paste",
+        app: "Kiro",
+        action: "Powers → Add Custom Power → Import power from GitHub",
+        value: link,
+      },
+    ],
+    warnings: [],
+  };
+}
+
+function npxPluginsUnavailable(ref: string) {
+  return {
+    tool: "npx-plugins",
+    label: "Install in other agents",
+    unavailable: `Installing the approved version isn't currently possible with \`npx plugins add\`. This approval names \`${ref}\`, and the plugins CLI always installs from the repository's default branch.`,
+    warnings: [],
+  };
+}
+
+describe("pluginInstallOptions", () => {
+  it("lists Kiro first, then npx plugins", () => {
+    assert.deepEqual(optionsFor().tools, ["kiro", "npx-plugins"]);
   });
 
-  it("offers no command for a tag", () => {
-    assert.equal(
-      pluginsCommand(plugin({ ref: "0.3.10", pinned: true })),
-      undefined,
-    );
+  describe("npx plugins", () => {
+    it("offers a command when the approval names no ref", () => {
+      assert.deepEqual(optionsFor().npxPlugins, {
+        tool: "npx-plugins",
+        label: "Install in other agents",
+        steps: [
+          {
+            kind: "command",
+            lead: "For other agents, this plugin might be installable with:",
+            command: "npx plugins add gemini-cli-extensions/looker",
+          },
+        ],
+        warnings: [],
+      });
+    });
+
+    it("offers no command for a tag, and says why", () => {
+      assert.deepEqual(
+        optionsFor({ ref: "0.3.10", pinned: true }).npxPlugins,
+        npxPluginsUnavailable("0.3.10"),
+      );
+    });
+
+    // The CLI would clone the default branch, which is not the branch named.
+    it("offers no command for a branch", () => {
+      assert.deepEqual(
+        optionsFor({ ref: "release-1.x", pinned: false }).npxPlugins,
+        npxPluginsUnavailable("release-1.x"),
+      );
+    });
+
+    it("offers no command for a ref the feed hasn't classified", () => {
+      assert.deepEqual(
+        optionsFor({ ref: "0.3.10" }).npxPlugins,
+        npxPluginsUnavailable("0.3.10"),
+      );
+    });
   });
 
-  // The CLI would clone the default branch, which is not the branch named.
-  it("offers no command for a branch", () => {
-    assert.equal(
-      pluginsCommand(plugin({ ref: "release-1.x", pinned: false })),
-      undefined,
-    );
-  });
-
-  it("offers no command for a ref the feed hasn't classified", () => {
-    assert.equal(pluginsCommand(plugin({ ref: "0.3.10" })), undefined);
-  });
-});
-
-describe("kiroPowerUrl", () => {
-  it("points at the plugin's folder at the approved commit", () => {
-    assert.equal(
-      kiroPowerUrl({
+  describe("Kiro", () => {
+    it("points at the plugin's folder at the approved commit", () => {
+      const [kiro] = pluginInstallOptions({
         source: {
           url: "https://github.com/aws/agent-toolkit-for-aws.git",
           path: "plugins/aws-agents",
           commit: COMMIT,
         },
-      }),
-      `https://github.com/aws/agent-toolkit-for-aws/tree/${COMMIT}/plugins/aws-agents`,
-    );
-  });
+      });
+      assert.deepEqual(
+        kiro,
+        kiroFor(
+          `https://github.com/aws/agent-toolkit-for-aws/tree/${COMMIT}/plugins/aws-agents`,
+        ),
+      );
+    });
 
-  // Unlike pluginsCommand, a ref doesn't stop it, and a tag goes over as the
-  // commit it was hashed at, since a tag can be moved.
-  it("pins a plugin approved at a tag to its commit", () => {
-    assert.equal(
-      kiroPowerUrl(plugin({ ref: "0.3.11", pinned: true, commit: COMMIT })),
-      `https://github.com/gemini-cli-extensions/looker/tree/${COMMIT}`,
-    );
+    // Unlike npx plugins, a ref doesn't stop it, and a tag goes over as the
+    // commit it was hashed at, since a tag can be moved.
+    it("pins a plugin approved at a tag to its commit", () => {
+      assert.deepEqual(
+        optionsFor({ ref: "0.3.11", pinned: true, commit: COMMIT }).kiro,
+        kiroFor(
+          `https://github.com/gemini-cli-extensions/looker/tree/${COMMIT}`,
+        ),
+      );
+    });
+
+    it("pins a plugin approved at a branch to its commit", () => {
+      assert.deepEqual(
+        optionsFor({ ref: "release-1.x", pinned: false, commit: COMMIT }).kiro,
+        kiroFor(
+          `https://github.com/gemini-cli-extensions/looker/tree/${COMMIT}`,
+        ),
+      );
+    });
+
+    // No checks yet: a GitLab source still gets the link.
+    it("is offered for a source on any host", () => {
+      assert.ok(
+        optionsFor({ url: "https://gitlab.com/acme/plugins.git" }).kiro,
+      );
+    });
   });
 });

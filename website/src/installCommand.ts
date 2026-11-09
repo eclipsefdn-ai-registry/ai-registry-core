@@ -50,9 +50,69 @@ export function skillsCommand(
   }`;
 }
 
+/** One thing to do in a tool, in the order a plugin's option lists them. */
+export type InstallStep =
+  // A shell command to copy and run. `lead` says what it's for.
+  | { kind: "command"; lead?: string; command: string }
+  // A value to paste where `action` (a menu path or command palette entry)
+  // asks for it, inside `app`.
+  | { kind: "paste"; app: string; action: string; value: string };
+
 /**
- * Builds the `npx plugins add` command for a plugin, or returns undefined when
- * the approval names a ref.
+ * How to install a plugin with one tool: either the steps, several where the
+ * tool needs them (such as adding a marketplace before installing from it), or
+ * why the tool can't install what was approved, when it's still worth naming.
+ *
+ * `unavailable` and `warnings` are prose in which backticks mark code.
+ */
+export type PluginInstallOption = {
+  tool: "kiro" | "npx-plugins";
+  label: string;
+  warnings: string[];
+} & ({ steps: InstallStep[] } | { unavailable: string });
+
+/**
+ * Every install instruction for a plugin, in the order the detail page shows
+ * them. The one place a rule about which tool can install which plugin lives.
+ */
+export function pluginInstallOptions(
+  plugin: Pick<Plugin, "source">,
+): PluginInstallOption[] {
+  return [kiroOption(plugin), npxPluginsOption(plugin)];
+}
+
+/**
+ * Kiro's "Import power from GitHub", given the link to the plugin, which Kiro
+ * reads natively as a power.
+ *
+ * Kiro installs from `/tree/<revision>/<path>` and accepts a full commit SHA,
+ * so this pins to the commit contentHash was computed at, ref or no ref, as
+ * sourceTreeUrl does; only a feed that predates source.commit gets the ref or
+ * HEAD instead. The path is required for a plugin in a subfolder: Kiro ignores
+ * marketplace files, so the repository root alone doesn't find it.
+ *
+ * Offered for every plugin with no checks, though Kiro rejects a non-GitHub
+ * URL and won't load a plugin.json without `$schema`.
+ */
+function kiroOption(plugin: Pick<Plugin, "source">): PluginInstallOption {
+  return {
+    tool: "kiro",
+    label: "Install in Kiro",
+    steps: [
+      {
+        kind: "paste",
+        app: "Kiro",
+        action: "Powers → Add Custom Power → Import power from GitHub",
+        value: sourceTreeUrl(plugin.source),
+      },
+    ],
+    warnings: [],
+  };
+}
+
+/**
+ * The `npx plugins add` command for a plugin, or why there is none when the
+ * approval names a ref.
  *
  * Keyed to the CLI's capability, not to `source.pinned`: plugins 1.3.4 runs
  * `git clone --depth 1` with no ref and has no flag for one, so a branch ref is
@@ -60,27 +120,27 @@ export function skillsCommand(
  * a plugin in a subdirectory resolves by discovery rather than by path. Remove
  * the suppression once the CLI can target a ref.
  */
-export function pluginsCommand(
-  plugin: Pick<Plugin, "source">,
-): string | undefined {
-  if (plugin.source.ref) return undefined;
-  return `npx plugins add ${cliSource(plugin.source.url)}`;
-}
-
-/**
- * The link Kiro's "Import power from GitHub" takes to install a plugin, which
- * Kiro reads natively as a power.
- *
- * Kiro installs from `/tree/<revision>/<path>` and accepts a full commit SHA,
- * so this pins to the commit contentHash was computed at, ref or no ref, as
- * sourceTreeUrl does; only a feed that predates source.commit gets the ref or
- * HEAD instead. The
- * path is required for a plugin in a subfolder: Kiro ignores marketplace
- * files, so the repository root alone doesn't find it.
- *
- * Offered for every plugin with no checks, though Kiro rejects a non-GitHub
- * URL and won't load a plugin.json without `$schema`.
- */
-export function kiroPowerUrl(plugin: Pick<Plugin, "source">): string {
-  return sourceTreeUrl(plugin.source);
+function npxPluginsOption(plugin: Pick<Plugin, "source">): PluginInstallOption {
+  const option = {
+    tool: "npx-plugins" as const,
+    label: "Install in other agents",
+    warnings: [],
+  };
+  const { ref, url } = plugin.source;
+  if (ref) {
+    return {
+      ...option,
+      unavailable: `Installing the approved version isn't currently possible with \`npx plugins add\`. This approval names \`${ref}\`, and the plugins CLI always installs from the repository's default branch.`,
+    };
+  }
+  return {
+    ...option,
+    steps: [
+      {
+        kind: "command",
+        lead: "For other agents, this plugin might be installable with:",
+        command: `npx plugins add ${cliSource(url)}`,
+      },
+    ],
+  };
 }

@@ -9,12 +9,14 @@ import type {
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
 import { sourceTreeUrl } from "../cliSource";
-import { kiroPowerUrl, pluginsCommand } from "../installCommand";
+import {
+  pluginInstallOptions,
+  type InstallStep,
+  type PluginInstallOption,
+} from "../installCommand";
 import { sourceLinkTitle } from "../approvedTarget";
 import { InstallFromCli, InstallFromCliUnavailable } from "./InstallFromCli";
 import { ApprovedTarget } from "./ApprovedTarget";
-
-const OTHER_AGENTS_LABEL = "Install in other agents";
 
 export function PluginDetail({
   plugin,
@@ -30,9 +32,6 @@ export function PluginDetail({
   generatedAt?: string;
 }) {
   const sourceUrl = sourceTreeUrl(plugin.source);
-  // Undefined whenever the approval names a ref, which the plugins CLI can't
-  // target yet; see pluginsCommand.
-  const installCommand = pluginsCommand(plugin);
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -126,36 +125,63 @@ export function PluginDetail({
         ))}
       </div>
 
-      <InstallFromCli
-        label="Install in Kiro"
-        command={kiroPowerUrl(plugin)}
-        lead={
-          <>
-            In Kiro, open{" "}
-            <strong>
-              Powers → Add Custom Power → Import power from GitHub
-            </strong>{" "}
-            and paste:
-          </>
-        }
-      />
-
-      {installCommand ? (
-        <InstallFromCli
-          label={OTHER_AGENTS_LABEL}
-          lead="For other agents, this plugin might be installable with:"
-          command={installCommand}
-        />
-      ) : (
-        <InstallFromCliUnavailable label={OTHER_AGENTS_LABEL}>
-          Installing the approved version isn't currently possible with{" "}
-          <code>npx plugins add</code>. This approval names{" "}
-          <code>{plugin.source.ref}</code>, and the plugins CLI always installs
-          from the repository's default branch.
-        </InstallFromCliUnavailable>
-      )}
+      {pluginInstallOptions(plugin).map((option, i) => (
+        <InstallOption key={i} option={option} />
+      ))}
     </div>
   );
+}
+
+// One tool's instructions: a copy box per step, with warnings under the last
+// one, or the explanation when the tool can't install the approved revision.
+function InstallOption({ option }: { option: PluginInstallOption }) {
+  const warnings =
+    option.warnings.length > 0 ? (
+      <>
+        {option.warnings.map((warning, i) => (
+          <span key={i} className="block mt-2">
+            {withCode(warning)}
+          </span>
+        ))}
+      </>
+    ) : undefined;
+  if ("unavailable" in option) {
+    return (
+      <InstallFromCliUnavailable label={option.label}>
+        {withCode(option.unavailable)}
+        {warnings}
+      </InstallFromCliUnavailable>
+    );
+  }
+  return (
+    <>
+      {option.steps.map((step, i) => (
+        <InstallFromCli
+          key={i}
+          label={i === 0 ? option.label : "Then"}
+          lead={stepLead(step)}
+          command={step.kind === "command" ? step.command : step.value}
+          note={i === option.steps.length - 1 ? warnings : undefined}
+        />
+      ))}
+    </>
+  );
+}
+
+function stepLead(step: InstallStep): React.ReactNode {
+  if (step.kind === "command") return step.lead;
+  return (
+    <>
+      In {step.app}, open <strong>{step.action}</strong> and paste:
+    </>
+  );
+}
+
+// Renders the backtick-marked spans of an option's prose as code.
+function withCode(text: string): React.ReactNode {
+  return text
+    .split("`")
+    .map((part, i) => (i % 2 === 1 ? <code key={i}>{part}</code> : part));
 }
 
 // Read-only for now — a future cross-link pass can match these by id against
