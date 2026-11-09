@@ -28,7 +28,10 @@ const BASE_URL = "https://ai.open-vsx.org/";
 
 function plugin(
   source: Partial<Plugin["source"]> = {},
-  verdict: Pick<Plugin, "isAgentPlugin" | "publishedMarketplaces"> = {},
+  verdict: Pick<
+    Plugin,
+    "isAgentPlugin" | "publishedMarketplaces" | "marketplaceFiles"
+  > = {},
 ) {
   return {
     source: {
@@ -149,12 +152,16 @@ describe("skillsCommand", () => {
 // The options for a plugin, keyed by tool, so each rule is asserted on its own.
 function optionsFor(
   source: Partial<Plugin["source"]> = {},
-  verdict: Pick<Plugin, "isAgentPlugin" | "publishedMarketplaces"> = {},
+  verdict: Pick<
+    Plugin,
+    "isAgentPlugin" | "publishedMarketplaces" | "marketplaceFiles"
+  > = {},
 ) {
   const options = pluginInstallOptions(plugin(source, verdict), BASE_URL);
   return {
     tools: options.map((option) => option.tool),
     claudeCode: options.filter((option) => option.tool === "claude-code"),
+    codex: options.find((option) => option.tool === "codex"),
     kiro: options.find((option) => option.tool === "kiro"),
     npxPlugins: options.find((option) => option.tool === "npx-plugins"),
   };
@@ -475,6 +482,144 @@ describe("pluginInstallOptions", () => {
 
     it("is not offered in a feed without the verdict or source.commit", () => {
       assert.equal(optionsFor({ ref: "0.3.11" }).kiro, undefined);
+    });
+  });
+  describe("Codex", () => {
+    const LISTED = {
+      path: ".agents/plugins/marketplace.json",
+      marketplaceName: "looker-plugins",
+      entryName: "looker",
+    };
+
+    function codexFor(source: string) {
+      return {
+        tool: "codex",
+        label: "Install in Codex",
+        steps: [
+          {
+            kind: "command",
+            lead: "Add the repository's marketplace at the approved commit:",
+            command: `codex plugin marketplace add ${source} --ref ${COMMIT}`,
+          },
+          {
+            kind: "command",
+            command: "codex plugin add looker@looker-plugins",
+          },
+        ],
+        warnings: [],
+      };
+    }
+
+    it("adds the repository's marketplace at the commit, then the entry", () => {
+      assert.deepEqual(
+        optionsFor(
+          { commit: COMMIT },
+          { ...AGENT_PLUGIN, marketplaceFiles: [LISTED] },
+        ).codex,
+        codexFor("gemini-cli-extensions/looker"),
+      );
+    });
+
+    // The commit pins the marketplace file, and a local entry with it.
+    it("is offered when the approval names a ref", () => {
+      assert.deepEqual(
+        optionsFor(
+          { ref: "main", pinned: false, commit: COMMIT },
+          { ...AGENT_PLUGIN, marketplaceFiles: [LISTED] },
+        ).codex,
+        codexFor("gemini-cli-extensions/looker"),
+      );
+    });
+
+    it("takes the full git URL on another host", () => {
+      assert.deepEqual(
+        optionsFor(
+          { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
+          { ...AGENT_PLUGIN, marketplaceFiles: [LISTED] },
+        ).codex,
+        codexFor("https://gitlab.com/acme/plugins.git"),
+      );
+    });
+
+    it("reads the Claude marketplace file when it's the first Codex finds", () => {
+      const option = optionsFor(
+        { commit: COMMIT },
+        {
+          ...AGENT_PLUGIN,
+          marketplaceFiles: [
+            { ...LISTED, path: ".claude-plugin/marketplace.json" },
+            { path: "marketplace.json", marketplaceName: "other" },
+          ],
+        },
+      ).codex;
+      assert.ok(option && "steps" in option);
+    });
+
+    // Codex stops at the first file it finds, listing or not.
+    it("is not offered when only a file Codex doesn't reach lists it", () => {
+      assert.equal(
+        optionsFor(
+          { commit: COMMIT },
+          {
+            ...AGENT_PLUGIN,
+            marketplaceFiles: [
+              {
+                path: ".agents/plugins/marketplace.json",
+                marketplaceName: "a",
+              },
+              { ...LISTED, path: ".claude-plugin/marketplace.json" },
+            ],
+          },
+        ).codex,
+        undefined,
+      );
+    });
+
+    it("is not offered when a listing is only in a file Codex never reads", () => {
+      assert.equal(
+        optionsFor(
+          { commit: COMMIT },
+          {
+            ...AGENT_PLUGIN,
+            marketplaceFiles: [{ ...LISTED, path: "marketplace.json" }],
+          },
+        ).codex,
+        undefined,
+      );
+    });
+
+    it("is not offered for a plugin that isn't an Agent Plugin", () => {
+      assert.equal(
+        optionsFor(
+          { commit: COMMIT },
+          { ...NOT_AGENT_PLUGIN, marketplaceFiles: [LISTED] },
+        ).codex,
+        undefined,
+      );
+    });
+
+    it("is not offered without source.commit", () => {
+      assert.equal(
+        optionsFor({}, { ...AGENT_PLUGIN, marketplaceFiles: [LISTED] }).codex,
+        undefined,
+      );
+    });
+
+    it("is not offered in a feed without marketplaceFiles", () => {
+      assert.equal(
+        optionsFor({ commit: COMMIT }, AGENT_PLUGIN).codex,
+        undefined,
+      );
+    });
+
+    it("lists Codex after Claude Code and before Kiro", () => {
+      assert.deepEqual(
+        optionsFor(
+          { commit: COMMIT },
+          { publishedMarketplaces: [GOOGLE], marketplaceFiles: [LISTED] },
+        ).tools,
+        ["claude-code", "codex", "kiro", "npx-plugins"],
+      );
     });
   });
 });

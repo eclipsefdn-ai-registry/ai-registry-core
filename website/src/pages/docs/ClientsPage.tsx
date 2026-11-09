@@ -578,6 +578,30 @@ export function ClientsPage() {
             <InlineCode>source.commit</InlineCode>, offer nothing.
           </li>
           <li>
+            Offer Codex only for an Agent Plugin with a{" "}
+            <InlineCode>source.commit</InlineCode>, and only when the first of{" "}
+            <InlineCode>.agents/plugins/marketplace.json</InlineCode>,{" "}
+            <InlineCode>.agents/plugins/api_marketplace.json</InlineCode>,{" "}
+            <InlineCode>.claude-plugin/marketplace.json</InlineCode> and{" "}
+            <InlineCode>.cursor-plugin/marketplace.json</InlineCode> that
+            appears in <InlineCode>marketplaceFiles</InlineCode> has an{" "}
+            <InlineCode>entryName</InlineCode>. Codex reads that first file and
+            no other, so a listing in a later one doesn&apos;t count. The
+            commands are{" "}
+            <InlineCode>
+              {"codex plugin marketplace add <source> --ref <commit>"}
+            </InlineCode>
+            , then{" "}
+            <InlineCode>
+              {"codex plugin add <entryName>@<marketplaceName>"}
+            </InlineCode>
+            , where <InlineCode>&lt;source&gt;</InlineCode> is{" "}
+            <InlineCode>owner/repo</InlineCode> on github.com and the git URL
+            anywhere else. <InlineCode>--ref</InlineCode> pins the marketplace
+            file, and the repository-relative entry inside it with it, so this
+            installs the endorsed commit whatever ref the approval names.
+          </li>
+          <li>
             Offer Claude Code once per record in{" "}
             <InlineCode>publishedMarketplaces</InlineCode>, Agent Plugin or not:{" "}
             <InlineCode>
@@ -600,8 +624,30 @@ export function ClientsPage() {
         </ul>
         <p className="mt-3 mb-3 leading-relaxed">
           A missing <InlineCode>isAgentPlugin</InlineCode> is unknown, not
-          false, so it passes the Agent Plugin half of the first two rules. The
-          ref, host and commit conditions still apply.
+          false, so it passes the Agent Plugin half of the first three rules.
+          The ref, host, commit and marketplace-file conditions still apply.
+        </p>
+        <p className="mt-3 mb-3 leading-relaxed">
+          <InlineCode>marketplaceFiles</InlineCode> lists the known marketplace
+          files present in the plugin&apos;s repository at{" "}
+          <InlineCode>source.commit</InlineCode>, one{" "}
+          <InlineCode>{"{ path, marketplaceName, entryName }"}</InlineCode>{" "}
+          each, in no tool&apos;s order. The paths scanned are the four above
+          plus <InlineCode>marketplace.json</InlineCode>,{" "}
+          <InlineCode>.plugin/marketplace.json</InlineCode> and{" "}
+          <InlineCode>.github/plugin/marketplace.json</InlineCode>; a file that
+          isn&apos;t there has no record.{" "}
+          <InlineCode>marketplaceName</InlineCode> is the file&apos;s own{" "}
+          <InlineCode>name</InlineCode>. <InlineCode>entryName</InlineCode> is
+          set only when the file has an entry whose source is a path in the
+          repository (a bare string or a <InlineCode>local</InlineCode> source)
+          resolving to the plugin&apos;s <InlineCode>source.path</InlineCode>;
+          an entry sourced from a git URL doesn&apos;t count, since it says
+          nothing about <InlineCode>source.commit</InlineCode>. A file that
+          can&apos;t be parsed has a record with neither name. These are facts
+          about files, not tools: which tool reads which file, and which one
+          first, is yours to apply. A missing{" "}
+          <InlineCode>marketplaceFiles</InlineCode> means unknown.
         </p>
         <InfoCallout>
           <strong>Install the plugin whole.</strong> Download the plugin

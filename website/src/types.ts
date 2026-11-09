@@ -153,7 +153,21 @@ export interface Plugin {
   // entry that was left out. Empty when none does; absent in feeds that
   // predate it, which reads as unknown.
   publishedMarketplaces?: PublishedMarketplace[];
+  // One record per known marketplace file present in the plugin's repository
+  // at source.commit. entryName is set only when the file has a local or
+  // relative-path entry for this plugin's path; marketplaceName is absent when
+  // the file can't be parsed. Facts about files, not tools: which tool reads
+  // which file, and in what order, lives in installCommand.ts. Absent in feeds
+  // that predate it, which reads as unknown.
+  marketplaceFiles?: RepositoryMarketplaceFile[];
   approvals: PluginApproval[];
+}
+
+// A marketplace file in a plugin's repository, as consolidation read it.
+export interface RepositoryMarketplaceFile {
+  path: string;
+  marketplaceName?: string;
+  entryName?: string;
 }
 
 // Where a plugin is listed in an organization's published marketplace, which

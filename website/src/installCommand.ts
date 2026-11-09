@@ -71,14 +71,14 @@ export type InstallStep =
  * `unavailable` and `warnings` are prose in which backticks mark code.
  */
 export type PluginInstallOption = {
-  tool: "claude-code" | "kiro" | "npx-plugins";
+  tool: "claude-code" | "codex" | "kiro" | "npx-plugins";
   label: string;
   warnings: string[];
 } & ({ steps: InstallStep[] } | { unavailable: string });
 
 type PluginFacts = Pick<
   Plugin,
-  "source" | "isAgentPlugin" | "publishedMarketplaces"
+  "source" | "isAgentPlugin" | "publishedMarketplaces" | "marketplaceFiles"
 >;
 
 /**
@@ -90,7 +90,7 @@ type PluginFacts = Pick<
  *
  * A tool that can't install this plugin at all is left out. A missing
  * `isAgentPlugin` (a feed that predates it) is unknown, not false, so it passes
- * both tools' verdict checks; their other checks still apply.
+ * every tool's verdict check; their other checks still apply.
  */
 export function pluginInstallOptions(
   plugin: PluginFacts,
@@ -98,6 +98,7 @@ export function pluginInstallOptions(
 ): PluginInstallOption[] {
   return [
     ...claudeCodeOptions(plugin, baseUrl),
+    codexOption(plugin),
     kiroOption(plugin),
     npxPluginsOption(plugin),
   ].filter((option) => option !== undefined);
@@ -138,6 +139,56 @@ function claudeCodeOptions(
       warnings: [],
     }),
   );
+}
+
+// The marketplace files Codex looks for in a repository, in its order. It
+// reads the first one present and no other, whether or not that one lists
+// the plugin (codex-rs/core-plugins/src/marketplace.rs).
+const CODEX_MARKETPLACE_FILES = [
+  ".agents/plugins/marketplace.json",
+  ".agents/plugins/api_marketplace.json",
+  ".claude-plugin/marketplace.json",
+  ".cursor-plugin/marketplace.json",
+];
+
+/**
+ * Codex, through the marketplace file in the plugin's own repository: add the
+ * repository as a marketplace at `source.commit`, then the entry. `--ref`
+ * pins the marketplace file, and a `local` entry inside it with it (tested
+ * against Codex 0.167.0), so this installs the approved commit whatever ref
+ * the approval names.
+ *
+ * Offered only for an Agent Plugin with a `source.commit` whose first-found
+ * Codex marketplace file has an entry for it. Consolidation sets `entryName`
+ * only for a repository-relative entry, so a git-URL entry, which Codex would
+ * fetch on its own and only pin by its own `sha`, never qualifies. Any git
+ * host: github.com goes as `owner/repo`, any other as its git URL.
+ */
+function codexOption(plugin: PluginFacts): PluginInstallOption | undefined {
+  if (plugin.isAgentPlugin === false) return undefined;
+  const { commit, url } = plugin.source;
+  if (!commit) return undefined;
+  const file = CODEX_MARKETPLACE_FILES.map((path) =>
+    plugin.marketplaceFiles?.find((record) => record.path === path),
+  ).find((record) => record !== undefined);
+  if (!file?.entryName || !file.marketplaceName) return undefined;
+  const source = isGitHubUrl(url) ? cliSource(url) : url;
+  return {
+    tool: "codex",
+    label: "Install in Codex",
+    steps: [
+      {
+        kind: "command",
+        lead: "Add the repository's marketplace at the approved commit:",
+        command: `codex plugin marketplace add ${source} --ref ${commit}`,
+      },
+      {
+        kind: "command",
+        command: `codex plugin add ${file.entryName}@${file.marketplaceName}`,
+      },
+    ],
+    warnings: [],
+  };
 }
 
 /**

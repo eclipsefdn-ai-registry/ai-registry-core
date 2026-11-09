@@ -12,6 +12,7 @@ import {
   stripPathPrefix,
   fetchPluginManifest,
   enrichPluginMetadata,
+  readMarketplaceFile,
 } from "./plugin-source.js";
 import { computeContentHash } from "./skill-source.js";
 import { remoteBranchesLookup } from "./git-source.js";
@@ -628,5 +629,321 @@ describe("enrichPluginMetadata Agent Plugin fields", () => {
     } finally {
       rmSync(sourceDir, { recursive: true, force: true });
     }
+  });
+});
+
+// --- Marketplace files through fetchPluginManifest ---
+
+describe("fetchPluginManifest marketplace files", () => {
+  const CODEX = ".agents/plugins/marketplace.json";
+  const CLAUDE = ".claude-plugin/marketplace.json";
+
+  function writeFile(dir: string, path: string, content: string): void {
+    mkdirSync(join(dir, path, ".."), { recursive: true });
+    writeFileSync(join(dir, path), content);
+  }
+
+  function marketplace(name: string, plugins: object[]): string {
+    return JSON.stringify({ name, plugins });
+  }
+
+  function fetchFrom(sourceDir: string, path?: string, ref?: string) {
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-marketplace-test-"));
+    try {
+      return fetchPluginManifest(`file://${sourceDir}`, path, tmpDir, ref, {
+        readMarketplaceFiles: true,
+      });
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  it("records each known file, with the entry that points at the plugin", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [
+          { name: "other", source: { source: "local", path: "./plugins/x" } },
+          {
+            name: "demo-entry",
+            source: { source: "local", path: "./plugins/demo" },
+          },
+        ]),
+      );
+      writeFile(
+        sourceDir,
+        CLAUDE,
+        marketplace("acme-claude", [
+          { name: "demo-c", source: "./plugins/demo/" },
+        ]),
+      );
+      writeFile(sourceDir, "marketplace.json", marketplace("root", []));
+      commitAll(sourceDir, "marketplaces");
+
+      const { marketplaceFiles, marketplaceFileWarnings } = fetchFrom(
+        sourceDir,
+        "plugins/demo",
+      );
+      // In scan-list order, which is not the order tools read them in.
+      assert.deepEqual(marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme", entryName: "demo-entry" },
+        { path: CLAUDE, marketplaceName: "acme-claude", entryName: "demo-c" },
+        { path: "marketplace.json", marketplaceName: "root" },
+      ]);
+      assert.deepEqual(marketplaceFileWarnings, []);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("matches a plugin at the repository root", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, ".", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [
+          { name: "demo", source: { source: "local", path: "./" } },
+        ]),
+      );
+      commitAll(sourceDir, "root");
+
+      assert.deepEqual(fetchFrom(sourceDir).marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme", entryName: "demo" },
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // A git URL names some revision of some repository, not this checkout.
+  it("doesn't count an entry sourced from a git URL", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [
+          {
+            name: "demo",
+            source: {
+              source: "git-subdir",
+              url: "https://github.com/acme/repo.git",
+              path: "plugins/demo",
+            },
+          },
+          {
+            name: "demo-url",
+            source: { source: "url", url: "./", path: "plugins/demo" },
+          },
+        ]),
+      );
+      commitAll(sourceDir, "git-url");
+
+      assert.deepEqual(fetchFrom(sourceDir, "plugins/demo").marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme" },
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the plugin and warns on a malformed file", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(sourceDir, CODEX, "{ not json");
+      writeFile(
+        sourceDir,
+        CLAUDE,
+        JSON.stringify({
+          plugins: [{ name: "demo", source: "./plugins/demo" }],
+        }),
+      );
+      commitAll(sourceDir, "malformed");
+
+      const metadata = fetchFrom(sourceDir, "plugins/demo");
+      assert.equal(metadata.name, "demo");
+      assert.deepEqual(metadata.marketplaceFiles, [
+        { path: CODEX },
+        { path: CLAUDE },
+      ]);
+      assert.equal(metadata.marketplaceFileWarnings?.length, 2);
+      assert.match(
+        metadata.marketplaceFileWarnings![0],
+        /^\.agents\/plugins\/marketplace\.json: /,
+      );
+      assert.match(metadata.marketplaceFileWarnings![1], /"name"/);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the files at the approved commit, not as they are now", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [{ name: "demo", source: "./plugins/demo" }]),
+      );
+      const approved = commitAll(sourceDir, "approved");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("renamed", [{ name: "moved", source: "./plugins/demo" }]),
+      );
+      writeFile(sourceDir, CLAUDE, marketplace("later", []));
+      commitAll(sourceDir, "later");
+
+      const pinned = fetchFrom(sourceDir, "plugins/demo", approved);
+      assert.equal(pinned.commit, approved);
+      assert.deepEqual(pinned.marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme", entryName: "demo" },
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads no marketplace files unless asked", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(sourceDir, CODEX, marketplace("acme", []));
+      commitAll(sourceDir, "unasked");
+
+      const tmpDir = mkdtempSync(join(tmpdir(), "plugin-marketplace-test-"));
+      try {
+        const metadata = fetchPluginManifest(
+          `file://${sourceDir}`,
+          "plugins/demo",
+          tmpDir,
+        );
+        assert.equal(metadata.marketplaceFiles, undefined);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("enrichPluginMetadata marketplace files", () => {
+  it("publishes marketplaceFiles, and leaves the latest fields as before", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      mkdirSync(join(sourceDir, ".agents/plugins"), { recursive: true });
+      writeFileSync(
+        join(sourceDir, ".agents/plugins/marketplace.json"),
+        JSON.stringify({
+          name: "acme",
+          plugins: [{ name: "demo", source: "./plugins/demo" }],
+        }),
+      );
+      const approved = commitAll(sourceDir, "approved");
+      writeManifest(sourceDir, "plugins/demo", "demo", "2.0.0");
+      const head = commitAll(sourceDir, "later");
+      const url = `file://${sourceDir}`;
+
+      const [a] = enrichPluginMetadata(
+        [entry("io.example/demo", url, "plugins/demo", approved)],
+        remoteBranchesLookup(),
+      );
+      assert.deepEqual(a.marketplaceFiles, [
+        {
+          path: ".agents/plugins/marketplace.json",
+          marketplaceName: "acme",
+          entryName: "demo",
+        },
+      ]);
+      assert.equal(a.latestCommit, head);
+      assert.notEqual(a.latestHash, a.contentHash);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- readMarketplaceFile ---
+
+describe("readMarketplaceFile", () => {
+  const PATH = ".agents/plugins/marketplace.json";
+  const file = (plugins: unknown, name: unknown = "acme") =>
+    JSON.stringify({ name, plugins });
+
+  it("ignores an entry that climbs out of the repository", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([{ name: "up", source: "../plugins/demo" }]),
+      "plugins/demo",
+    );
+    assert.deepEqual(record, { path: PATH, marketplaceName: "acme" });
+  });
+
+  it("ignores an absolute path", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([
+        { name: "abs", source: { source: "local", path: "/plugins/demo" } },
+      ]),
+      "plugins/demo",
+    );
+    assert.equal(record.entryName, undefined);
+  });
+
+  it("resolves a path with redundant segments", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([{ name: "demo", source: "./plugins/x/../demo/" }]),
+      "plugins/demo/",
+    );
+    assert.equal(record.entryName, "demo");
+  });
+
+  it("takes the first entry that points at the plugin", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([
+        { name: "first", source: "./plugins/demo" },
+        { name: "second", source: "plugins/demo" },
+      ]),
+      "plugins/demo",
+    );
+    assert.equal(record.entryName, "first");
+  });
+
+  it("calls a file with an empty name malformed", () => {
+    const { record, warning } = readMarketplaceFile(
+      PATH,
+      file([], ""),
+      undefined,
+    );
+    assert.deepEqual(record, { path: PATH });
+    assert.match(warning ?? "", /"name"/);
+  });
+
+  it("calls a file that isn't a JSON object malformed", () => {
+    const { record, warning } = readMarketplaceFile(PATH, "[]", undefined);
+    assert.deepEqual(record, { path: PATH });
+    assert.match(warning ?? "", /not a JSON object/);
+  });
+
+  it("calls a file without a plugins array malformed", () => {
+    const { record, warning } = readMarketplaceFile(
+      PATH,
+      JSON.stringify({ name: "acme" }),
+      undefined,
+    );
+    assert.deepEqual(record, { path: PATH });
+    assert.match(warning ?? "", /"plugins"/);
   });
 });
