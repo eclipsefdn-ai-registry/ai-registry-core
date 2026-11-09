@@ -1,7 +1,9 @@
 export interface TabButtonSpec<K extends string> {
   key: K;
   label: string;
-  count: number;
+  // Left out where a count means nothing, as for the install tools on a
+  // plugin page.
+  count?: number;
 }
 
 /**
@@ -39,7 +41,8 @@ export function TabButtons<K extends string>({
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          {t.label} ({t.count})
+          {t.label}
+          {t.count !== undefined && ` (${t.count})`}
         </button>
       ))}
     </div>

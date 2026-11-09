@@ -155,10 +155,10 @@ export function pluginInstallOptions(
   baseUrl: string,
 ): PluginInstallOption[] {
   return [
+    kiroOption(plugin),
     ...claudeCodeOptions(plugin, baseUrl),
     codexOption(plugin),
     vsCodeOption(plugin),
-    kiroOption(plugin),
     npxPluginsOption(plugin),
   ].filter((option) => option !== undefined);
 }
