@@ -278,6 +278,14 @@ export interface PluginEntry {
   latestHash?: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
+  // Output only, set at enrichment: whether the Plugin conforms to the Agent
+  // Plugins specification (agent-plugins.org), checked against the schemas
+  // bundled in schemas/agent-plugins/ (see agent-plugin-conformance.ts). A
+  // non-conforming Plugin stays in the registry. agentPluginIssues gives one
+  // readable message per failed check, and is omitted when there are none.
+  // Both are absent in feeds that predate them, which reads as unknown.
+  isAgentPlugin?: boolean;
+  agentPluginIssues?: string[];
   approvals: PluginApproval[];
 }
 

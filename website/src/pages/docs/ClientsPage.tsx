@@ -474,21 +474,83 @@ export function ClientsPage() {
 
       <DocsSection id="agent-plugins">
         <p className="mb-3 leading-relaxed">
-          An{" "}
+          A plugin is a directory holding a <InlineCode>plugin.json</InlineCode>{" "}
+          manifest, optional{" "}
+          <InlineCode>skills/&lt;name&gt;/SKILL.md</InlineCode> folders, and an
+          optional <InlineCode>mcp.json</InlineCode>.{" "}
+          <InlineCode>source.path</InlineCode> points at that directory; omit it
+          and the plugin is at the repository root.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          A plugin that conforms to the{" "}
           <a
             href="https://agent-plugins.org"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
           >
-            Agent Plugin
+            Agent Plugins specification
           </a>{" "}
-          is a directory holding a <InlineCode>plugin.json</InlineCode>{" "}
-          manifest, optional{" "}
-          <InlineCode>skills/&lt;name&gt;/SKILL.md</InlineCode> folders, and an
-          optional <InlineCode>mcp.json</InlineCode>.{" "}
-          <InlineCode>source.path</InlineCode> points at that directory; omit it
-          and the plugin is at the repository root.
+          is an <strong>Agent Plugin</strong>. Not every plugin in the feed is
+          one: conformance is not a condition of approval, and a plugin that
+          doesn&apos;t conform stays in the registry with its approvals.
+        </p>
+        <h3 className="font-semibold mt-5 mb-2">Agent Plugin or not</h3>
+        <p className="mb-3 leading-relaxed">
+          <InlineCode>isAgentPlugin</InlineCode> is consolidation&apos;s verdict
+          on whether the plugin conforms, checked at{" "}
+          <InlineCode>source.commit</InlineCode> against the specification
+          versions the registry bundles. It is <InlineCode>true</InlineCode>{" "}
+          only when every check passes:
+        </p>
+        <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
+          <li className="leading-relaxed">
+            <InlineCode>plugin.json</InlineCode>, and{" "}
+            <InlineCode>mcp.json</InlineCode> when present, name a known
+            specification version in <InlineCode>$schema</InlineCode>. The
+            registry never fetches the <InlineCode>$schema</InlineCode> URL, so
+            a version it hasn&apos;t adopted yet counts as unknown, and an
+            unknown version is not conformant.
+          </li>
+          <li className="leading-relaxed">
+            Both files match that version&apos;s schema.
+          </li>
+          <li className="leading-relaxed">
+            Every MCP server declares an explicit <InlineCode>type</InlineCode>.
+          </li>
+          <li className="leading-relaxed">
+            No MCP server is one the specification tells clients to skip, such
+            as a <InlineCode>command</InlineCode> that is a shell command line,
+            a <InlineCode>cwd</InlineCode> or <InlineCode>./</InlineCode> path
+            leaving the plugin root, a non-HTTPS <InlineCode>url</InlineCode> to
+            a host other than loopback, or an <InlineCode>mcp.json</InlineCode>{" "}
+            targeting a different version than{" "}
+            <InlineCode>plugin.json</InlineCode>.
+          </li>
+          <li className="leading-relaxed">
+            Every skill&apos;s <InlineCode>SKILL.md</InlineCode> frontmatter has
+            a <InlineCode>name</InlineCode> and a{" "}
+            <InlineCode>description</InlineCode>.
+          </li>
+        </ul>
+        <p className="mb-3 leading-relaxed">
+          When it is <InlineCode>false</InlineCode>,{" "}
+          <InlineCode>agentPluginIssues</InlineCode> lists why, one readable
+          message per failed check. They are the messages the vendor saw during
+          validation, so show them as they are. The field is omitted when the
+          plugin conforms.
+        </p>
+        <InfoCallout>
+          <strong>A missing isAgentPlugin means unknown, never false.</strong>{" "}
+          Feeds from before the verdict was published have neither field. Treat
+          such a plugin as one you haven&apos;t checked: don&apos;t label it
+          non-conforming, and don&apos;t show an empty issue list. To show only
+          Agent Plugins, keep those with <code>isAgentPlugin === true</code>.
+        </InfoCallout>
+        <p className="mt-3 mb-3 leading-relaxed">
+          The verdict is about the specification, not about any one tool.
+          Whether a given tool can install a plugin depends on that tool&apos;s
+          own rules, which the feed doesn&apos;t publish.
         </p>
         <InfoCallout>
           <strong>Install the plugin whole.</strong> Download the plugin
@@ -1027,6 +1089,7 @@ export function ClientsPage() {
             "Record provenance for everything you install, and never overwrite what you did not",
             "Offer adoption when a local slot is already occupied",
             "Install plugins whole, keyed by pluginId, and load from inside the plugin root",
+            'Read a missing isAgentPlugin as unknown, not as "not an Agent Plugin"',
             "Tell the user what a sandbox extension can do before installing it — it runs as root at build and start time",
             "Surface artifacts missing from the feed without removing them",
           ]}

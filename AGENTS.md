@@ -1,6 +1,6 @@
 # AI Registry — Agent Guide
 
-Vendor-neutral, federated trust registry for MCP servers, Agent Skills, Agent Plugins, A2A agents, and sandbox extensions, hosted at the Eclipse Foundation. This is the core repo — it contains schemas, validation, consolidation, and the website. Approval files live in separate organization-specific vendor repos (e.g., `ai-registry-theia`).
+Vendor-neutral, federated trust registry for MCP servers, Agent Skills, Plugins, A2A agents, and sandbox extensions, hosted at the Eclipse Foundation. This is the core repo — it contains schemas, validation, consolidation, and the website. Approval files live in separate organization-specific vendor repos (e.g., `ai-registry-theia`).
 
 ## Architecture
 
@@ -8,11 +8,11 @@ Five artifact types, same approval model:
 
 - **MCP servers** — referenced by `serverId` in the Anthropic MCP registry. Metadata (name, description, latestVersion) enriched during consolidation. An approval's own `version` is informational and published only as written, since the config, not the version, decides what runs.
 - **Agent Skills** — referenced by `skillId` pointing to a git repo + path. `source.path` can be a single string, an array of paths, or a glob pattern (`"skills/*"`) for batch approvals — consolidation expands these into individual entries, each carrying the same `source.ref` as the approval it came from. `source.ref` (optional, a tag, branch, or full commit SHA) pins consolidation to that revision instead of the repository's default branch; a glob expands against the folders that exist at that revision. Metadata (name, description) extracted from SKILL.md frontmatter; content hash computed via sparse checkout during consolidation.
-- **Agent Plugins** ([agent-plugins.org](https://agent-plugins.org)) — referenced by `pluginId` pointing to a git repo + path (single directory, no glob/array). Consolidation fetches the whole plugin directory via sparse checkout to read `plugin.json` (name, description, version, author, homepage, keywords) and enumerate contents: skills under `skills/*/SKILL.md` and MCP servers in `mcp.json`, surfaced as read-only `containedSkills`/`containedMcpServers` metadata — not as separate standalone entries.
+- **Plugins** — referenced by `pluginId` pointing to a git repo + path (single directory, no glob/array). Consolidation fetches the whole plugin directory via sparse checkout to read `plugin.json` (name, description, version, author, homepage, keywords) and enumerate contents: skills under `skills/*/SKILL.md` and MCP servers in `mcp.json`, surfaced as read-only `containedSkills`/`containedMcpServers` metadata — not as separate standalone entries. A Plugin that conforms to the [agent-plugins.org](https://agent-plugins.org) specification is an **Agent Plugin**: consolidation publishes the verdict as `isAgentPlugin`, and the reasons as `agentPluginIssues` when it is false. Conformance is decided by one pure function, `agentPluginIssues` in `src/agent-plugin-conformance.ts`, against the specification versions bundled verbatim under `schemas/agent-plugins/`; a version not bundled there is unknown, and the `$schema` URL is never fetched. A non-conforming Plugin stays in the registry, unbadged.
 - **A2A agents** — referenced by `agentId` pointing directly at a fetchable `agent_card.json` URL (no repo, no path — a single JSON file). Metadata (name, description) and a content hash are extracted from the fetched card during consolidation.
 - **Sandbox extensions** ([Eclipse Enclave](https://enclave.eclipse.dev/)) — referenced by `sandboxExtensionId` pointing at a git repo, with an optional `source.ref` (tag, branch, or full commit SHA) and **no path**. One approval covers the whole repository: consolidation reads `tools/*/spec.yaml` and `features/*/spec.yaml` and publishes each extension separately, into `sandboxTools` (spec `kind: sandbox`) or `sandboxFeatures` (spec `kind: mixin`). Approvals carry no `installConfigs` — nothing about installing one is tool-specific — so they appear in `orgs/<id>.json` but not `tools/<id>.json`, and the `enclave` install command is built in the website only. The two prefixes are a registry convention, stricter than Enclave's own repo-wide scan; extensions elsewhere, or whose `kind`/`name` contradicts their directory, are skipped with a warning.
 
-**Marketplace sources** are not a sixth artifact type — a `marketplaces/*.json` approval trusts a vendor-published marketplace file (e.g. OpenAI Codex/ChatGPT's `.agents/plugins/marketplace.json`) instead of a single plugin, and every entry it lists is resolved and fanned out into an ordinary Agent Plugin entry at consolidation time, tagged with a `sourcedFrom` provenance field. It's re-resolved on every run, so new entries the vendor adds to their marketplace file are picked up automatically. See `docs/superpowers/specs/2026-09-04-agent-plugin-marketplaces-design.md` for the full design.
+**Marketplace sources** are not a sixth artifact type — a `marketplaces/*.json` approval trusts a vendor-published marketplace file (e.g. OpenAI Codex/ChatGPT's `.agents/plugins/marketplace.json`) instead of a single plugin, and every entry it lists is resolved and fanned out into an ordinary Plugin entry at consolidation time, tagged with a `sourcedFrom` provenance field. It's re-resolved on every run, so new entries the vendor adds to their marketplace file are picked up automatically. See `docs/superpowers/specs/2026-09-04-agent-plugin-marketplaces-design.md` for the full design.
 
 Organizations can provide tools (with `installConfigs`) or just approve artifacts without tool-specific configuration. All but sandbox extensions use the same approval file format — `installConfigs` is optional there and absent from the sandbox extension schema entirely.
 
@@ -54,12 +54,13 @@ Unreachable MCP servers get `mcpRegistryVerified: false`. Unreachable skill and 
 ## Project layout
 
 ```
-schemas/                    JSON Schema definitions
+schemas/                    JSON Schema definitions (agent-plugins/: bundled Agent Plugins spec schemas, verbatim)
 src/
   validate.ts               Validation (schema + cross-checks)
   consolidate.ts            Consolidation pipeline (collect, enrich, write)
   skill-source.ts           Skill enrichment (sparse checkout, frontmatter, hashing)
-  plugin-source.ts          Plugin enrichment (sparse checkout, manifest + contents)
+  plugin-source.ts          Plugin enrichment (sparse checkout, manifest + contents, Agent Plugin verdict)
+  agent-plugin-conformance.ts  Agent Plugin conformance (pure, over plugin.json, mcp.json and SKILL.md contents)
   agent-source.ts           Agent enrichment (HTTP fetch, parse, hash)
   marketplace-source.ts     Marketplace expansion (parse marketplace file, resolve + derive plugin IDs)
   marketplace-output.ts     Marketplace files the registry publishes (Claude Code format, aggregate + per org)
@@ -100,8 +101,8 @@ Tests use Node.js built-in `node:test` with `assert/strict`. Pure function tests
 
 - Schemas are the contract — change schemas first, then update validation and consolidation to match.
 - `installConfigs` and `tools` are optional. Handle missing values with `?? []`.
-- Validation is split: Phase 1 (schema), Phase 2 (MCP registry verification), Phase 3 (skill source verification), Phase 4 (plugin manifest verification), Phase 5 (agent card verification), Phase 6 (marketplace expansion verification), Phase 7 (sandbox extension source verification). Phases 2-7 warn on failure, don't block.
-- Consolidation is split: collect (no network) → enrich MCP (network, retried, then fatal on error) → enrich skills (network, skip on error) → expand marketplace approvals into plugin approvals (network, skip on error per marketplace) → enrich plugins (network, skip on error) → enrich agents (network, skip on error) → expand sandbox extension repos into per-extension entries (network, skip on error) → write.
+- Validation is split: Phase 1 (schema), Phase 2 (MCP registry verification), Phase 3 (skill source verification), Phase 4 (plugin manifest verification, including Agent Plugin conformance issues as warnings), Phase 5 (agent card verification), Phase 6 (marketplace expansion verification), Phase 7 (sandbox extension source verification). Phases 2-7 warn on failure, don't block.
+- Consolidation is split: collect (no network) → enrich MCP (network, retried, then fatal on error) → enrich skills (network, skip on error) → expand marketplace approvals into plugin approvals (network, skip on error per marketplace) → enrich plugins (network, skip on error; decides `isAgentPlugin`, keeps non-conforming Plugins) → enrich agents (network, skip on error) → expand sandbox extension repos into per-extension entries (network, skip on error) → write.
 - The skill, plugin, and sandbox extension steps record latest only when given a `RemoteBranchesLookup` (`src/git-source.ts`). Consolidation passes one shared lookup. Vendor validation passes none, so it does no extra network work.
 - The second fetch that computes `latestHash` must go through the same function that produced `contentHash`, or the two stop being comparable.
 - Website types in `website/src/types.ts` mirror but don't import from `src/consolidate.ts` — keep them in sync manually.

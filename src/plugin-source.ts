@@ -22,6 +22,7 @@ import {
   sourcePinned,
   type RemoteBranchesLookup,
 } from "./git-source.js";
+import { agentPluginIssues } from "./agent-plugin-conformance.js";
 import type { PluginEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -54,6 +55,10 @@ export interface PluginMetadata extends PluginManifestFields {
   containedMcpServers: ContainedMcpServer[];
   contentHash: string;
   commit: string;
+  // Whether the Plugin is an Agent Plugin (agent-plugins.org), and if not,
+  // why: one readable message per failed check, empty when it is one.
+  isAgentPlugin: boolean;
+  agentPluginIssues: string[];
 }
 
 // --- plugin.json parsing ---
@@ -248,26 +253,40 @@ export function fetchPluginManifest(
     throw new Error(`plugin.json not found at ${location}`);
   }
 
-  const manifest = parsePluginManifest(readFileSync(manifestPath, "utf-8"));
+  const pluginJson = readFileSync(manifestPath, "utf-8");
+  const manifest = parsePluginManifest(pluginJson);
 
   const skillsPrefix = sourcePath ? `${sourcePath}/skills` : "skills";
-  const skillPaths = discoverSkillPaths(repoRoot, `${skillsPrefix}/*`);
-  const containedSkills: ContainedSkill[] = skillPaths.map((path) => {
-    const skillMdPath = join(repoRoot, path, "SKILL.md");
-    const { name, description } = existsSync(skillMdPath)
-      ? parseSkillFrontmatter(readFileSync(skillMdPath, "utf-8"))
-      : { name: "", description: "" };
-    return {
-      name: name || path.split("/").pop()!,
-      description,
-      path: sourcePath ? stripPathPrefix(path, sourcePath) : path,
-    };
-  });
+  const skillFiles = discoverSkillPaths(repoRoot, `${skillsPrefix}/*`).map(
+    (path) => {
+      const skillMdPath = join(repoRoot, path, "SKILL.md");
+      return {
+        path: sourcePath ? stripPathPrefix(path, sourcePath) : path,
+        skillMd: existsSync(skillMdPath)
+          ? readFileSync(skillMdPath, "utf-8")
+          : "",
+      };
+    },
+  );
+  const containedSkills: ContainedSkill[] = skillFiles.map(
+    ({ path, skillMd }) => {
+      const { name, description } = parseSkillFrontmatter(skillMd);
+      return { name: name || path.split("/").pop()!, description, path };
+    },
+  );
 
   const mcpJsonPath = join(pluginDir, "mcp.json");
-  const containedMcpServers = existsSync(mcpJsonPath)
-    ? parseMcpServers(readFileSync(mcpJsonPath, "utf-8"))
-    : [];
+  const mcpJson = existsSync(mcpJsonPath)
+    ? readFileSync(mcpJsonPath, "utf-8")
+    : undefined;
+  const containedMcpServers =
+    mcpJson !== undefined ? parseMcpServers(mcpJson) : [];
+
+  const conformanceIssues = agentPluginIssues({
+    pluginJson,
+    mcpJson,
+    skills: skillFiles,
+  });
 
   const contentHash = computeContentHash(pluginDir);
 
@@ -277,6 +296,8 @@ export function fetchPluginManifest(
     containedMcpServers,
     contentHash,
     commit,
+    isAgentPlugin: conformanceIssues.length === 0,
+    agentPluginIssues: conformanceIssues,
   };
 }
 
@@ -320,9 +341,19 @@ export function enrichPluginMetadata(
         entry.source = { ...entry.source, commit: metadata.commit };
         entry.containedSkills = metadata.containedSkills;
         entry.containedMcpServers = metadata.containedMcpServers;
+        entry.isAgentPlugin = metadata.isAgentPlugin;
+        if (metadata.agentPluginIssues.length > 0) {
+          entry.agentPluginIssues = metadata.agentPluginIssues;
+        } else {
+          delete entry.agentPluginIssues;
+        }
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
+        // Kept, but not an Agent Plugin: say why, so the vendor can fix it.
+        for (const issue of metadata.agentPluginIssues) {
+          console.warn(`    WARNING: not an Agent Plugin: ${issue}`);
+        }
         if (remote) {
           const pinned = sourcePinned(entry.source, remote);
           if (pinned !== undefined) entry.source.pinned = pinned;

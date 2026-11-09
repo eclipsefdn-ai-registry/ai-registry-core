@@ -142,6 +142,12 @@ export interface Plugin {
   latestHash?: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
+  // Whether the plugin conforms to the Agent Plugins specification
+  // (agent-plugins.org), and if not, one readable message per failed check.
+  // agentPluginIssues is omitted for an Agent Plugin. Both are absent in feeds
+  // that predate them, which reads as unknown, never as "not an Agent Plugin".
+  isAgentPlugin?: boolean;
+  agentPluginIssues?: string[];
   approvals: PluginApproval[];
 }
 

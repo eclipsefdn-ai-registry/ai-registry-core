@@ -4,6 +4,7 @@ import {
   filterByNameDescId,
   filterByOrgs,
   filterByTool,
+  filterAgentPlugins,
   passesOrgFilter,
 } from "./filterArtifacts";
 
@@ -127,5 +128,24 @@ describe("filterByTool", () => {
       ["second-approval", "other-tool"],
     );
     assert.deepEqual(filterByTool(ALL, "cursor"), []);
+  });
+});
+
+describe("filterAgentPlugins", () => {
+  const AGENT_PLUGIN = { id: "agent-plugin", isAgentPlugin: true };
+  const NOT_CONFORMING = { id: "not-conforming", isAgentPlugin: false };
+  // A feed from before conformance was published has no verdict at all.
+  const UNKNOWN: { id: string; isAgentPlugin?: boolean } = { id: "unknown" };
+  const ALL = [AGENT_PLUGIN, NOT_CONFORMING, UNKNOWN];
+
+  it("keeps every plugin when the filter is off", () => {
+    assert.deepEqual(filterAgentPlugins(ALL, false), ALL);
+  });
+
+  it("keeps only the plugins known to be Agent Plugins when it's on", () => {
+    assert.deepEqual(
+      filterAgentPlugins(ALL, true).map((e) => e.id),
+      ["agent-plugin"],
+    );
   });
 });
