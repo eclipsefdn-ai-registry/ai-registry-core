@@ -95,7 +95,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
       homeDir: deps.homeDir,
     });
   } catch (error) {
-    deps.printErr(error instanceof Error ? error.message : String(error));
+    deps.printErr((error as Error).message);
     return 1;
   }
   const registry =
@@ -110,7 +110,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
   try {
     skillsFeed = await loadSkillsFeed(registry);
   } catch (error) {
-    deps.printErr(error instanceof Error ? error.message : String(error));
+    deps.printErr((error as Error).message);
     return 1;
   }
 
@@ -121,8 +121,8 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     deps.printErr(`No skill with id ${id} in the registry at ${registry}.`);
     return 1;
   }
-  const orgs = await organizations;
-  for (const line of describeSkill(skill, orgs, skillsFeed.generatedAt)) {
+  const orgName = organizationNamer(await organizations);
+  for (const line of describeSkill(skill, orgName, skillsFeed.generatedAt)) {
     deps.printErr(line);
   }
   const decision = checkApprovals(
@@ -130,9 +130,10 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     guardrail.requireApprovalFrom,
   );
   for (const line of guardrailLines(
+    skill.approvals,
     decision,
     guardrail,
-    organizationNamer(orgs),
+    orgName,
   )) {
     deps.printErr(line);
   }

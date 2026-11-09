@@ -18,7 +18,6 @@ export interface SkillApproval {
 export interface Skill {
   skillId: string;
   name: string;
-  description: string;
   // pinned says whether ref names a tag or full commit SHA rather than a
   // branch; absent reads as unknown, not false
   source: {

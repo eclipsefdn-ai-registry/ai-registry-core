@@ -12,7 +12,6 @@ const GENERATED_AT = "2026-10-25T06:20:00.490Z";
 const CODE_REVIEW: Skill = {
   skillId: "io.github.anthropics/code-review",
   name: "code-review",
-  description: "Reviews code",
   source: {
     url: "https://github.com/anthropics/skills.git",
     path: "skills/code-review",

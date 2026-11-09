@@ -50,3 +50,16 @@ export function skillsAddArgs(
   if (options.yes) args.push("-y");
   return args;
 }
+
+/**
+ * The environment the skills CLI runs in: this one without GH_HOST. skills
+ * resolves the owner/repo shorthand skillsAddArgs passes against GH_HOST, so
+ * with it set a GitHub Enterprise user would clone from that host, not the
+ * github.com source that was printed as approved.
+ */
+export function installerEnv(
+  env: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const { GH_HOST: _ignored, ...rest } = env;
+  return rest;
+}

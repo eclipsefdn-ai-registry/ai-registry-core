@@ -18,14 +18,13 @@ export const GUARDRAIL_OFF: Guardrail = {
   setBy: "default",
 };
 
-/** The approval fields the guardrail reads, shared by every type. */
+/** The approval fields the guardrail reads. */
 export type Approval = Pick<SkillApproval, "organizationId" | "viaTrust">;
 
-export interface Decision<A extends Approval> {
+export interface Decision {
   allowed: boolean;
-  approvals: A[];
   // the approvals that satisfy the guardrail: all of them when it's off
-  matching: A[];
+  matching: Approval[];
 }
 
 /**
@@ -57,30 +56,31 @@ export function organizationIds(ids: string[]): string[] | undefined {
  * approval counts as the trusting organization's: it delegated the judgement,
  * and the approval stands under its own delegation policy.
  */
-export function checkApprovals<A extends Approval>(
-  approvals: A[],
+export function checkApprovals(
+  approvals: Approval[],
   requireApprovalFrom: RequireApprovalFrom,
-): Decision<A> {
+): Decision {
   const matching =
     requireApprovalFrom === "off"
       ? approvals
       : approvals.filter((a) => requireApprovalFrom.includes(a.organizationId));
   return {
     allowed: requireApprovalFrom === "off" || matching.length > 0,
-    approvals,
     matching,
   };
 }
 
 /**
  * What the guardrail tells the user: the setting and the approval that met
- * it, or, on refusal, who did approve the entry so they can override it
+ * it, or, on refusal, who did approve the entry (`approvals`, all of them, as
+ * given to checkApprovals) so they can override it
  * knowing that. A trust-derived approval always names the organization whose
  * judgement it rests on, since trusting one organization can mean inheriting
  * another's.
  */
-export function guardrailLines<A extends Approval>(
-  decision: Decision<A>,
+export function guardrailLines(
+  approvals: Approval[],
+  decision: Decision,
   guardrail: Guardrail,
   orgName: (id: string) => string,
 ): string[] {
@@ -94,13 +94,13 @@ export function guardrailLines<A extends Approval>(
   if (!decision.allowed) {
     return [
       `Not installing: none of ${requireApprovalFrom.join(", ")} approved it (required by ${setBy}).`,
-      `It was approved by ${decision.approvals.map((a) => approver(a, true)).join("; ")}.`,
+      `It was approved by ${approvals.map((a) => approver(a, true)).join("; ")}.`,
       "To install it anyway, run again with --require-approval-from naming one of them, or off.",
     ];
   }
 
   const delegated = decision.matching.filter(
-    (a): a is A & { viaTrust: string } => a.viaTrust !== undefined,
+    (a): a is Approval & { viaTrust: string } => a.viaTrust !== undefined,
   );
   return [
     field(
