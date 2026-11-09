@@ -1,6 +1,6 @@
 import type { Plugin, Skill } from "./types";
 import { approvedTarget } from "./approvedTarget";
-import { cliSource, sourceTreeUrl } from "./cliSource";
+import { cliSource, isGitHubUrl, sourceTreeUrl } from "./cliSource";
 
 // The two source forms the skills CLI reads a `#ref` fragment from, given what
 // cliSource produces: the GitHub `owner/repo` shorthand, and a gitlab.com URL,
@@ -74,11 +74,17 @@ export type PluginInstallOption = {
 /**
  * Every install instruction for a plugin, in the order the detail page shows
  * them. The one place a rule about which tool can install which plugin lives.
+ *
+ * A tool that can't install this plugin at all is left out. A missing
+ * `isAgentPlugin` (a feed that predates it) is unknown, not false, so it passes
+ * both tools' verdict checks; their other checks still apply.
  */
 export function pluginInstallOptions(
-  plugin: Pick<Plugin, "source">,
+  plugin: Pick<Plugin, "source" | "isAgentPlugin">,
 ): PluginInstallOption[] {
-  return [kiroOption(plugin), npxPluginsOption(plugin)];
+  return [kiroOption(plugin), npxPluginsOption(plugin)].filter(
+    (option) => option !== undefined,
+  );
 }
 
 /**
@@ -87,14 +93,19 @@ export function pluginInstallOptions(
  *
  * Kiro installs from `/tree/<revision>/<path>` and accepts a full commit SHA,
  * so this pins to the commit contentHash was computed at, ref or no ref, as
- * sourceTreeUrl does; only a feed that predates source.commit gets the ref or
- * HEAD instead. The path is required for a plugin in a subfolder: Kiro ignores
- * marketplace files, so the repository root alone doesn't find it.
+ * sourceTreeUrl does. The path is required for a plugin in a subfolder: Kiro
+ * ignores marketplace files, so the repository root alone doesn't find it.
  *
- * Offered for every plugin with no checks, though Kiro rejects a non-GitHub
- * URL and won't load a plugin.json without `$schema`.
+ * Offered only for an Agent Plugin on github.com with a `source.commit`: Kiro
+ * rejects a non-GitHub URL and won't load a plugin.json without `$schema`, and
+ * without the commit the link could only name a ref or HEAD.
  */
-function kiroOption(plugin: Pick<Plugin, "source">): PluginInstallOption {
+function kiroOption(
+  plugin: Pick<Plugin, "source" | "isAgentPlugin">,
+): PluginInstallOption | undefined {
+  if (plugin.isAgentPlugin === false) return undefined;
+  if (!isGitHubUrl(plugin.source.url)) return undefined;
+  if (!plugin.source.commit) return undefined;
   return {
     tool: "kiro",
     label: "Install in Kiro",
@@ -111,8 +122,9 @@ function kiroOption(plugin: Pick<Plugin, "source">): PluginInstallOption {
 }
 
 /**
- * The `npx plugins add` command for a plugin, or why there is none when the
- * approval names a ref.
+ * The `npx plugins add` command for a plugin that isn't an Agent Plugin, or why
+ * there is none when the approval names a ref. An Agent Plugin gets nothing:
+ * the tools that read the specification install it at the approved commit.
  *
  * Keyed to the CLI's capability, not to `source.pinned`: plugins 1.3.4 runs
  * `git clone --depth 1` with no ref and has no flag for one, so a branch ref is
@@ -120,7 +132,10 @@ function kiroOption(plugin: Pick<Plugin, "source">): PluginInstallOption {
  * a plugin in a subdirectory resolves by discovery rather than by path. Remove
  * the suppression once the CLI can target a ref.
  */
-function npxPluginsOption(plugin: Pick<Plugin, "source">): PluginInstallOption {
+function npxPluginsOption(
+  plugin: Pick<Plugin, "source" | "isAgentPlugin">,
+): PluginInstallOption | undefined {
+  if (plugin.isAgentPlugin === true) return undefined;
   const option = {
     tool: "npx-plugins" as const,
     label: "Install in other agents",

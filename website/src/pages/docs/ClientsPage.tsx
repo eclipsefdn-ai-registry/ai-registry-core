@@ -552,6 +552,37 @@ export function ClientsPage() {
           Whether a given tool can install a plugin depends on that tool&apos;s
           own rules, which the feed doesn&apos;t publish.
         </p>
+        <p className="mt-3 mb-3 leading-relaxed">
+          If you hand a plugin to another tool rather than installing it
+          yourself, the registry website applies two rules you can reuse:
+        </p>
+        <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
+          <li>
+            Offer the <InlineCode>plugins</InlineCode> CLI (
+            <InlineCode>npx plugins add &lt;source&gt;</InlineCode>) only for a
+            plugin that isn&apos;t an Agent Plugin, and only when the approval
+            names no <InlineCode>source.ref</InlineCode>. The CLI clones the
+            default branch with no way to target a ref, and an Agent Plugin has
+            tools that install it at the endorsed commit instead.
+          </li>
+          <li>
+            Offer Kiro&apos;s <strong>Import power from GitHub</strong> only for
+            an Agent Plugin on github.com, as the plugin&apos;s folder at{" "}
+            <InlineCode>source.commit</InlineCode> (
+            <InlineCode>
+              {"https://github.com/<owner>/<repo>/tree/<commit>/<path>"}
+            </InlineCode>
+            ). Kiro rejects any other host and won&apos;t load a{" "}
+            <InlineCode>plugin.json</InlineCode> without{" "}
+            <InlineCode>$schema</InlineCode>. With no{" "}
+            <InlineCode>source.commit</InlineCode>, offer nothing.
+          </li>
+        </ul>
+        <p className="mt-3 mb-3 leading-relaxed">
+          A missing <InlineCode>isAgentPlugin</InlineCode> is unknown, not
+          false, so it passes the Agent Plugin half of both rules. The ref, host
+          and commit conditions still apply.
+        </p>
         <InfoCallout>
           <strong>Install the plugin whole.</strong> Download the plugin
           directory at <code>source.commit</code>, verify it against{" "}

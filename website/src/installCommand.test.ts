@@ -24,12 +24,16 @@ function skill(
   };
 }
 
-function plugin(source: Partial<Plugin["source"]> = {}) {
+function plugin(
+  source: Partial<Plugin["source"]> = {},
+  verdict: Pick<Plugin, "isAgentPlugin"> = {},
+) {
   return {
     source: {
       url: "https://github.com/gemini-cli-extensions/looker.git",
       ...source,
     },
+    ...verdict,
   };
 }
 
@@ -141,8 +145,11 @@ describe("skillsCommand", () => {
 });
 
 // The options for a plugin, keyed by tool, so each rule is asserted on its own.
-function optionsFor(source: Partial<Plugin["source"]> = {}) {
-  const options = pluginInstallOptions(plugin(source));
+function optionsFor(
+  source: Partial<Plugin["source"]> = {},
+  verdict: Pick<Plugin, "isAgentPlugin"> = {},
+) {
+  const options = pluginInstallOptions(plugin(source, verdict));
   return {
     tools: options.map((option) => option.tool),
     kiro: options.find((option) => option.tool === "kiro"),
@@ -175,30 +182,62 @@ function npxPluginsUnavailable(ref: string) {
   };
 }
 
+const AGENT_PLUGIN = { isAgentPlugin: true };
+const NOT_AGENT_PLUGIN = { isAgentPlugin: false };
+
 describe("pluginInstallOptions", () => {
-  it("lists Kiro first, then npx plugins", () => {
-    assert.deepEqual(optionsFor().tools, ["kiro", "npx-plugins"]);
+  it("lists Kiro first, then npx plugins, for a feed without the verdict", () => {
+    assert.deepEqual(optionsFor({ commit: COMMIT }).tools, [
+      "kiro",
+      "npx-plugins",
+    ]);
+  });
+
+  it("offers only Kiro for an Agent Plugin", () => {
+    assert.deepEqual(optionsFor({ commit: COMMIT }, AGENT_PLUGIN).tools, [
+      "kiro",
+    ]);
+  });
+
+  it("offers only npx plugins for a plugin that isn't an Agent Plugin", () => {
+    assert.deepEqual(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).tools, [
+      "npx-plugins",
+    ]);
   });
 
   describe("npx plugins", () => {
+    const command = {
+      tool: "npx-plugins",
+      label: "Install in other agents",
+      steps: [
+        {
+          kind: "command",
+          lead: "For other agents, this plugin might be installable with:",
+          command: "npx plugins add gemini-cli-extensions/looker",
+        },
+      ],
+      warnings: [],
+    };
+
     it("offers a command when the approval names no ref", () => {
-      assert.deepEqual(optionsFor().npxPlugins, {
-        tool: "npx-plugins",
-        label: "Install in other agents",
-        steps: [
-          {
-            kind: "command",
-            lead: "For other agents, this plugin might be installable with:",
-            command: "npx plugins add gemini-cli-extensions/looker",
-          },
-        ],
-        warnings: [],
-      });
+      assert.deepEqual(optionsFor({}, NOT_AGENT_PLUGIN).npxPlugins, command);
+    });
+
+    // An older feed has no verdict, which is unknown rather than false, so it
+    // keeps the command it always had.
+    it("offers a command in a feed without the verdict", () => {
+      assert.deepEqual(optionsFor().npxPlugins, command);
+    });
+
+    // An Agent Plugin has tools that install it at the approved commit.
+    it("is not offered for an Agent Plugin", () => {
+      assert.equal(optionsFor({}, AGENT_PLUGIN).npxPlugins, undefined);
     });
 
     it("offers no command for a tag, and says why", () => {
       assert.deepEqual(
-        optionsFor({ ref: "0.3.10", pinned: true }).npxPlugins,
+        optionsFor({ ref: "0.3.10", pinned: true }, NOT_AGENT_PLUGIN)
+          .npxPlugins,
         npxPluginsUnavailable("0.3.10"),
       );
     });
@@ -206,7 +245,8 @@ describe("pluginInstallOptions", () => {
     // The CLI would clone the default branch, which is not the branch named.
     it("offers no command for a branch", () => {
       assert.deepEqual(
-        optionsFor({ ref: "release-1.x", pinned: false }).npxPlugins,
+        optionsFor({ ref: "release-1.x", pinned: false }, NOT_AGENT_PLUGIN)
+          .npxPlugins,
         npxPluginsUnavailable("release-1.x"),
       );
     });
@@ -215,6 +255,13 @@ describe("pluginInstallOptions", () => {
       assert.deepEqual(
         optionsFor({ ref: "0.3.10" }).npxPlugins,
         npxPluginsUnavailable("0.3.10"),
+      );
+    });
+
+    it("says nothing about a ref for an Agent Plugin", () => {
+      assert.equal(
+        optionsFor({ ref: "0.3.10", pinned: true }, AGENT_PLUGIN).npxPlugins,
+        undefined,
       );
     });
   });
@@ -227,6 +274,7 @@ describe("pluginInstallOptions", () => {
           path: "plugins/aws-agents",
           commit: COMMIT,
         },
+        ...AGENT_PLUGIN,
       });
       assert.deepEqual(
         kiro,
@@ -240,7 +288,10 @@ describe("pluginInstallOptions", () => {
     // commit it was hashed at, since a tag can be moved.
     it("pins a plugin approved at a tag to its commit", () => {
       assert.deepEqual(
-        optionsFor({ ref: "0.3.11", pinned: true, commit: COMMIT }).kiro,
+        optionsFor(
+          { ref: "0.3.11", pinned: true, commit: COMMIT },
+          AGENT_PLUGIN,
+        ).kiro,
         kiroFor(
           `https://github.com/gemini-cli-extensions/looker/tree/${COMMIT}`,
         ),
@@ -249,18 +300,66 @@ describe("pluginInstallOptions", () => {
 
     it("pins a plugin approved at a branch to its commit", () => {
       assert.deepEqual(
-        optionsFor({ ref: "release-1.x", pinned: false, commit: COMMIT }).kiro,
+        optionsFor(
+          { ref: "release-1.x", pinned: false, commit: COMMIT },
+          AGENT_PLUGIN,
+        ).kiro,
         kiroFor(
           `https://github.com/gemini-cli-extensions/looker/tree/${COMMIT}`,
         ),
       );
     });
 
-    // No checks yet: a GitLab source still gets the link.
-    it("is offered for a source on any host", () => {
-      assert.ok(
-        optionsFor({ url: "https://gitlab.com/acme/plugins.git" }).kiro,
+    // Kiro won't load a plugin.json without `$schema`, and that is one of the
+    // conformance checks.
+    it("is not offered for a plugin that isn't an Agent Plugin", () => {
+      assert.equal(
+        optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro,
+        undefined,
       );
+    });
+
+    // An older feed has no verdict, which is unknown rather than false.
+    it("is offered in a feed without the verdict", () => {
+      assert.deepEqual(
+        optionsFor({ commit: COMMIT }).kiro,
+        kiroFor(
+          `https://github.com/gemini-cli-extensions/looker/tree/${COMMIT}`,
+        ),
+      );
+    });
+
+    // Kiro's import rejects any URL that isn't on github.com.
+    it("is not offered for a source on another host", () => {
+      assert.equal(
+        optionsFor(
+          { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
+          AGENT_PLUGIN,
+        ).kiro,
+        undefined,
+      );
+    });
+
+    // Without the commit, the link could only name a ref or HEAD, which may
+    // no longer be what was approved.
+    it("is not offered without source.commit", () => {
+      assert.equal(optionsFor({ ref: "0.3.11" }, AGENT_PLUGIN).kiro, undefined);
+    });
+
+    // A missing verdict passes only the verdict check: the link would fail on
+    // another host, and without a commit it can't name what was approved.
+    it("is not offered in a feed without the verdict on another host", () => {
+      assert.equal(
+        optionsFor({
+          url: "https://gitlab.com/acme/plugins.git",
+          commit: COMMIT,
+        }).kiro,
+        undefined,
+      );
+    });
+
+    it("is not offered in a feed without the verdict or source.commit", () => {
+      assert.equal(optionsFor({ ref: "0.3.11" }).kiro, undefined);
     });
   });
 });
