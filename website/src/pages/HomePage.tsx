@@ -20,6 +20,7 @@ import type { BrowserTab } from "../browserTabs";
 import {
   filterByNameDescId,
   filterByOrgs,
+  filterAgentPlugins,
   passesOrgFilter,
 } from "../filterArtifacts";
 
@@ -42,6 +43,8 @@ export function HomePage() {
   // The organizations picked in the search filters. None picked means all of
   // them.
   const [orgFilter, setOrgFilter] = useState<readonly string[]>([]);
+  // Narrows the Plugins tab to Agent Plugins. Other tabs ignore it.
+  const [agentPluginsOnly, setAgentPluginsOnly] = useState(false);
   const [tab, setTab] = useState<Tab>("servers");
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedServerId = searchParams.get("server") ?? undefined;
@@ -94,11 +97,14 @@ export function HomePage() {
   const filteredPlugins = useMemo(() => {
     if (!data) return [];
     return filterByNameDescId(
-      filterByOrgs(data.plugins ?? [], orgFilter),
+      filterAgentPlugins(
+        filterByOrgs(data.plugins ?? [], orgFilter),
+        agentPluginsOnly,
+      ),
       search,
       (p) => p.pluginId,
     );
-  }, [data, search, orgFilter]);
+  }, [data, search, orgFilter, agentPluginsOnly]);
 
   const filteredAgents = useMemo(() => {
     if (!data) return [];
@@ -282,6 +288,8 @@ export function HomePage() {
             organizations={data.organizations}
             selectedOrgIds={orgFilter}
             onSelectedOrgIdsChange={setOrgFilter}
+            agentPluginsOnly={agentPluginsOnly}
+            onAgentPluginsOnlyChange={setAgentPluginsOnly}
           />
 
           <p className="text-sm text-muted-foreground mb-6">

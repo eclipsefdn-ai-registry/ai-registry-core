@@ -6,9 +6,9 @@ import { MultiSelect } from "./MultiSelect";
 /**
  * The home page's search box, with its filters behind an icon at the box's
  * right end, the way Gmail keeps its search options. The icon opens a panel
- * under the box with one labelled row per filter. Organizations is the only
- * row so far; another filter becomes another row rather than another control
- * beside the box.
+ * under the box with one labelled row per filter: Organizations, and Plugins
+ * with its "Agent Plugins only" toggle. Another filter becomes another row
+ * rather than another control beside the box.
  *
  * Organizations are a multi-select dropdown, which stays compact however many
  * organizations join, and with several picked the browser lists what any of
@@ -16,8 +16,8 @@ import { MultiSelect } from "./MultiSelect";
  * submit button, only Clear and Done.
  *
  * With the panel closed, nothing in the box says the lists are narrowed, so
- * the selected organizations are repeated as chips under the box, each with
- * its own remove button.
+ * the selected organizations, and the Agent Plugins toggle when it's on, are
+ * repeated as chips under the box, each with its own remove button.
  */
 export function BrowserSearch({
   search,
@@ -26,6 +26,8 @@ export function BrowserSearch({
   organizations,
   selectedOrgIds,
   onSelectedOrgIdsChange,
+  agentPluginsOnly,
+  onAgentPluginsOnlyChange,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -33,12 +35,15 @@ export function BrowserSearch({
   organizations: Organization[];
   selectedOrgIds: readonly string[];
   onSelectedOrgIdsChange: (orgIds: readonly string[]) => void;
+  agentPluginsOnly: boolean;
+  onAgentPluginsOnlyChange: (agentPluginsOnly: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const orgLabelId = useId();
+  const pluginsLabelId = useId();
 
   // A click outside or Escape closes the panel, as it would a menu. Escape
   // returns focus to the icon, since the focused element may be in the panel
@@ -66,7 +71,7 @@ export function BrowserSearch({
   );
   const orgOptions = sortedOrgs.map((o) => ({ value: o.id, label: o.name }));
   const selectedOrgs = sortedOrgs.filter((o) => selectedOrgIds.includes(o.id));
-  const activeCount = selectedOrgIds.length;
+  const activeCount = selectedOrgIds.length + (agentPluginsOnly ? 1 : 0);
 
   const toggleOrg = (orgId: string) =>
     onSelectedOrgIdsChange(
@@ -132,11 +137,30 @@ export function BrowserSearch({
               placeholder="All organizations"
               searchLabel="Search organizations"
             />
+            <span
+              id={pluginsLabelId}
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Plugins
+            </span>
+            <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                aria-describedby={pluginsLabelId}
+                checked={agentPluginsOnly}
+                onChange={(e) => onAgentPluginsOnlyChange(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Agent Plugins only
+            </label>
           </div>
           <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-border">
             <button
               type="button"
-              onClick={() => onSelectedOrgIdsChange([])}
+              onClick={() => {
+                onSelectedOrgIdsChange([]);
+                onAgentPluginsOnlyChange(false);
+              }}
               disabled={activeCount === 0}
               className="px-3 py-1.5 text-sm font-medium rounded-lg text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:pointer-events-none transition-colors"
             >
@@ -156,7 +180,7 @@ export function BrowserSearch({
         </div>
       </div>
 
-      {selectedOrgs.length > 0 && (
+      {(selectedOrgs.length > 0 || agentPluginsOnly) && (
         <ul
           aria-label="Active filters"
           className="flex flex-wrap justify-center gap-2 mt-3"
@@ -177,6 +201,19 @@ export function BrowserSearch({
               </button>
             </li>
           ))}
+          {agentPluginsOnly && (
+            <li className="inline-flex items-center gap-1 pl-3 pr-1 py-1 text-xs font-medium rounded-full border border-primary/20 bg-primary/10 text-primary">
+              Agent Plugins only
+              <button
+                type="button"
+                onClick={() => onAgentPluginsOnlyChange(false)}
+                aria-label="Remove filter: Agent Plugins only"
+                className="p-0.5 rounded-full hover:bg-primary/20 transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>

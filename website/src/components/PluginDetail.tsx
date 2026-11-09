@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import type {
   Plugin,
   Organization,
@@ -17,6 +17,7 @@ import {
 import { sourceLinkTitle } from "../approvedTarget";
 import { InstallFromCli, InstallFromCliUnavailable } from "./InstallFromCli";
 import { ApprovedTarget } from "./ApprovedTarget";
+import { AgentPluginBadge } from "./AgentPluginBadge";
 
 export function PluginDetail({
   plugin,
@@ -45,6 +46,7 @@ export function PluginDetail({
       <h2 className="text-xl font-bold mb-1">{plugin.name}</h2>
       <p className="text-muted-foreground mb-4">{plugin.description}</p>
       <div className="flex gap-3 mb-4 flex-wrap items-center text-sm">
+        <AgentPluginBadge plugin={plugin} />
         <span className="text-muted-foreground font-mono text-xs">
           {plugin.pluginId}
         </span>
@@ -105,6 +107,8 @@ export function PluginDetail({
         </div>
       )}
 
+      <AgentPluginIssues plugin={plugin} />
+
       <ContainedComponents
         skills={plugin.containedSkills}
         mcpServers={plugin.containedMcpServers}
@@ -128,6 +132,42 @@ export function PluginDetail({
       {pluginInstallOptions(plugin).map((option, i) => (
         <InstallOption key={i} option={option} />
       ))}
+    </div>
+  );
+}
+
+// Why a plugin isn't an Agent Plugin, as consolidation reported it. Shown
+// only for a plugin known not to conform: an older feed without the verdict
+// shows nothing, since there it's unknown.
+function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
+  const issues = plugin.agentPluginIssues ?? [];
+  if (plugin.isAgentPlugin !== false || issues.length === 0) return null;
+  return (
+    <div className="mb-6 rounded-lg border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
+      <div className="flex items-center gap-2 font-medium text-warning mb-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+        Not an Agent Plugin
+      </div>
+      <p className="text-card-foreground mb-2">
+        This plugin doesn&apos;t conform to the{" "}
+        <a
+          href="https://agent-plugins.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline"
+        >
+          Agent Plugins specification
+        </a>
+        . It is still approved, but tools that only load Agent Plugins may not
+        install it.
+      </p>
+      <ul className="list-disc pl-5 space-y-1 text-card-foreground">
+        {issues.map((issue, i) => (
+          <li key={i} className="break-words">
+            {issue}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

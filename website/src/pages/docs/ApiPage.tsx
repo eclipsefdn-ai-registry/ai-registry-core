@@ -511,6 +511,18 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
                 "Servers declared in mcp.json, each with name and transport. Transport is empty when the entry declares no type.",
             },
             {
+              name: "isAgentPlugin",
+              type: "boolean?",
+              description:
+                "Whether the plugin is an Agent Plugin: it conforms to the Agent Plugins specification (agent-plugins.org), checked at source.commit against the specification versions the registry bundles. Every check must pass: plugin.json, and mcp.json when present, name a known version in $schema and match its schema; every MCP server declares a type; no MCP server is one the specification tells clients to skip; every skill's SKILL.md frontmatter has a name and description. False keeps the plugin in the registry. Absent in feeds that predate it, which means unknown, not false.",
+            },
+            {
+              name: "agentPluginIssues",
+              type: "string[]?",
+              description:
+                "Why the plugin isn't an Agent Plugin: one readable message per failed check, the same text vendor validation prints. Omitted when isAgentPlugin is true, and absent in feeds that predate it.",
+            },
+            {
               name: "approvals",
               type: "array",
               description: "One entry per approving organization.",
@@ -668,10 +680,7 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
                 "Generic MCP server config, the root config of an MCP approval",
               ],
               ["skill-approval.schema.json", "Agent Skill approval file"],
-              [
-                "plugin-approval.schema.json",
-                "Agent Plugin (agent-plugins.org) approval file",
-              ],
+              ["plugin-approval.schema.json", "Plugin approval file"],
               ["agent-approval.schema.json", "A2A agent approval file"],
               [
                 "marketplace-approval.schema.json",

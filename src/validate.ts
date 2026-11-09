@@ -752,6 +752,16 @@ function loadVendorIds(): Set<string> | undefined {
 
 // --- CLI entry point ---
 
+/**
+ * The warnings vendor validation prints for a Plugin that isn't an Agent
+ * Plugin, one per issue, with the same messages consolidation publishes in
+ * agentPluginIssues. They never fail validation: a non-conforming Plugin is
+ * still a Plugin.
+ */
+export function agentPluginWarnings(label: string, issues: string[]): string[] {
+  return issues.map((issue) => `${label} — not an Agent Plugin: ${issue}`);
+}
+
 export async function validateVendorRepo(repoDir: string): Promise<boolean> {
   console.log("=== AI Registry — Vendor Validation ===\n");
 
@@ -899,6 +909,12 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
           console.log(
             `    Contains: ${metadata.containedSkills.length} skill(s), ${metadata.containedMcpServers.length} MCP server(s)`,
           );
+          for (const w of agentPluginWarnings(
+            file,
+            metadata.agentPluginIssues,
+          )) {
+            console.warn(`  WARNING: ${w}`);
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           console.warn(
@@ -971,6 +987,12 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
               console.log(`    PASS: ${label} (${pluginId})`);
               console.log(`      Name: ${metadata.name}`);
               console.log(`      Description: ${metadata.description}`);
+              for (const w of agentPluginWarnings(
+                label,
+                metadata.agentPluginIssues,
+              )) {
+                console.warn(`    WARNING: ${w}`);
+              }
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
               console.warn(

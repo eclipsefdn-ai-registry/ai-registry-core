@@ -185,9 +185,11 @@ Record the hash you computed, not the one from the feed. The recorded hash is th
 
 A skill's identity is the `name` in its `SKILL.md` frontmatter, because that is what the agent runtime and the model address it by. Two skills with the same name collide no matter which directories they occupy.
 
-## Agent Plugins
+## Plugins
 
-An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.json` manifest, optional `skills/<name>/SKILL.md` folders, and an optional `mcp.json`. `source.path` points at that directory; omit it and the plugin is at the repository root.
+A plugin is a directory holding a `plugin.json` manifest, optional `skills/<name>/SKILL.md` folders, and an optional `mcp.json`. `source.path` points at that directory; omit it and the plugin is at the repository root.
+
+A plugin that conforms to the [Agent Plugins specification](https://agent-plugins.org) is an **Agent Plugin**. Not every plugin in the feed is one: conformance is not a condition of approval, and a plugin that doesn't conform stays in the registry with its approvals.
 
 ```json
 {
@@ -209,6 +211,7 @@ An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.js
     }
   ],
   "containedMcpServers": [{ "name": "bigquery", "transport": "stdio" }],
+  "isAgentPlugin": true,
   "approvals": [
     {
       "organizationId": "example-org",
@@ -218,6 +221,22 @@ An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.js
   ]
 }
 ```
+
+### Agent Plugin or not
+
+`isAgentPlugin` is consolidation's verdict on whether the plugin conforms to the Agent Plugins specification, checked at `source.commit` against the specification versions the registry bundles. It is `true` only when every check passes:
+
+- `plugin.json`, and `mcp.json` when present, name a known specification version in `$schema`. The registry never fetches the `$schema` URL, so a version it hasn't adopted yet counts as unknown, and an unknown version is not conformant.
+- Both files match that version's schema.
+- Every MCP server declares an explicit `type`.
+- No MCP server is one the specification tells clients to skip, such as a `command` that is a shell command line, a `cwd` or `./` path leaving the plugin root, a non-HTTPS `url` to a host other than loopback, or an `mcp.json` targeting a different version than `plugin.json`.
+- Every skill's `SKILL.md` frontmatter has a `name` and a `description`.
+
+When it is `false`, `agentPluginIssues` lists why, one readable message per failed check. They are the messages the vendor saw during validation, so show them as they are rather than rewording them. The field is omitted when the plugin conforms.
+
+**A missing `isAgentPlugin` means unknown, never `false`.** Feeds from before the verdict was published have neither field. Treat such a plugin as you would one you haven't checked: don't label it non-conforming, and don't show an empty issue list. If you want to show only Agent Plugins, keep only those with `isAgentPlugin === true`.
+
+The verdict is about the specification, not about any one tool. Whether a given tool can install a plugin depends on that tool's own rules, which the feed doesn't publish.
 
 ### Install the plugin whole
 
@@ -339,6 +358,7 @@ Removing artifacts automatically deletes working installations whenever a source
 - [ ] Record provenance for everything you install, and never overwrite what you did not
 - [ ] Offer adoption when a local slot is already occupied
 - [ ] Install plugins whole, keyed by `pluginId`, and load from inside the plugin root
+- [ ] Read a missing `isAgentPlugin` as unknown, not as "not an Agent Plugin"
 - [ ] Tell the user what a sandbox extension can do before installing it — it runs as root at build and start time
 - [ ] Surface artifacts missing from the feed without removing them
 

@@ -513,3 +513,120 @@ describe("enrichPluginMetadata pinned", () => {
     assert.equal(a.source.pinned, undefined);
   });
 });
+
+// --- Agent Plugin conformance through fetchPluginManifest ---
+
+describe("fetchPluginManifest Agent Plugin conformance", () => {
+  const PLUGIN_SCHEMA =
+    "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
+  const MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
+
+  function writePlugin(
+    dir: string,
+    files: { plugin: object; mcp?: object; skills?: Record<string, string> },
+  ): void {
+    const root = join(dir, "plugins/demo");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "plugin.json"), JSON.stringify(files.plugin));
+    if (files.mcp) {
+      writeFileSync(join(root, "mcp.json"), JSON.stringify(files.mcp));
+    }
+    for (const [name, skillMd] of Object.entries(files.skills ?? {})) {
+      mkdirSync(join(root, "skills", name), { recursive: true });
+      writeFileSync(join(root, "skills", name, "SKILL.md"), skillMd);
+    }
+  }
+
+  function fetchFrom(sourceDir: string) {
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-conformance-test-"));
+    try {
+      return fetchPluginManifest(`file://${sourceDir}`, "plugins/demo", tmpDir);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  it("calls a conforming plugin an Agent Plugin, with no issues", () => {
+    const sourceDir = initRepo();
+    try {
+      writePlugin(sourceDir, {
+        plugin: { $schema: PLUGIN_SCHEMA, name: "demo" },
+        mcp: {
+          $schema: MCP_SCHEMA,
+          mcpServers: { local: { type: "stdio", command: "uvx" } },
+        },
+        skills: { alpha: "---\nname: alpha\ndescription: Alpha\n---\n" },
+      });
+      commitAll(sourceDir, "conforming");
+
+      const metadata = fetchFrom(sourceDir);
+      assert.equal(metadata.isAgentPlugin, true);
+      assert.deepEqual(metadata.agentPluginIssues, []);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a non-conforming plugin's issues, paths relative to the plugin", () => {
+    const sourceDir = initRepo();
+    try {
+      writePlugin(sourceDir, {
+        plugin: { name: "demo" },
+        mcp: {
+          $schema: MCP_SCHEMA,
+          mcpServers: { local: { command: "uvx" } },
+        },
+        skills: { beta: "---\nname: beta\n---\n" },
+      });
+      commitAll(sourceDir, "non-conforming");
+
+      const metadata = fetchFrom(sourceDir);
+      assert.equal(metadata.isAgentPlugin, false);
+      assert.equal(metadata.agentPluginIssues.length, 3);
+      assert.match(metadata.agentPluginIssues[0], /^plugin\.json has no/);
+      assert.equal(
+        metadata.agentPluginIssues[1],
+        'mcp.json server "local" declares no "type"',
+      );
+      assert.equal(
+        metadata.agentPluginIssues[2],
+        'skill "skills/beta": SKILL.md frontmatter has no "description"',
+      );
+      // Still a Plugin: its metadata is all there.
+      assert.equal(metadata.name, "demo");
+      assert.equal(metadata.containedSkills.length, 1);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("enrichPluginMetadata Agent Plugin fields", () => {
+  it("sets isAgentPlugin, and agentPluginIssues only when there are some", () => {
+    const sourceDir = initRepo();
+    try {
+      mkdirSync(join(sourceDir, "good"), { recursive: true });
+      writeFileSync(
+        join(sourceDir, "good/plugin.json"),
+        JSON.stringify({
+          $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+          name: "good",
+        }),
+      );
+      writeManifest(sourceDir, "bad", "bad", "1.0.0");
+      commitAll(sourceDir, "plugins");
+      const url = `file://${sourceDir}`;
+
+      const [good, bad] = enrichPluginMetadata([
+        entry("io.example/good", url, "good"),
+        entry("io.example/bad", url, "bad"),
+      ]);
+      assert.equal(good.isAgentPlugin, true);
+      assert.equal("agentPluginIssues" in good, false);
+      assert.equal(bad.isAgentPlugin, false);
+      assert.equal(bad.agentPluginIssues?.length, 1);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});

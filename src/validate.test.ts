@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import {
   checkToolIds,
@@ -16,6 +17,8 @@ import {
   validateSandboxExtensionApproval,
   readApprovalDir,
   validateSimpleApprovals,
+  agentPluginWarnings,
+  validateVendorRepo,
   type SkillApprovalEntry,
   type PluginApprovalEntry,
   type AgentApprovalEntry,
@@ -2083,5 +2086,68 @@ describe("validateVendorData — server key collisions", () => {
     ] as never);
 
     assert.deepEqual(result.errors, []);
+  });
+});
+
+describe("agentPluginWarnings", () => {
+  it("turns each conformance issue into a warning naming the approval", () => {
+    assert.deepEqual(
+      agentPluginWarnings("plugins/io.example--demo.json", [
+        'plugin.json has no "$schema", so it names no Agent Plugins version',
+        'skill "skills/beta": SKILL.md frontmatter has no "description"',
+      ]),
+      [
+        'plugins/io.example--demo.json — not an Agent Plugin: plugin.json has no "$schema", so it names no Agent Plugins version',
+        'plugins/io.example--demo.json — not an Agent Plugin: skill "skills/beta": SKILL.md frontmatter has no "description"',
+      ],
+    );
+  });
+
+  it("warns about nothing for an Agent Plugin", () => {
+    assert.deepEqual(agentPluginWarnings("plugins/x.json", []), []);
+  });
+});
+
+describe("validateVendorRepo — a plugin that isn't an Agent Plugin", () => {
+  it("still passes", async () => {
+    const root = mkdtempSync(join(tmpdir(), "vendor-agent-plugin-"));
+    try {
+      const source = join(root, "source");
+      mkdirSync(join(source, "demo"), { recursive: true });
+      // No $schema, so not an Agent Plugin.
+      writeFileSync(
+        join(source, "demo", "plugin.json"),
+        JSON.stringify({ name: "demo" }),
+      );
+      const git = (cmd: string) =>
+        execSync(`git ${cmd}`, { cwd: source, stdio: "pipe" });
+      git("init -b main");
+      git("add -A");
+      git("-c user.email=t@t -c user.name=t commit -m demo");
+
+      const vendor = join(root, "vendor");
+      mkdirSync(join(vendor, "plugins"), { recursive: true });
+      writeFileSync(
+        join(vendor, "organization.json"),
+        JSON.stringify({
+          id: "acme",
+          name: "Acme",
+          description: "Test vendor",
+          website: "https://acme.com",
+        }),
+      );
+      writeFileSync(
+        join(vendor, "plugins", "io.example--demo.json"),
+        JSON.stringify({
+          pluginId: "io.example/demo",
+          date: "2026-11-09",
+          source: { url: `file://${source}`, path: "demo" },
+        }),
+      );
+
+      assert.equal(await validateVendorRepo(vendor), true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
