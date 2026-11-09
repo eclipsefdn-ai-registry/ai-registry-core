@@ -1,6 +1,7 @@
 import type { Plugin, Skill } from "./types";
 import { approvedTarget } from "./approvedTarget";
 import { cliSource, isGitHubUrl, sourceTreeUrl } from "./cliSource";
+import { marketplaceCommand } from "./marketplaceCommand";
 
 // The two source forms the skills CLI reads a `#ref` fragment from, given what
 // cliSource produces: the GitHub `owner/repo` shorthand, and a gitlab.com URL,
@@ -10,6 +11,10 @@ import { cliSource, isGitHubUrl, sourceTreeUrl } from "./cliSource";
 // default branch instead of failing.
 const OWNER_REPO = /^[^/:]+\/[^/:]+$/;
 const GITLAB_COM = /^https:\/\/gitlab\.com\/[^/]+\/.+$/;
+
+// The commit form a published marketplace entry carries as `sha`, matching
+// src/marketplace-output.ts: Claude Code takes a full SHA and nothing shorter.
+const FULL_SHA = /^[0-9a-f]{40}$/;
 
 /**
  * Builds the `npx skills add` command that installs one skill at the revision
@@ -66,24 +71,72 @@ export type InstallStep =
  * `unavailable` and `warnings` are prose in which backticks mark code.
  */
 export type PluginInstallOption = {
-  tool: "kiro" | "npx-plugins";
+  tool: "claude-code" | "kiro" | "npx-plugins";
   label: string;
   warnings: string[];
 } & ({ steps: InstallStep[] } | { unavailable: string });
 
+type PluginFacts = Pick<
+  Plugin,
+  "source" | "isAgentPlugin" | "publishedMarketplaces"
+>;
+
 /**
  * Every install instruction for a plugin, in the order the detail page shows
  * them. The one place a rule about which tool can install which plugin lives.
+ *
+ * `baseUrl` is the site's full base URL, which the published marketplaces sit
+ * under (see marketplaceCommand).
  *
  * A tool that can't install this plugin at all is left out. A missing
  * `isAgentPlugin` (a feed that predates it) is unknown, not false, so it passes
  * both tools' verdict checks; their other checks still apply.
  */
 export function pluginInstallOptions(
-  plugin: Pick<Plugin, "source" | "isAgentPlugin">,
+  plugin: PluginFacts,
+  baseUrl: string,
 ): PluginInstallOption[] {
-  return [kiroOption(plugin), npxPluginsOption(plugin)].filter(
-    (option) => option !== undefined,
+  return [
+    ...claudeCodeOptions(plugin, baseUrl),
+    kiroOption(plugin),
+    npxPluginsOption(plugin),
+  ].filter((option) => option !== undefined);
+}
+
+/**
+ * Claude Code, once per organization whose published marketplace lists the
+ * plugin: trust here is held by an organization, so the reader subscribes to
+ * the one they trust. The published entry pins `sha` to `source.commit`, so
+ * this installs the approved commit whatever ref the approval names, and is
+ * offered whether or not the plugin is an Agent Plugin.
+ *
+ * Only from `publishedMarketplaces`, which consolidation reads off the files it
+ * writes, so the entry named is one that exists. A feed without the listing
+ * gets nothing, and so does one without a full 40-character `source.commit`,
+ * since then the published entry has no `sha` to pin the install to.
+ */
+function claudeCodeOptions(
+  plugin: PluginFacts,
+  baseUrl: string,
+): PluginInstallOption[] {
+  if (!FULL_SHA.test(plugin.source.commit ?? "")) return [];
+  return (plugin.publishedMarketplaces ?? []).map(
+    ({ orgId, marketplaceName, entryName }) => ({
+      tool: "claude-code",
+      label: "Install in Claude Code",
+      steps: [
+        {
+          kind: "command",
+          lead: `Add the marketplace of plugins ${orgId} approved:`,
+          command: marketplaceCommand(baseUrl, orgId),
+        },
+        {
+          kind: "command",
+          command: `claude plugin install ${entryName}@${marketplaceName}`,
+        },
+      ],
+      warnings: [],
+    }),
   );
 }
 
@@ -100,9 +153,7 @@ export function pluginInstallOptions(
  * rejects a non-GitHub URL and won't load a plugin.json without `$schema`, and
  * without the commit the link could only name a ref or HEAD.
  */
-function kiroOption(
-  plugin: Pick<Plugin, "source" | "isAgentPlugin">,
-): PluginInstallOption | undefined {
+function kiroOption(plugin: PluginFacts): PluginInstallOption | undefined {
   if (plugin.isAgentPlugin === false) return undefined;
   if (!isGitHubUrl(plugin.source.url)) return undefined;
   if (!plugin.source.commit) return undefined;
@@ -133,7 +184,7 @@ function kiroOption(
  * the suppression once the CLI can target a ref.
  */
 function npxPluginsOption(
-  plugin: Pick<Plugin, "source" | "isAgentPlugin">,
+  plugin: PluginFacts,
 ): PluginInstallOption | undefined {
   if (plugin.isAgentPlugin === true) return undefined;
   const option = {

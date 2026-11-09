@@ -24,9 +24,11 @@ function skill(
   };
 }
 
+const BASE_URL = "https://ai.open-vsx.org/";
+
 function plugin(
   source: Partial<Plugin["source"]> = {},
-  verdict: Pick<Plugin, "isAgentPlugin"> = {},
+  verdict: Pick<Plugin, "isAgentPlugin" | "publishedMarketplaces"> = {},
 ) {
   return {
     source: {
@@ -147,11 +149,12 @@ describe("skillsCommand", () => {
 // The options for a plugin, keyed by tool, so each rule is asserted on its own.
 function optionsFor(
   source: Partial<Plugin["source"]> = {},
-  verdict: Pick<Plugin, "isAgentPlugin"> = {},
+  verdict: Pick<Plugin, "isAgentPlugin" | "publishedMarketplaces"> = {},
 ) {
-  const options = pluginInstallOptions(plugin(source, verdict));
+  const options = pluginInstallOptions(plugin(source, verdict), BASE_URL);
   return {
     tools: options.map((option) => option.tool),
+    claudeCode: options.filter((option) => option.tool === "claude-code"),
     kiro: options.find((option) => option.tool === "kiro"),
     npxPlugins: options.find((option) => option.tool === "npx-plugins"),
   };
@@ -182,6 +185,40 @@ function npxPluginsUnavailable(ref: string) {
   };
 }
 
+const GOOGLE = {
+  orgId: "google",
+  marketplaceName: "ai-registry-google",
+  entryName: "io.github.gemini-cli-extensions.looker",
+};
+
+const ECLIPSE = {
+  orgId: "eclipse-theia",
+  marketplaceName: "ai-registry-eclipse-theia",
+  entryName: "io.github.gemini-cli-extensions.looker",
+};
+
+function claudeCodeFor(
+  listing: { marketplaceName: string; entryName: string },
+  orgId: string,
+) {
+  return {
+    tool: "claude-code",
+    label: "Install in Claude Code",
+    steps: [
+      {
+        kind: "command",
+        lead: `Add the marketplace of plugins ${orgId} approved:`,
+        command: `claude plugin marketplace add https://ai.open-vsx.org/api/v1/orgs/${orgId}/marketplace.json`,
+      },
+      {
+        kind: "command",
+        command: `claude plugin install ${listing.entryName}@${listing.marketplaceName}`,
+      },
+    ],
+    warnings: [],
+  };
+}
+
 const AGENT_PLUGIN = { isAgentPlugin: true };
 const NOT_AGENT_PLUGIN = { isAgentPlugin: false };
 
@@ -203,6 +240,81 @@ describe("pluginInstallOptions", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).tools, [
       "npx-plugins",
     ]);
+  });
+
+  it("lists Claude Code before Kiro and npx plugins", () => {
+    assert.deepEqual(
+      optionsFor({ commit: COMMIT }, { publishedMarketplaces: [GOOGLE] }).tools,
+      ["claude-code", "kiro", "npx-plugins"],
+    );
+  });
+
+  describe("Claude Code", () => {
+    it("installs through each organization marketplace that lists it", () => {
+      assert.deepEqual(
+        optionsFor(
+          { commit: COMMIT },
+          { ...AGENT_PLUGIN, publishedMarketplaces: [GOOGLE, ECLIPSE] },
+        ).claudeCode,
+        [
+          claudeCodeFor(GOOGLE, "google"),
+          claudeCodeFor(ECLIPSE, "eclipse-theia"),
+        ],
+      );
+    });
+
+    // The published entry carries the commit as `sha`, so a ref doesn't stop
+    // it the way it stops npx plugins.
+    it("is offered when the approval names a ref", () => {
+      assert.deepEqual(
+        optionsFor(
+          { ref: "0.3.11", pinned: true, commit: COMMIT },
+          { publishedMarketplaces: [GOOGLE] },
+        ).claudeCode,
+        [claudeCodeFor(GOOGLE, "google")],
+      );
+    });
+
+    it("is offered whether or not the plugin is an Agent Plugin", () => {
+      assert.equal(
+        optionsFor(
+          { commit: COMMIT },
+          { ...NOT_AGENT_PLUGIN, publishedMarketplaces: [GOOGLE] },
+        ).claudeCode.length,
+        1,
+      );
+    });
+
+    it("is not offered for a plugin no marketplace lists", () => {
+      assert.deepEqual(
+        optionsFor({ commit: COMMIT }, { publishedMarketplaces: [] })
+          .claudeCode,
+        [],
+      );
+    });
+
+    // Missing means unknown, and there is no entry to name.
+    it("is not offered in a feed without the listing", () => {
+      assert.deepEqual(optionsFor({ commit: COMMIT }).claudeCode, []);
+    });
+
+    // Without the commit, the published entry has no sha to pin the install.
+    it("is not offered without a commit", () => {
+      assert.deepEqual(
+        optionsFor({}, { publishedMarketplaces: [GOOGLE] }).claudeCode,
+        [],
+      );
+    });
+
+    // The publisher drops a commit Claude Code won't take, so there is no
+    // `sha` either.
+    it("is not offered for a commit shorter than a full SHA", () => {
+      assert.deepEqual(
+        optionsFor({ commit: "7b4a44e" }, { publishedMarketplaces: [GOOGLE] })
+          .claudeCode,
+        [],
+      );
+    });
   });
 
   describe("npx plugins", () => {
@@ -268,14 +380,17 @@ describe("pluginInstallOptions", () => {
 
   describe("Kiro", () => {
     it("points at the plugin's folder at the approved commit", () => {
-      const [kiro] = pluginInstallOptions({
-        source: {
-          url: "https://github.com/aws/agent-toolkit-for-aws.git",
-          path: "plugins/aws-agents",
-          commit: COMMIT,
+      const [kiro] = pluginInstallOptions(
+        {
+          source: {
+            url: "https://github.com/aws/agent-toolkit-for-aws.git",
+            path: "plugins/aws-agents",
+            commit: COMMIT,
+          },
+          ...AGENT_PLUGIN,
         },
-        ...AGENT_PLUGIN,
-      });
+        BASE_URL,
+      );
       assert.deepEqual(
         kiro,
         kiroFor(

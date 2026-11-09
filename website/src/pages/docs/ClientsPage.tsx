@@ -554,7 +554,7 @@ export function ClientsPage() {
         </p>
         <p className="mt-3 mb-3 leading-relaxed">
           If you hand a plugin to another tool rather than installing it
-          yourself, the registry website applies two rules you can reuse:
+          yourself, the registry website applies these rules you can reuse:
         </p>
         <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
           <li>
@@ -577,11 +577,31 @@ export function ClientsPage() {
             <InlineCode>$schema</InlineCode>. With no{" "}
             <InlineCode>source.commit</InlineCode>, offer nothing.
           </li>
+          <li>
+            Offer Claude Code once per record in{" "}
+            <InlineCode>publishedMarketplaces</InlineCode>, Agent Plugin or not:{" "}
+            <InlineCode>
+              {
+                "claude plugin marketplace add <base>/api/v1/orgs/<orgId>/marketplace.json"
+              }
+            </InlineCode>
+            , then{" "}
+            <InlineCode>
+              {"claude plugin install <entryName>@<marketplaceName>"}
+            </InlineCode>
+            . The published entry pins <InlineCode>sha</InlineCode> to{" "}
+            <InlineCode>source.commit</InlineCode>, so this installs the
+            endorsed commit whatever ref the approval names. With no record, no{" "}
+            <InlineCode>publishedMarketplaces</InlineCode>, or no{" "}
+            <InlineCode>source.commit</InlineCode>, offer nothing: never build
+            an entry name yourself, since the plugin may have been left out of
+            that file.
+          </li>
         </ul>
         <p className="mt-3 mb-3 leading-relaxed">
           A missing <InlineCode>isAgentPlugin</InlineCode> is unknown, not
-          false, so it passes the Agent Plugin half of both rules. The ref, host
-          and commit conditions still apply.
+          false, so it passes the Agent Plugin half of the first two rules. The
+          ref, host and commit conditions still apply.
         </p>
         <InfoCallout>
           <strong>Install the plugin whole.</strong> Download the plugin

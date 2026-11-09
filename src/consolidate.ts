@@ -27,8 +27,9 @@ import {
 } from "./marketplace-source.js";
 import {
   buildMarketplace,
-  buildOrgMarketplace,
+  buildOrgMarketplaces,
   type MarketplaceFile,
+  type PublishedMarketplace,
 } from "./marketplace-output.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
@@ -286,6 +287,12 @@ export interface PluginEntry {
   // Both are absent in feeds that predate them, which reads as unknown.
   isAgentPlugin?: boolean;
   agentPluginIssues?: string[];
+  // Output only, set just before writing: one record per per-organization
+  // marketplace the registry publishes that lists this plugin, read off the
+  // files themselves (see publishOrgMarketplaces), so it never names an entry
+  // that was left out. Empty when none does; absent in feeds that predate it,
+  // which reads as unknown.
+  publishedMarketplaces?: PublishedMarketplace[];
   approvals: PluginApproval[];
 }
 
@@ -1466,6 +1473,29 @@ function writeJson(filePath: string, data: unknown): void {
   writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n");
 }
 
+/**
+ * Builds the per-organization marketplace files and records on each plugin
+ * entry the ones that list it, as publishedMarketplaces. Returns the files,
+ * keyed by organization id, for writeOutput to write; an organization whose
+ * file would list nothing has none.
+ *
+ * One builder produces both, so an entry and the files can't disagree.
+ */
+export function publishOrgMarketplaces(
+  output: ConsolidatedOutput,
+  pluginSourceMismatches: ReadonlySet<string>,
+): Map<string, MarketplaceFile> {
+  const { files, listings } = buildOrgMarketplaces(
+    output.plugins,
+    output.organizations,
+    pluginSourceMismatches,
+  );
+  for (const plugin of output.plugins) {
+    plugin.publishedMarketplaces = listings.get(plugin.pluginId) ?? [];
+  }
+  return files;
+}
+
 // Every file goes through `write`, which stamps it with generatedAt: the time
 // this run started, before any source was read. That is what dates the
 // latestCommit/latestHash values in it. A client reading only
@@ -1492,6 +1522,13 @@ function writeOutput(
     writeJson(filePath, data);
     console.log(`Written: ${filePath}`);
   };
+
+  // Built before any file is written, since every file that carries plugin
+  // entries carries their publishedMarketplaces.
+  const orgMarketplaces = publishOrgMarketplaces(
+    output,
+    pluginSourceMismatches,
+  );
 
   write(resolve(outputDir, "all.json"), output);
 
@@ -1531,13 +1568,9 @@ function writeOutput(
   mkdirSync(orgsDir, { recursive: true });
 
   for (const org of output.organizations) {
-    // Built first, so orgs/<id>.json can say whether the file exists: an
-    // organization can list plugins and still get none (see buildOrgMarketplace).
-    const marketplace = buildOrgMarketplace(
-      output.plugins,
-      org,
-      pluginSourceMismatches,
-    );
+    // An organization can list plugins and still get no file (see
+    // publishOrgMarketplaces), so orgs/<id>.json says whether it exists.
+    const marketplace = orgMarketplaces.get(org.id);
 
     write(resolve(orgsDir, `${org.id}.json`), {
       mcp: buildOrgEntryView(org.id, output.mcp),

@@ -148,7 +148,20 @@ export interface Plugin {
   // that predate them, which reads as unknown, never as "not an Agent Plugin".
   isAgentPlugin?: boolean;
   agentPluginIssues?: string[];
+  // The per-organization marketplaces the registry publishes that list this
+  // plugin, one record each, read off the files themselves so none names an
+  // entry that was left out. Empty when none does; absent in feeds that
+  // predate it, which reads as unknown.
+  publishedMarketplaces?: PublishedMarketplace[];
   approvals: PluginApproval[];
+}
+
+// Where a plugin is listed in an organization's published marketplace, which
+// together make `claude plugin install <entryName>@<marketplaceName>`.
+export interface PublishedMarketplace {
+  orgId: string;
+  marketplaceName: string;
+  entryName: string;
 }
 
 export interface AgentInstallConfig {

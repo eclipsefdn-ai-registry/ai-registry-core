@@ -268,7 +268,9 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
           hashed for that plugin, directly or through trust. So an organization
           can approve plugins and still have no file;{" "}
           <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> says whether it has
-          one in <InlineCode>hasMarketplace</InlineCode>.
+          one in <InlineCode>hasMarketplace</InlineCode>. Each plugin entry says
+          which organization files list it, and under which entry name, in{" "}
+          <InlineCode>publishedMarketplaces</InlineCode>.
         </p>
         <p className="mb-3 leading-relaxed">
           Every entry pins <InlineCode>sha</InlineCode> to{" "}
@@ -521,6 +523,12 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
               type: "string[]?",
               description:
                 "Why the plugin isn't an Agent Plugin: one readable message per failed check, the same text vendor validation prints. Omitted when isAgentPlugin is true, and absent in feeds that predate it.",
+            },
+            {
+              name: "publishedMarketplaces",
+              type: "array?",
+              description:
+                "The per-organization marketplaces this registry publishes that list the plugin, one { orgId, marketplaceName, entryName } each: add orgs/<orgId>/marketplace.json, then install <entryName>@<marketplaceName>. Read off the written files, so it never names an entry that was left out. Empty when no file lists it; absent in feeds that predate it, which means unknown.",
             },
             {
               name: "approvals",

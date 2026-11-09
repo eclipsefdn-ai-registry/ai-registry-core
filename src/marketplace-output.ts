@@ -315,3 +315,56 @@ export function buildOrgMarketplace(
   const marketplace = buildMarketplace(plugins, org, sourceMismatches);
   return marketplace.plugins.length > 0 ? marketplace : undefined;
 }
+
+/**
+ * Where one plugin is listed among the per-organization marketplaces: the
+ * organization, the file's `name`, and the entry's, which together make
+ * `claude plugin install <entryName>@<marketplaceName>`.
+ */
+export interface PublishedMarketplace {
+  orgId: string;
+  marketplaceName: string;
+  entryName: string;
+}
+
+/**
+ * Every organization's marketplace, keyed by organization id and present only
+ * where buildOrgMarketplace builds one, together with the listing each plugin
+ * entry publishes as publishedMarketplaces, keyed by plugin id.
+ *
+ * The listing is read back off the built files rather than worked out
+ * alongside them, so an entry can't name a marketplace that left it out —
+ * whether for an unusable name, a collision, or a revision its organization
+ * didn't approve. A plugin listed nowhere has no key. Listings follow the
+ * order of `orgs`.
+ */
+export function buildOrgMarketplaces(
+  plugins: PluginEntry[],
+  orgs: readonly MarketplaceOrg[],
+  sourceMismatches: ReadonlySet<string> = new Set(),
+): {
+  files: Map<string, MarketplaceFile>;
+  listings: Map<string, PublishedMarketplace[]>;
+} {
+  const files = new Map<string, MarketplaceFile>();
+  const listings = new Map<string, PublishedMarketplace[]>();
+
+  for (const org of orgs) {
+    const file = buildOrgMarketplace(plugins, org, sourceMismatches);
+    if (!file) continue;
+    files.set(org.id, file);
+
+    for (const entry of file.plugins) {
+      const { pluginId } = entry.metadata;
+      const listing = listings.get(pluginId) ?? [];
+      listing.push({
+        orgId: org.id,
+        marketplaceName: file.name,
+        entryName: entry.name,
+      });
+      listings.set(pluginId, listing);
+    }
+  }
+
+  return { files, listings };
+}
