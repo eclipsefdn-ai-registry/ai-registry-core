@@ -73,6 +73,9 @@ export interface PluginMetadata extends PluginManifestFields {
   // why: one readable message per failed check, empty when it is one.
   isAgentPlugin: boolean;
   agentPluginIssues: string[];
+  // Which of MCP_CONFIG_FILE_PATHS the plugin directory has, in that order
+  // (see presentMcpConfigFiles).
+  mcpConfigFiles: string[];
   // Only when fetchPluginManifest was asked to read them: one record per
   // known marketplace file present at `commit`, and one warning per file that
   // couldn't be parsed.
@@ -142,6 +145,39 @@ export function parseMcpServers(content: string): ContainedMcpServer[] {
         : { name, transport };
     },
   );
+}
+
+// --- MCP config files ---
+
+/**
+ * The files besides `mcp.json` that declare a plugin's MCP servers, relative
+ * to the plugin: Claude Code reads its servers from these and never from
+ * `mcp.json`. `.claude-plugin/plugin.json` counts only when it has
+ * `mcpServers` (an object, or a path to a file). A fact about files: which
+ * tool reads which is the website's business.
+ */
+export const MCP_CONFIG_FILE_PATHS = [
+  ".mcp.json",
+  ".claude-plugin/plugin.json",
+] as const;
+
+/** Which of MCP_CONFIG_FILE_PATHS the plugin directory has, in that order. */
+export function presentMcpConfigFiles(pluginDir: string): string[] {
+  return MCP_CONFIG_FILE_PATHS.filter((path) => {
+    const fullPath = join(pluginDir, path);
+    if (!existsSync(fullPath)) return false;
+    if (path === ".mcp.json") return true;
+    try {
+      const data = JSON.parse(readFileSync(fullPath, "utf-8")) as unknown;
+      return (
+        typeof data === "object" &&
+        data !== null &&
+        (data as { mcpServers?: unknown }).mcpServers != null
+      );
+    } catch {
+      return false;
+    }
+  });
 }
 
 // A trailing separator would otherwise shift every downstream computation
@@ -471,6 +507,7 @@ export function fetchPluginManifest(
     commit,
     isAgentPlugin: conformanceIssues.length === 0,
     agentPluginIssues: conformanceIssues,
+    mcpConfigFiles: presentMcpConfigFiles(pluginDir),
   };
   if (options.readMarketplaceFiles) {
     const { records, warnings } = readMarketplaceFiles(
@@ -532,6 +569,7 @@ export function enrichPluginMetadata(
           delete entry.agentPluginIssues;
         }
         entry.marketplaceFiles = metadata.marketplaceFiles ?? [];
+        entry.mcpConfigFiles = metadata.mcpConfigFiles;
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);

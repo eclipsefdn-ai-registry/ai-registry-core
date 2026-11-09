@@ -537,6 +537,12 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
                 "The known marketplace files present in the plugin's repository at source.commit, one { path, marketplaceName, entryName } each: .agents/plugins/marketplace.json, .agents/plugins/api_marketplace.json, .claude-plugin/marketplace.json, .cursor-plugin/marketplace.json, marketplace.json, .plugin/marketplace.json and .github/plugin/marketplace.json are scanned, and a file that isn't there has no record. marketplaceName is the file's own name. entryName is set only when the file has an entry whose source is a path in the repository (a bare string or a local source) resolving to this plugin's path; entries sourced from a git URL don't count. A file that can't be parsed has a record with neither name. Facts about files, not tools: which tool reads which file first is the client's to apply. Absent in feeds that predate it, which means unknown.",
             },
             {
+              name: "mcpConfigFiles",
+              type: "string[]?",
+              description:
+                "Which of .mcp.json, and .claude-plugin/plugin.json when it declares mcpServers, the plugin directory has at source.commit, paths relative to the plugin, in that order. Empty when it has neither. These are the files Claude Code reads a plugin's MCP servers from, never mcp.json, but they're published as facts about files, not tools. Absent in feeds that predate it, which means unknown.",
+            },
+            {
               name: "approvals",
               type: "array",
               description: "One entry per approving organization.",

@@ -226,6 +226,7 @@ A plugin that conforms to the [Agent Plugins specification](https://agent-plugin
       "entryName": "bigquery-data-analytics"
     }
   ],
+  "mcpConfigFiles": [".mcp.json"],
   "approvals": [
     {
       "organizationId": "example-org",
@@ -254,11 +255,11 @@ The verdict is about the specification, not about any one tool. Whether a given 
 
 If you hand a plugin to another tool rather than installing it yourself, the registry website applies these rules you can reuse:
 
-- Offer the `plugins` CLI (`npx plugins add <source>`) only for a plugin that isn't an Agent Plugin, and only when the approval names no `source.ref`. The CLI clones the default branch with no way to target a ref, and an Agent Plugin has tools that install it at the endorsed commit instead.
+- Offer the `plugins` CLI (`npx plugins add <source>`) only for a plugin that isn't an Agent Plugin, and only when the approval names no `source.ref`. The CLI clones the default branch with no way to target a ref, and an Agent Plugin has tools that install it at the endorsed commit instead. Say that it installs every plugin in the repository, not only this one: it takes a repository and can't select a plugin in it.
 - Offer Kiro's **Import power from GitHub** only for an Agent Plugin on github.com, as the plugin's folder at `source.commit` (`https://github.com/<owner>/<repo>/tree/<commit>/<path>`). Kiro rejects any other host and won't load a `plugin.json` without `$schema`. With no `source.commit`, offer nothing.
 - Offer Codex only for an Agent Plugin with a `source.commit`, and only when the first of `.agents/plugins/marketplace.json`, `.agents/plugins/api_marketplace.json`, `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json` that appears in `marketplaceFiles` has an `entryName`. Codex reads that first file and no other, so a listing in a later one doesn't count. The commands are `codex plugin marketplace add <source> --ref <commit>`, then `codex plugin add <entryName>@<marketplaceName>`, where `<source>` is `owner/repo` on github.com and the git URL anywhere else. `--ref` pins the marketplace file, and the repository-relative entry inside it with it, so this installs the endorsed commit whatever ref the approval names.
 - Offer VS Code (GitHub Copilot) only for a plugin on github.com, Agent Plugin or not, in one of two forms. When the first of `marketplace.json`, `.plugin/marketplace.json`, `.github/plugin/marketplace.json` and `.claude-plugin/marketplace.json` that appears in `marketplaceFiles` has an `entryName`, run **Chat: Add Marketplace** with `owner/repo#<source.commit>`, then install `<entryName>` from it. That pins the marketplace and its repository-relative entries, so it installs the endorsed commit whatever ref the approval names; with no `source.commit`, offer nothing. When none of those four files appears in `marketplaceFiles`, and only for a plugin at the repository root (no `source.path`) whose approval names no `source.ref`, run **Chat: Install Plugin from Source** with `owner/repo`. If the first file is there but has no `entryName`, offer neither form: VS Code reads the repository as that marketplace, not as this plugin. Never append `#<sha>` there: VS Code ignores it, installs the default branch, and still displays the `#<sha>`. In both forms, warn when a `containedMcpServers` item has `usesPluginData`, naming those servers, since VS Code doesn't expand `${PLUGIN_DATA}`.
-- Offer Claude Code once per record in `publishedMarketplaces`, Agent Plugin or not: `claude plugin marketplace add <base>/api/v1/orgs/<orgId>/marketplace.json`, then `claude plugin install <entryName>@<marketplaceName>`. The published entry pins `sha` to `source.commit`, so this installs the endorsed commit whatever ref the approval names. With no record, no `publishedMarketplaces`, or no `source.commit`, offer nothing. Never build an entry name yourself: the plugin may have been left out of that file.
+- Offer Claude Code once per record in `publishedMarketplaces`, Agent Plugin or not: `claude plugin marketplace add <base>/api/v1/orgs/<orgId>/marketplace.json`, then `claude plugin install <entryName>@<marketplaceName>`. The published entry pins `sha` to `source.commit`, so this installs the endorsed commit whatever ref the approval names. With no record, no `publishedMarketplaces`, or no `source.commit`, offer nothing. Never build an entry name yourself: the plugin may have been left out of that file. Claude Code reads a plugin's MCP servers only from `.mcp.json` and from `mcpServers` in `.claude-plugin/plugin.json`, never from `mcp.json`, so when `containedMcpServers` isn't empty and `mcpConfigFiles` is, warn on each of these instructions, naming the servers: the plugin installs without them. A missing `mcpConfigFiles` is unknown, so don't warn.
 
 A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin half of the rules that have one. The ref, host, commit, path and marketplace-file conditions still apply.
 
@@ -271,6 +272,8 @@ A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin
 - A file that can't be parsed has a record with neither name.
 
 These are facts about files, not tools. Which tool reads which file, and which one first, is yours to apply, as the Codex rule above does. A missing `marketplaceFiles` means unknown.
+
+`mcpConfigFiles` lists which of `.mcp.json`, and `.claude-plugin/plugin.json` when it declares `mcpServers`, the plugin directory has at `source.commit`, relative to the plugin. Empty means neither; missing means unknown.
 
 ### Install the plugin whole
 
