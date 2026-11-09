@@ -238,6 +238,13 @@ When it is `false`, `agentPluginIssues` lists why, one readable message per fail
 
 The verdict is about the specification, not about any one tool. Whether a given tool can install a plugin depends on that tool's own rules, which the feed doesn't publish.
 
+If you hand a plugin to another tool rather than installing it yourself, the registry website applies two rules you can reuse:
+
+- Offer the `plugins` CLI (`npx plugins add <source>`) only for a plugin that isn't an Agent Plugin, and only when the approval names no `source.ref`. The CLI clones the default branch with no way to target a ref, and an Agent Plugin has tools that install it at the endorsed commit instead.
+- Offer Kiro's **Import power from GitHub** only for an Agent Plugin on github.com, as the plugin's folder at `source.commit` (`https://github.com/<owner>/<repo>/tree/<commit>/<path>`). Kiro rejects any other host and won't load a `plugin.json` without `$schema`. With no `source.commit`, offer nothing.
+
+A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin half of both rules. The ref, host and commit conditions still apply.
+
 ### Install the plugin whole
 
 Download the plugin directory into a root of your choosing, keyed by `pluginId`, and load its skills and MCP servers from inside that root. Do not extract components into your shared skills directory or merge its servers into your global MCP configuration.
