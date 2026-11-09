@@ -28,9 +28,14 @@ const BASE_URL = "https://ai.open-vsx.org/";
 
 function plugin(
   source: Partial<Plugin["source"]> = {},
-  verdict: Pick<
-    Plugin,
-    "isAgentPlugin" | "publishedMarketplaces" | "marketplaceFiles"
+  verdict: Partial<
+    Pick<
+      Plugin,
+      | "isAgentPlugin"
+      | "publishedMarketplaces"
+      | "marketplaceFiles"
+      | "containedMcpServers"
+    >
   > = {},
 ) {
   return {
@@ -38,6 +43,7 @@ function plugin(
       url: "https://github.com/gemini-cli-extensions/looker.git",
       ...source,
     },
+    containedMcpServers: [],
     ...verdict,
   };
 }
@@ -152,9 +158,14 @@ describe("skillsCommand", () => {
 // The options for a plugin, keyed by tool, so each rule is asserted on its own.
 function optionsFor(
   source: Partial<Plugin["source"]> = {},
-  verdict: Pick<
-    Plugin,
-    "isAgentPlugin" | "publishedMarketplaces" | "marketplaceFiles"
+  verdict: Partial<
+    Pick<
+      Plugin,
+      | "isAgentPlugin"
+      | "publishedMarketplaces"
+      | "marketplaceFiles"
+      | "containedMcpServers"
+    >
   > = {},
 ) {
   const options = pluginInstallOptions(plugin(source, verdict), BASE_URL);
@@ -162,6 +173,7 @@ function optionsFor(
     tools: options.map((option) => option.tool),
     claudeCode: options.filter((option) => option.tool === "claude-code"),
     codex: options.find((option) => option.tool === "codex"),
+    vsCode: options.find((option) => option.tool === "vscode"),
     kiro: options.find((option) => option.tool === "kiro"),
     npxPlugins: options.find((option) => option.tool === "npx-plugins"),
   };
@@ -230,21 +242,24 @@ const AGENT_PLUGIN = { isAgentPlugin: true };
 const NOT_AGENT_PLUGIN = { isAgentPlugin: false };
 
 describe("pluginInstallOptions", () => {
-  it("lists Kiro first, then npx plugins, for a feed without the verdict", () => {
+  it("lists VS Code, Kiro, then npx plugins, for a feed without the verdict", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }).tools, [
+      "vscode",
       "kiro",
       "npx-plugins",
     ]);
   });
 
-  it("offers only Kiro for an Agent Plugin", () => {
+  it("offers Kiro and not npx plugins for an Agent Plugin", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }, AGENT_PLUGIN).tools, [
+      "vscode",
       "kiro",
     ]);
   });
 
-  it("offers only npx plugins for a plugin that isn't an Agent Plugin", () => {
+  it("offers npx plugins and not Kiro for a plugin that isn't an Agent Plugin", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).tools, [
+      "vscode",
       "npx-plugins",
     ]);
   });
@@ -252,7 +267,7 @@ describe("pluginInstallOptions", () => {
   it("lists Claude Code before Kiro and npx plugins", () => {
     assert.deepEqual(
       optionsFor({ commit: COMMIT }, { publishedMarketplaces: [GOOGLE] }).tools,
-      ["claude-code", "kiro", "npx-plugins"],
+      ["claude-code", "vscode", "kiro", "npx-plugins"],
     );
   });
 
@@ -394,6 +409,7 @@ describe("pluginInstallOptions", () => {
             path: "plugins/aws-agents",
             commit: COMMIT,
           },
+          containedMcpServers: [],
           ...AGENT_PLUGIN,
         },
         BASE_URL,
@@ -618,8 +634,265 @@ describe("pluginInstallOptions", () => {
           { commit: COMMIT },
           { publishedMarketplaces: [GOOGLE], marketplaceFiles: [LISTED] },
         ).tools,
-        ["claude-code", "codex", "kiro", "npx-plugins"],
+        ["claude-code", "codex", "vscode", "kiro", "npx-plugins"],
       );
+    });
+  });
+  describe("VS Code (GitHub Copilot)", () => {
+    const LISTED = {
+      path: "marketplace.json",
+      marketplaceName: "looker-plugins",
+      entryName: "looker",
+    };
+
+    function pinnedFor(warnings: string[] = []) {
+      return {
+        tool: "vscode",
+        label: "Install in VS Code (GitHub Copilot)",
+        steps: [
+          {
+            kind: "paste",
+            app: "VS Code",
+            action: "Command Palette → Chat: Add Marketplace",
+            value: `gemini-cli-extensions/looker#${COMMIT}`,
+          },
+          { kind: "install", app: "VS Code", plugin: "looker" },
+        ],
+        warnings,
+      };
+    }
+
+    function directFor(warnings: string[] = []) {
+      return {
+        tool: "vscode",
+        label: "Install in VS Code (GitHub Copilot)",
+        steps: [
+          {
+            kind: "paste",
+            app: "VS Code",
+            action: "Command Palette → Chat: Install Plugin from Source",
+            value: "gemini-cli-extensions/looker",
+          },
+        ],
+        warnings,
+      };
+    }
+
+    const SUBFOLDER = { path: "plugins/looker", commit: COMMIT };
+
+    describe("through the repository's marketplace", () => {
+      it("adds the marketplace at the commit, then installs the entry", () => {
+        assert.deepEqual(
+          optionsFor({ commit: COMMIT }, { marketplaceFiles: [LISTED] }).vsCode,
+          pinnedFor(),
+        );
+      });
+
+      it("is offered for a plugin in a subfolder", () => {
+        assert.deepEqual(
+          optionsFor(SUBFOLDER, { marketplaceFiles: [LISTED] }).vsCode,
+          pinnedFor(),
+        );
+      });
+
+      // The commit pins the marketplace, and the entry inside it.
+      it("is offered when the approval names a ref", () => {
+        assert.deepEqual(
+          optionsFor(
+            { ref: "v1.0.0", pinned: true, commit: COMMIT },
+            { marketplaceFiles: [LISTED] },
+          ).vsCode,
+          pinnedFor(),
+        );
+      });
+
+      it("is offered whether or not the plugin is an Agent Plugin", () => {
+        assert.deepEqual(
+          optionsFor(
+            { commit: COMMIT },
+            { ...NOT_AGENT_PLUGIN, marketplaceFiles: [LISTED] },
+          ).vsCode,
+          pinnedFor(),
+        );
+      });
+
+      it("reads the Claude marketplace file when it's the first VS Code finds", () => {
+        assert.deepEqual(
+          optionsFor(SUBFOLDER, {
+            marketplaceFiles: [
+              {
+                path: ".agents/plugins/marketplace.json",
+                marketplaceName: "a",
+              },
+              { ...LISTED, path: ".claude-plugin/marketplace.json" },
+            ],
+          }).vsCode,
+          pinnedFor(),
+        );
+      });
+
+      // VS Code stops at the first file it finds, listing or not.
+      it("is not offered when only a file VS Code doesn't reach lists it", () => {
+        assert.equal(
+          optionsFor(SUBFOLDER, {
+            marketplaceFiles: [
+              { path: ".github/plugin/marketplace.json", marketplaceName: "a" },
+              { ...LISTED, path: ".claude-plugin/marketplace.json" },
+            ],
+          }).vsCode,
+          undefined,
+        );
+      });
+
+      it("is not offered when a listing is only in a file VS Code never reads", () => {
+        assert.equal(
+          optionsFor(SUBFOLDER, {
+            marketplaceFiles: [
+              { ...LISTED, path: ".agents/plugins/marketplace.json" },
+            ],
+          }).vsCode,
+          undefined,
+        );
+      });
+
+      it("is not offered without source.commit", () => {
+        assert.equal(
+          optionsFor({}, { marketplaceFiles: [LISTED] }).vsCode,
+          undefined,
+        );
+      });
+
+      it("is not offered for a source on another host", () => {
+        assert.equal(
+          optionsFor(
+            { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
+            { marketplaceFiles: [LISTED] },
+          ).vsCode,
+          undefined,
+        );
+      });
+    });
+
+    describe("from source", () => {
+      // VS Code ignores a #<sha> here but still displays it.
+      it("installs the repository with no commit, for a root plugin and no ref", () => {
+        assert.deepEqual(optionsFor({ commit: COMMIT }).vsCode, directFor());
+      });
+
+      it("is offered without source.commit", () => {
+        assert.deepEqual(optionsFor({}).vsCode, directFor());
+      });
+
+      it("is offered when the only marketplace file is one VS Code never reads", () => {
+        assert.deepEqual(
+          optionsFor(
+            { commit: COMMIT },
+            {
+              marketplaceFiles: [
+                { ...LISTED, path: ".agents/plugins/marketplace.json" },
+              ],
+            },
+          ).vsCode,
+          directFor(),
+        );
+      });
+
+      it("is offered in a feed without marketplaceFiles", () => {
+        assert.deepEqual(
+          optionsFor({ commit: COMMIT }, { marketplaceFiles: undefined })
+            .vsCode,
+          directFor(),
+        );
+      });
+
+      // VS Code would read the repository as that marketplace, not as the
+      // plugin.
+      it("is not offered when a file VS Code reads is there but doesn't list it", () => {
+        assert.equal(
+          optionsFor(
+            { commit: COMMIT },
+            {
+              marketplaceFiles: [
+                { path: "marketplace.json", marketplaceName: "other" },
+              ],
+            },
+          ).vsCode,
+          undefined,
+        );
+      });
+
+      it("is not offered when a file VS Code reads can't be parsed", () => {
+        assert.equal(
+          optionsFor(
+            { commit: COMMIT },
+            { marketplaceFiles: [{ path: ".plugin/marketplace.json" }] },
+          ).vsCode,
+          undefined,
+        );
+      });
+
+      it("is not offered for a plugin in a subfolder", () => {
+        assert.equal(optionsFor(SUBFOLDER).vsCode, undefined);
+      });
+
+      it("is not offered when the approval names a ref", () => {
+        assert.equal(
+          optionsFor({ ref: "main", pinned: false, commit: COMMIT }).vsCode,
+          undefined,
+        );
+      });
+
+      it("is not offered for a source on another host", () => {
+        assert.equal(
+          optionsFor({ url: "https://gitlab.com/acme/plugins.git" }).vsCode,
+          undefined,
+        );
+      });
+    });
+
+    describe("${PLUGIN_DATA}", () => {
+      const store = {
+        name: "store",
+        transport: "stdio",
+        usesPluginData: true as const,
+      };
+      const cache = { ...store, name: "cache" };
+      const remote = { name: "remote", transport: "http" };
+
+      it("warns on the marketplace form, naming the server", () => {
+        assert.deepEqual(
+          optionsFor(
+            { commit: COMMIT },
+            {
+              marketplaceFiles: [LISTED],
+              containedMcpServers: [store, remote],
+            },
+          ).vsCode,
+          pinnedFor([
+            "VS Code doesn't expand `${PLUGIN_DATA}`, which the MCP server `store` uses, so it may not work there.",
+          ]),
+        );
+      });
+
+      it("warns on the direct form, naming every server", () => {
+        assert.deepEqual(
+          optionsFor(
+            { commit: COMMIT },
+            { containedMcpServers: [store, remote, cache] },
+          ).vsCode,
+          directFor([
+            "VS Code doesn't expand `${PLUGIN_DATA}`, which the MCP servers `store` and `cache` use, so they may not work there.",
+          ]),
+        );
+      });
+
+      it("doesn't warn when no server uses it", () => {
+        assert.deepEqual(
+          optionsFor({ commit: COMMIT }, { containedMcpServers: [remote] })
+            .vsCode,
+          directFor(),
+        );
+      });
     });
   });
 });

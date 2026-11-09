@@ -1,4 +1,4 @@
-import type { Plugin, Skill } from "./types";
+import type { Plugin, RepositoryMarketplaceFile, Skill } from "./types";
 import { approvedTarget } from "./approvedTarget";
 import { cliSource, isGitHubUrl, sourceTreeUrl } from "./cliSource";
 import { marketplaceCommand } from "./marketplaceCommand";
@@ -61,7 +61,10 @@ export type InstallStep =
   | { kind: "command"; lead?: string; command: string }
   // A value to paste where `action` (a menu path or command palette entry)
   // asks for it, inside `app`.
-  | { kind: "paste"; app: string; action: string; value: string };
+  | { kind: "paste"; app: string; action: string; value: string }
+  // Install the entry named `plugin` from the marketplace the step before
+  // added, inside `app`.
+  | { kind: "install"; app: string; plugin: string };
 
 /**
  * How to install a plugin with one tool: either the steps, several where the
@@ -71,14 +74,18 @@ export type InstallStep =
  * `unavailable` and `warnings` are prose in which backticks mark code.
  */
 export type PluginInstallOption = {
-  tool: "claude-code" | "codex" | "kiro" | "npx-plugins";
+  tool: "claude-code" | "codex" | "vscode" | "kiro" | "npx-plugins";
   label: string;
   warnings: string[];
 } & ({ steps: InstallStep[] } | { unavailable: string });
 
 type PluginFacts = Pick<
   Plugin,
-  "source" | "isAgentPlugin" | "publishedMarketplaces" | "marketplaceFiles"
+  | "source"
+  | "isAgentPlugin"
+  | "publishedMarketplaces"
+  | "marketplaceFiles"
+  | "containedMcpServers"
 >;
 
 /**
@@ -99,6 +106,7 @@ export function pluginInstallOptions(
   return [
     ...claudeCodeOptions(plugin, baseUrl),
     codexOption(plugin),
+    vsCodeOption(plugin),
     kiroOption(plugin),
     npxPluginsOption(plugin),
   ].filter((option) => option !== undefined);
@@ -168,9 +176,7 @@ function codexOption(plugin: PluginFacts): PluginInstallOption | undefined {
   if (plugin.isAgentPlugin === false) return undefined;
   const { commit, url } = plugin.source;
   if (!commit) return undefined;
-  const file = CODEX_MARKETPLACE_FILES.map((path) =>
-    plugin.marketplaceFiles?.find((record) => record.path === path),
-  ).find((record) => record !== undefined);
+  const file = firstFound(plugin.marketplaceFiles, CODEX_MARKETPLACE_FILES);
   if (!file?.entryName || !file.marketplaceName) return undefined;
   const source = isGitHubUrl(url) ? cliSource(url) : url;
   return {
@@ -189,6 +195,109 @@ function codexOption(plugin: PluginFacts): PluginInstallOption | undefined {
     ],
     warnings: [],
   };
+}
+
+// The marketplace file of a repository a tool reads: the first one present
+// of the paths it looks for, in its order.
+function firstFound(
+  files: RepositoryMarketplaceFile[] | undefined,
+  paths: string[],
+): RepositoryMarketplaceFile | undefined {
+  return paths
+    .map((path) => files?.find((file) => file.path === path))
+    .find((file) => file !== undefined);
+}
+
+// The marketplace files VS Code looks for in a repository, in its order. It
+// reads the first one present and no other, whether or not that one lists
+// the plugin, and treats the repository as a single plugin only when none is
+// there (microsoft/vscode, src/vs/workbench/contrib/chat/common/plugins/
+// pluginMarketplaceService.ts).
+const VS_CODE_MARKETPLACE_FILES = [
+  "marketplace.json",
+  ".plugin/marketplace.json",
+  ".github/plugin/marketplace.json",
+  ".claude-plugin/marketplace.json",
+];
+
+/**
+ * VS Code (GitHub Copilot), in one of two forms, github.com only.
+ *
+ * When VS Code's first-found marketplace file lists the plugin: add the
+ * repository as a marketplace at `owner/repo#<source.commit>`, which pins it
+ * and its `local` entries (tested against VS Code 1.145.2), then install
+ * the entry. Needs `source.commit`, and is offered whatever ref the approval
+ * names.
+ *
+ * When the repository has none of VS Code's marketplace files, for a plugin at
+ * the repository root whose approval names no ref: "Install Plugin from
+ * Source" with `owner/repo`. That can't pin: VS Code drops a `#<sha>` there and
+ * installs the default branch, yet still displays the `#<sha>` (tested
+ * against VS Code 1.145.2), so the commit is never appended. A file that is there
+ * but doesn't list the plugin, or can't be parsed, gets neither form: VS Code
+ * would read the repository as that marketplace. A feed without
+ * `marketplaceFiles` is unknown, and passes.
+ *
+ * Not gated on `isAgentPlugin`: VS Code also reads a Claude-format plugin. Both
+ * forms warn when a contained MCP server uses `${PLUGIN_DATA}`, which VS Code
+ * leaves unexpanded.
+ */
+function vsCodeOption(plugin: PluginFacts): PluginInstallOption | undefined {
+  const { url, path, ref, commit } = plugin.source;
+  if (!isGitHubUrl(url)) return undefined;
+  const option = {
+    tool: "vscode" as const,
+    label: "Install in VS Code (GitHub Copilot)",
+    warnings: pluginDataWarnings(plugin),
+  };
+  const file = firstFound(plugin.marketplaceFiles, VS_CODE_MARKETPLACE_FILES);
+  if (file) {
+    if (!file.entryName || !commit) return undefined;
+    return {
+      ...option,
+      steps: [
+        {
+          kind: "paste",
+          app: "VS Code",
+          action: "Command Palette → Chat: Add Marketplace",
+          value: `${cliSource(url)}#${commit}`,
+        },
+        { kind: "install", app: "VS Code", plugin: file.entryName },
+      ],
+    };
+  }
+  if (path || ref) return undefined;
+  return {
+    ...option,
+    steps: [
+      {
+        kind: "paste",
+        app: "VS Code",
+        action: "Command Palette → Chat: Install Plugin from Source",
+        value: cliSource(url),
+      },
+    ],
+  };
+}
+
+// The warning, if any, that VS Code won't expand `${PLUGIN_DATA}` for the
+// contained MCP servers that use it, naming them. A feed that predates
+// `usesPluginData` gets no warning: it's unknown there, and warning about an
+// unknown would put the warning on every plugin.
+function pluginDataWarnings(plugin: PluginFacts): string[] {
+  const names = plugin.containedMcpServers
+    .filter((server) => server.usesPluginData)
+    .map((server) => `\`${server.name}\``);
+  if (names.length === 0) return [];
+  const servers =
+    names.length === 1
+      ? `the MCP server ${names[0]} uses, so it may`
+      : `the MCP servers ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} use, so they may`;
+  return [
+    "VS Code doesn't expand `${PLUGIN_DATA}`, which " +
+      servers +
+      " not work there.",
+  ];
 }
 
 /**

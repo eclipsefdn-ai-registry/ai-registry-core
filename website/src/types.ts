@@ -118,6 +118,9 @@ export interface ContainedSkill {
 export interface ContainedMcpServer {
   name: string;
   transport: string;
+  // Set when the server's config references `${PLUGIN_DATA}`, which not every
+  // tool expands. Absent otherwise, and in feeds that predate it.
+  usesPluginData?: true;
 }
 
 export interface Plugin {

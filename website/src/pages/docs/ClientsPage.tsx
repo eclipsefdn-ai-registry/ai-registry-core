@@ -602,6 +602,37 @@ export function ClientsPage() {
             installs the endorsed commit whatever ref the approval names.
           </li>
           <li>
+            Offer VS Code (GitHub Copilot) only for a plugin on github.com,
+            Agent Plugin or not, in one of two forms. When the first of{" "}
+            <InlineCode>marketplace.json</InlineCode>,{" "}
+            <InlineCode>.plugin/marketplace.json</InlineCode>,{" "}
+            <InlineCode>.github/plugin/marketplace.json</InlineCode> and{" "}
+            <InlineCode>.claude-plugin/marketplace.json</InlineCode> that
+            appears in <InlineCode>marketplaceFiles</InlineCode> has an{" "}
+            <InlineCode>entryName</InlineCode>, run{" "}
+            <strong>Chat: Add Marketplace</strong> with{" "}
+            <InlineCode>{"owner/repo#<source.commit>"}</InlineCode>, then
+            install <InlineCode>&lt;entryName&gt;</InlineCode> from it. That
+            pins the marketplace and its repository-relative entries, so it
+            installs the endorsed commit whatever ref the approval names; with
+            no <InlineCode>source.commit</InlineCode>, offer nothing. When none
+            of those four files appears in{" "}
+            <InlineCode>marketplaceFiles</InlineCode>, and only for a plugin at
+            the repository root (no <InlineCode>source.path</InlineCode>) whose
+            approval names no <InlineCode>source.ref</InlineCode>, run{" "}
+            <strong>Chat: Install Plugin from Source</strong> with{" "}
+            <InlineCode>owner/repo</InlineCode>. If the first file is there but
+            has no <InlineCode>entryName</InlineCode>, offer neither form: VS
+            Code reads the repository as that marketplace, not as this plugin.
+            Never append <InlineCode>{"#<sha>"}</InlineCode> there: VS Code
+            ignores it, installs the default branch, and still displays the{" "}
+            <InlineCode>{"#<sha>"}</InlineCode>. In both forms, warn when a{" "}
+            <InlineCode>containedMcpServers</InlineCode> item has{" "}
+            <InlineCode>usesPluginData</InlineCode>, naming those servers, since
+            VS Code doesn&apos;t expand{" "}
+            <InlineCode>{"${PLUGIN_DATA}"}</InlineCode>.
+          </li>
+          <li>
             Offer Claude Code once per record in{" "}
             <InlineCode>publishedMarketplaces</InlineCode>, Agent Plugin or not:{" "}
             <InlineCode>
@@ -624,8 +655,9 @@ export function ClientsPage() {
         </ul>
         <p className="mt-3 mb-3 leading-relaxed">
           A missing <InlineCode>isAgentPlugin</InlineCode> is unknown, not
-          false, so it passes the Agent Plugin half of the first three rules.
-          The ref, host, commit and marketplace-file conditions still apply.
+          false, so it passes the Agent Plugin half of the rules that have one.
+          The ref, host, commit, path and marketplace-file conditions still
+          apply.
         </p>
         <p className="mt-3 mb-3 leading-relaxed">
           <InlineCode>marketplaceFiles</InlineCode> lists the known marketplace
@@ -692,8 +724,11 @@ export function ClientsPage() {
           <li className="leading-relaxed">
             <InlineCode>containedMcpServers</InlineCode> gives only a name and a
             transport, and the transport is empty when the entry declares no{" "}
-            <InlineCode>type</InlineCode>. The feed cannot tell you how to run
-            anything.
+            <InlineCode>type</InlineCode>.{" "}
+            <InlineCode>usesPluginData: true</InlineCode> marks a server whose
+            config references <InlineCode>{"${PLUGIN_DATA}"}</InlineCode>, which
+            not every tool expands; a missing field in an older feed means
+            unknown. The feed cannot tell you how to run anything.
           </li>
           <li className="leading-relaxed">
             Approval attaches to the plugin as a whole. No contained MCP server

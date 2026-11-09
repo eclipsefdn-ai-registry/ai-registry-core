@@ -510,7 +510,7 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
               name: "containedMcpServers",
               type: "array",
               description:
-                "Servers declared in mcp.json, each with name and transport. Transport is empty when the entry declares no type.",
+                "Servers declared in mcp.json, each with name and transport. Transport is empty when the entry declares no type. usesPluginData is true when the server's config references ${PLUGIN_DATA}, and absent otherwise; absent in feeds that predate it, which means unknown.",
             },
             {
               name: "isAgentPlugin",
