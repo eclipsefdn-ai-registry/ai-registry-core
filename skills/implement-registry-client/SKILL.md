@@ -212,6 +212,13 @@ A plugin that conforms to the [Agent Plugins specification](https://agent-plugin
   ],
   "containedMcpServers": [{ "name": "bigquery", "transport": "stdio" }],
   "isAgentPlugin": true,
+  "publishedMarketplaces": [
+    {
+      "orgId": "example-org",
+      "marketplaceName": "ai-registry-example-org",
+      "entryName": "io.github.gemini-cli-extensions.bigquery-data-analytics"
+    }
+  ],
   "approvals": [
     {
       "organizationId": "example-org",
@@ -238,12 +245,13 @@ When it is `false`, `agentPluginIssues` lists why, one readable message per fail
 
 The verdict is about the specification, not about any one tool. Whether a given tool can install a plugin depends on that tool's own rules, which the feed doesn't publish.
 
-If you hand a plugin to another tool rather than installing it yourself, the registry website applies two rules you can reuse:
+If you hand a plugin to another tool rather than installing it yourself, the registry website applies these rules you can reuse:
 
 - Offer the `plugins` CLI (`npx plugins add <source>`) only for a plugin that isn't an Agent Plugin, and only when the approval names no `source.ref`. The CLI clones the default branch with no way to target a ref, and an Agent Plugin has tools that install it at the endorsed commit instead.
 - Offer Kiro's **Import power from GitHub** only for an Agent Plugin on github.com, as the plugin's folder at `source.commit` (`https://github.com/<owner>/<repo>/tree/<commit>/<path>`). Kiro rejects any other host and won't load a `plugin.json` without `$schema`. With no `source.commit`, offer nothing.
+- Offer Claude Code once per record in `publishedMarketplaces`, Agent Plugin or not: `claude plugin marketplace add <base>/api/v1/orgs/<orgId>/marketplace.json`, then `claude plugin install <entryName>@<marketplaceName>`. The published entry pins `sha` to `source.commit`, so this installs the endorsed commit whatever ref the approval names. With no record, no `publishedMarketplaces`, or no `source.commit`, offer nothing. Never build an entry name yourself: the plugin may have been left out of that file.
 
-A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin half of both rules. The ref, host and commit conditions still apply.
+A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin half of the first two rules. The ref, host and commit conditions still apply.
 
 ### Install the plugin whole
 

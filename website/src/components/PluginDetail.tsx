@@ -129,7 +129,10 @@ export function PluginDetail({
         ))}
       </div>
 
-      {pluginInstallOptions(plugin).map((option, i) => (
+      {pluginInstallOptions(
+        plugin,
+        new URL(import.meta.env.BASE_URL, window.location.origin).href,
+      ).map((option, i) => (
         <InstallOption key={i} option={option} />
       ))}
     </div>
