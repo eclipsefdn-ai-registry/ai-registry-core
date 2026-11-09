@@ -563,7 +563,9 @@ export function ClientsPage() {
             plugin that isn&apos;t an Agent Plugin, and only when the approval
             names no <InlineCode>source.ref</InlineCode>. The CLI clones the
             default branch with no way to target a ref, and an Agent Plugin has
-            tools that install it at the endorsed commit instead.
+            tools that install it at the endorsed commit instead. Say that it
+            installs every plugin in the repository, not only this one: it takes
+            a repository and can&apos;t select a plugin in it.
           </li>
           <li>
             Offer Kiro&apos;s <strong>Import power from GitHub</strong> only for
@@ -650,7 +652,16 @@ export function ClientsPage() {
             <InlineCode>publishedMarketplaces</InlineCode>, or no{" "}
             <InlineCode>source.commit</InlineCode>, offer nothing: never build
             an entry name yourself, since the plugin may have been left out of
-            that file.
+            that file. Claude Code reads a plugin&apos;s MCP servers only from{" "}
+            <InlineCode>.mcp.json</InlineCode> and from{" "}
+            <InlineCode>mcpServers</InlineCode> in{" "}
+            <InlineCode>.claude-plugin/plugin.json</InlineCode>, never from{" "}
+            <InlineCode>mcp.json</InlineCode>, so when{" "}
+            <InlineCode>containedMcpServers</InlineCode> isn&apos;t empty and{" "}
+            <InlineCode>mcpConfigFiles</InlineCode> is, warn on each of these
+            instructions, naming the servers: the plugin installs without them.
+            A missing <InlineCode>mcpConfigFiles</InlineCode> is unknown, so
+            don&apos;t warn.
           </li>
         </ul>
         <p className="mt-3 mb-3 leading-relaxed">
@@ -680,6 +691,14 @@ export function ClientsPage() {
           about files, not tools: which tool reads which file, and which one
           first, is yours to apply. A missing{" "}
           <InlineCode>marketplaceFiles</InlineCode> means unknown.
+        </p>
+        <p className="mt-3 mb-3 leading-relaxed">
+          <InlineCode>mcpConfigFiles</InlineCode> lists which of{" "}
+          <InlineCode>.mcp.json</InlineCode>, and{" "}
+          <InlineCode>.claude-plugin/plugin.json</InlineCode> when it declares{" "}
+          <InlineCode>mcpServers</InlineCode>, the plugin directory has at{" "}
+          <InlineCode>source.commit</InlineCode>, relative to the plugin. Empty
+          means neither; missing means unknown.
         </p>
         <InfoCallout>
           <strong>Install the plugin whole.</strong> Download the plugin

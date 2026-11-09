@@ -302,6 +302,13 @@ export interface PluginEntry {
   // tools, so a tool's rules can change on the website alone. Absent in feeds
   // that predate it, which reads as unknown.
   marketplaceFiles?: RepositoryMarketplaceFile[];
+  // Output only, set at enrichment: which of MCP_CONFIG_FILE_PATHS
+  // (`.mcp.json`, and `.claude-plugin/plugin.json` when it declares
+  // mcpServers) the plugin directory has at source.commit, relative to the
+  // plugin. Facts about files, not tools: Claude Code reads a plugin's MCP
+  // servers only from these, never from mcp.json, and the website draws that
+  // conclusion. Absent in feeds that predate it, which reads as unknown.
+  mcpConfigFiles?: string[];
   approvals: PluginApproval[];
 }
 

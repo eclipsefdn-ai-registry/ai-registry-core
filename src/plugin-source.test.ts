@@ -389,6 +389,11 @@ function writeManifest(
   );
 }
 
+function writeFile(dir: string, path: string, content: string): void {
+  mkdirSync(join(dir, path, ".."), { recursive: true });
+  writeFileSync(join(dir, path), content);
+}
+
 function entry(
   pluginId: string,
   url: string,
@@ -682,11 +687,6 @@ describe("enrichPluginMetadata Agent Plugin fields", () => {
 describe("fetchPluginManifest marketplace files", () => {
   const CODEX = ".agents/plugins/marketplace.json";
   const CLAUDE = ".claude-plugin/marketplace.json";
-
-  function writeFile(dir: string, path: string, content: string): void {
-    mkdirSync(join(dir, path, ".."), { recursive: true });
-    writeFileSync(join(dir, path), content);
-  }
 
   function marketplace(name: string, plugins: object[]): string {
     return JSON.stringify({ name, plugins });
@@ -990,5 +990,136 @@ describe("readMarketplaceFile", () => {
     );
     assert.deepEqual(record, { path: PATH });
     assert.match(warning ?? "", /"plugins"/);
+  });
+});
+
+// --- Claude Code's MCP config files through fetchPluginManifest ---
+
+describe("fetchPluginManifest MCP config files", () => {
+  function mcpConfigFilesOf(files: Record<string, string>): string[] {
+    const sourceDir = initRepo();
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-mcp-config-test-"));
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      for (const [path, content] of Object.entries(files)) {
+        writeFile(sourceDir, `plugins/demo/${path}`, content);
+      }
+      commitAll(sourceDir, "plugin");
+      return fetchPluginManifest(`file://${sourceDir}`, "plugins/demo", tmpDir)
+        .mcpConfigFiles;
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  }
+
+  const MCP_SERVERS = JSON.stringify({
+    mcpServers: { local: { command: "uvx" } },
+  });
+
+  it("records none when the plugin has neither file", () => {
+    assert.deepEqual(mcpConfigFilesOf({ "mcp.json": MCP_SERVERS }), []);
+  });
+
+  it("records .mcp.json", () => {
+    assert.deepEqual(mcpConfigFilesOf({ ".mcp.json": MCP_SERVERS }), [
+      ".mcp.json",
+    ]);
+  });
+
+  it("records .claude-plugin/plugin.json when it declares mcpServers", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({
+          name: "demo",
+          mcpServers: { local: { command: "uvx" } },
+        }),
+      }),
+      [".claude-plugin/plugin.json"],
+    );
+  });
+
+  it("records .claude-plugin/plugin.json when mcpServers names a file", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({
+          name: "demo",
+          mcpServers: "./servers.json",
+        }),
+      }),
+      [".claude-plugin/plugin.json"],
+    );
+  });
+
+  it("doesn't record a .claude-plugin/plugin.json without mcpServers", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({ name: "demo" }),
+      }),
+      [],
+    );
+  });
+
+  it("doesn't record a .claude-plugin/plugin.json that can't be parsed", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({ ".claude-plugin/plugin.json": "{ not json" }),
+      [],
+    );
+  });
+
+  it("records both, in a fixed order", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({
+          name: "demo",
+          mcpServers: { local: { command: "uvx" } },
+        }),
+        ".mcp.json": MCP_SERVERS,
+      }),
+      [".mcp.json", ".claude-plugin/plugin.json"],
+    );
+  });
+
+  it("reads the files at the approved commit, not as they are now", () => {
+    const sourceDir = initRepo();
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-mcp-config-test-"));
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      const approved = commitAll(sourceDir, "approved");
+      writeFile(sourceDir, "plugins/demo/.mcp.json", MCP_SERVERS);
+      commitAll(sourceDir, "later");
+
+      const metadata = fetchPluginManifest(
+        `file://${sourceDir}`,
+        "plugins/demo",
+        tmpDir,
+        approved,
+      );
+      assert.deepEqual(metadata.mcpConfigFiles, []);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("enrichPluginMetadata MCP config files", () => {
+  it("publishes mcpConfigFiles", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFileSync(
+        join(sourceDir, "plugins/demo/.mcp.json"),
+        JSON.stringify({ mcpServers: {} }),
+      );
+      commitAll(sourceDir, "plugin");
+
+      const [a] = enrichPluginMetadata([
+        entry("io.example/demo", `file://${sourceDir}`, "plugins/demo"),
+      ]);
+      assert.deepEqual(a.mcpConfigFiles, [".mcp.json"]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
   });
 });

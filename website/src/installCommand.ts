@@ -86,6 +86,7 @@ type PluginFacts = Pick<
   | "publishedMarketplaces"
   | "marketplaceFiles"
   | "containedMcpServers"
+  | "mcpConfigFiles"
 >;
 
 /**
@@ -123,12 +124,16 @@ export function pluginInstallOptions(
  * writes, so the entry named is one that exists. A feed without the listing
  * gets nothing, and so does one without a full 40-character `source.commit`,
  * since then the published entry has no `sha` to pin the install to.
+ *
+ * Each option warns when the plugin's MCP servers are in none of the files
+ * Claude Code reads them from (see mcpConfigWarnings).
  */
 function claudeCodeOptions(
   plugin: PluginFacts,
   baseUrl: string,
 ): PluginInstallOption[] {
   if (!FULL_SHA.test(plugin.source.commit ?? "")) return [];
+  const warnings = mcpConfigWarnings(plugin);
   return (plugin.publishedMarketplaces ?? []).map(
     ({ orgId, marketplaceName, entryName }) => ({
       tool: "claude-code",
@@ -144,9 +149,35 @@ function claudeCodeOptions(
           command: `claude plugin install ${entryName}@${marketplaceName}`,
         },
       ],
-      warnings: [],
+      warnings,
     }),
   );
+}
+
+// The warning, if any, that Claude Code won't load the plugin's MCP servers,
+// naming them. Claude Code reads a plugin's servers only from `.mcp.json` and
+// from `mcpServers` in `.claude-plugin/plugin.json`, never from the
+// agent-plugins.org `mcp.json`, so a plugin with servers and neither file
+// installs and then has none (`claude mcp list` shows nothing). A feed that
+// predates `mcpConfigFiles` gets no warning: it's unknown there, and warning
+// about an unknown would put the warning on every plugin with servers.
+function mcpConfigWarnings(plugin: PluginFacts): string[] {
+  if (!plugin.mcpConfigFiles || plugin.mcpConfigFiles.length > 0) return [];
+  const names = plugin.containedMcpServers.map((server) => server.name);
+  if (names.length === 0) return [];
+  return [
+    "Claude Code reads a plugin's MCP servers only from `.mcp.json` or `mcpServers` in `.claude-plugin/plugin.json`, and this plugin has neither, so " +
+      serverList(names, "won't", "won't") +
+      " be available there.",
+  ];
+}
+
+// "the MCP server `a` <one>" or "the MCP servers `a`, `b` and `c` <many>".
+function serverList(names: string[], one: string, many: string): string {
+  const quoted = names.map((name) => `\`${name}\``);
+  return quoted.length === 1
+    ? `the MCP server ${quoted[0]} ${one}`
+    : `the MCP servers ${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} ${many}`;
 }
 
 // The marketplace files Codex looks for in a repository, in its order. It
@@ -287,15 +318,11 @@ function vsCodeOption(plugin: PluginFacts): PluginInstallOption | undefined {
 function pluginDataWarnings(plugin: PluginFacts): string[] {
   const names = plugin.containedMcpServers
     .filter((server) => server.usesPluginData)
-    .map((server) => `\`${server.name}\``);
+    .map((server) => server.name);
   if (names.length === 0) return [];
-  const servers =
-    names.length === 1
-      ? `the MCP server ${names[0]} uses, so it may`
-      : `the MCP servers ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} use, so they may`;
   return [
     "VS Code doesn't expand `${PLUGIN_DATA}`, which " +
-      servers +
+      serverList(names, "uses, so it may", "use, so they may") +
       " not work there.",
   ];
 }
@@ -340,8 +367,9 @@ function kiroOption(plugin: PluginFacts): PluginInstallOption | undefined {
  * Keyed to the CLI's capability, not to `source.pinned`: plugins 1.3.4 runs
  * `git clone --depth 1` with no ref and has no flag for one, so a branch ref is
  * as unreachable as a tag. The plugins CLI takes a source and nothing else, so
- * a plugin in a subdirectory resolves by discovery rather than by path. Remove
- * the suppression once the CLI can target a ref.
+ * a plugin in a subdirectory resolves by discovery rather than by path, and
+ * every plugin it discovers in the repository is installed, which the command
+ * says. Remove the suppression once the CLI can target a ref.
  */
 function npxPluginsOption(
   plugin: PluginFacts,
@@ -367,6 +395,9 @@ function npxPluginsOption(
         lead: "For other agents, this plugin might be installable with:",
         command: `npx plugins add ${cliSource(url)}`,
       },
+    ],
+    warnings: [
+      "`npx plugins add` installs every plugin in the repository, not only this one, because it takes a repository and can't select a plugin in it.",
     ],
   };
 }

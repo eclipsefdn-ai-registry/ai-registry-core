@@ -35,6 +35,7 @@ function plugin(
       | "publishedMarketplaces"
       | "marketplaceFiles"
       | "containedMcpServers"
+      | "mcpConfigFiles"
     >
   > = {},
 ) {
@@ -165,6 +166,7 @@ function optionsFor(
       | "publishedMarketplaces"
       | "marketplaceFiles"
       | "containedMcpServers"
+      | "mcpConfigFiles"
     >
   > = {},
 ) {
@@ -219,6 +221,7 @@ const ECLIPSE = {
 function claudeCodeFor(
   listing: { marketplaceName: string; entryName: string },
   orgId: string,
+  warnings: string[] = [],
 ) {
   return {
     tool: "claude-code",
@@ -234,9 +237,12 @@ function claudeCodeFor(
         command: `claude plugin install ${listing.entryName}@${listing.marketplaceName}`,
       },
     ],
-    warnings: [],
+    warnings,
   };
 }
+
+const EVERY_PLUGIN =
+  "`npx plugins add` installs every plugin in the repository, not only this one, because it takes a repository and can't select a plugin in it.";
 
 const AGENT_PLUGIN = { isAgentPlugin: true };
 const NOT_AGENT_PLUGIN = { isAgentPlugin: false };
@@ -339,6 +345,90 @@ describe("pluginInstallOptions", () => {
     });
   });
 
+  describe("Claude Code MCP servers", () => {
+    const github = { name: "github", transport: "http" };
+    const actions = { name: "actions", transport: "stdio" };
+    const listed = { commit: COMMIT };
+    const NO_GITHUB =
+      "Claude Code reads a plugin's MCP servers only from `.mcp.json` or `mcpServers` in `.claude-plugin/plugin.json`, and this plugin has neither, so the MCP server `github` won't be available there.";
+
+    it("warns, naming the server, when there's no Claude Code MCP config", () => {
+      assert.deepEqual(
+        optionsFor(listed, {
+          publishedMarketplaces: [GOOGLE],
+          containedMcpServers: [github],
+          mcpConfigFiles: [],
+        }).claudeCode,
+        [claudeCodeFor(GOOGLE, "google", [NO_GITHUB])],
+      );
+    });
+
+    it("names every server", () => {
+      assert.deepEqual(
+        optionsFor(listed, {
+          publishedMarketplaces: [GOOGLE],
+          containedMcpServers: [github, actions],
+          mcpConfigFiles: [],
+        }).claudeCode[0].warnings,
+        [
+          "Claude Code reads a plugin's MCP servers only from `.mcp.json` or `mcpServers` in `.claude-plugin/plugin.json`, and this plugin has neither, so the MCP servers `github` and `actions` won't be available there.",
+        ],
+      );
+    });
+
+    it("warns on every organization's option, Agent Plugin or not", () => {
+      for (const verdict of [AGENT_PLUGIN, NOT_AGENT_PLUGIN]) {
+        assert.deepEqual(
+          optionsFor(listed, {
+            ...verdict,
+            publishedMarketplaces: [GOOGLE, ECLIPSE],
+            containedMcpServers: [github],
+            mcpConfigFiles: [],
+          }).claudeCode,
+          [
+            claudeCodeFor(GOOGLE, "google", [NO_GITHUB]),
+            claudeCodeFor(ECLIPSE, "eclipse-theia", [NO_GITHUB]),
+          ],
+        );
+      }
+    });
+
+    for (const file of [".mcp.json", ".claude-plugin/plugin.json"]) {
+      it(`doesn't warn when the plugin has ${file}`, () => {
+        assert.deepEqual(
+          optionsFor(listed, {
+            publishedMarketplaces: [GOOGLE],
+            containedMcpServers: [github],
+            mcpConfigFiles: [file],
+          }).claudeCode[0].warnings,
+          [],
+        );
+      });
+    }
+
+    it("doesn't warn when the plugin has no MCP servers", () => {
+      assert.deepEqual(
+        optionsFor(listed, {
+          publishedMarketplaces: [GOOGLE],
+          mcpConfigFiles: [],
+        }).claudeCode[0].warnings,
+        [],
+      );
+    });
+
+    // Missing means unknown, and a warning about an unknown would land on
+    // every plugin with MCP servers.
+    it("doesn't warn in a feed without mcpConfigFiles", () => {
+      assert.deepEqual(
+        optionsFor(listed, {
+          publishedMarketplaces: [GOOGLE],
+          containedMcpServers: [github],
+        }).claudeCode[0].warnings,
+        [],
+      );
+    });
+  });
+
   describe("npx plugins", () => {
     const command = {
       tool: "npx-plugins",
@@ -350,7 +440,7 @@ describe("pluginInstallOptions", () => {
           command: "npx plugins add gemini-cli-extensions/looker",
         },
       ],
-      warnings: [],
+      warnings: [EVERY_PLUGIN],
     };
 
     it("offers a command when the approval names no ref", () => {

@@ -163,6 +163,12 @@ export interface Plugin {
   // which file, and in what order, lives in installCommand.ts. Absent in feeds
   // that predate it, which reads as unknown.
   marketplaceFiles?: RepositoryMarketplaceFile[];
+  // Which of `.mcp.json`, and `.claude-plugin/plugin.json` when it declares
+  // mcpServers, the plugin directory has at source.commit, relative to the
+  // plugin. Facts about files, not tools: that Claude Code reads MCP servers
+  // only from these lives in installCommand.ts. Absent in feeds that predate
+  // it, which reads as unknown.
+  mcpConfigFiles?: string[];
   approvals: PluginApproval[];
 }
 
