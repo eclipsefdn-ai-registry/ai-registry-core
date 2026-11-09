@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import type {
   Plugin,
@@ -15,7 +16,8 @@ import {
   type PluginInstallOption,
 } from "../installCommand";
 import { sourceLinkTitle } from "../approvedTarget";
-import { InstallFromCli, InstallFromCliUnavailable } from "./InstallFromCli";
+import { InstallFromCli } from "./InstallFromCli";
+import { TabButtons } from "./TabButtons";
 import { ApprovedTarget } from "./ApprovedTarget";
 import { AgentPluginBadge } from "./AgentPluginBadge";
 
@@ -129,14 +131,53 @@ export function PluginDetail({
         ))}
       </div>
 
-      {pluginInstallOptions(
-        plugin,
-        new URL(import.meta.env.BASE_URL, window.location.origin).href,
-      ).map((option, i) => (
-        <InstallOption key={i} option={option} />
-      ))}
+      <InstallOptions
+        options={pluginInstallOptions(
+          plugin,
+          new URL(import.meta.env.BASE_URL, window.location.origin).href,
+        )}
+      />
     </div>
   );
+}
+
+type InstallTool = PluginInstallOption["tool"];
+
+// Every way to install the plugin, one tab per tool in the order
+// pluginInstallOptions gives, so the page shows one tool's steps at a time
+// rather than all of them stacked. A tool with several options (Claude Code,
+// once per organization marketplace) shows them all in its tab.
+function InstallOptions({ options }: { options: PluginInstallOption[] }) {
+  const tools = [...new Set(options.map((option) => option.tool))];
+  const [selected, setSelected] = useState<InstallTool | undefined>();
+  if (tools.length === 0) return null;
+  const active = selected && tools.includes(selected) ? selected : tools[0];
+  const tabs = tools.map((tool) => ({
+    key: tool,
+    label: toolName(options.find((option) => option.tool === tool)!.label),
+  }));
+  return (
+    <div className="mt-6">
+      <h3 className="text-base font-semibold mb-1">Install</h3>
+      <div className="mb-4 border-b border-border">
+        <TabButtons tabs={tabs} active={active} onSelect={setSelected} />
+      </div>
+      <div className="space-y-4">
+        {options
+          .filter((option) => option.tool === active)
+          .map((option, i) => (
+            <InstallOption key={i} option={option} />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// "Install in VS Code (GitHub Copilot)" → "VS Code (GitHub Copilot)",
+// "Install in other agents" → "Other agents".
+function toolName(label: string): string {
+  const name = label.replace(/^Install in /, "");
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 // Why a plugin isn't an Agent Plugin, as consolidation reported it. Shown
@@ -175,14 +216,16 @@ function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
   );
 }
 
-// One tool's instructions: a copy box per step, with warnings under the last
-// one, or the explanation when the tool can't install the approved revision.
+// One option's instructions in one card, so its steps read as a sequence and
+// not as separate sections: a numbered copy box per step, with warnings under
+// the last one, or the explanation when the tool can't install the approved
+// revision.
 function InstallOption({ option }: { option: PluginInstallOption }) {
   const warnings =
     option.warnings.length > 0 ? (
       <>
         {option.warnings.map((warning, i) => (
-          <span key={i} className="block mt-2">
+          <span key={i} className="block mt-2 first:mt-0">
             {withCode(warning)}
           </span>
         ))}
@@ -190,24 +233,30 @@ function InstallOption({ option }: { option: PluginInstallOption }) {
     ) : undefined;
   if ("unavailable" in option) {
     return (
-      <InstallFromCliUnavailable label={option.label}>
-        {withCode(option.unavailable)}
-        {warnings}
-      </InstallFromCliUnavailable>
+      <div className="border border-border rounded-lg p-4">
+        <p className="text-xs text-muted-foreground">
+          {withCode(option.unavailable)}
+        </p>
+        {warnings && (
+          <p className="mt-2 text-xs text-muted-foreground">{warnings}</p>
+        )}
+      </div>
     );
   }
+  const numbered = option.steps.length > 1;
   return (
-    <>
+    <div className="border border-border rounded-lg p-4 space-y-4">
       {option.steps.map((step, i) => (
         <InstallFromCli
           key={i}
-          label={i === 0 ? option.label : "Then"}
+          className=""
+          label={numbered ? `Step ${i + 1}` : ""}
           lead={stepLead(step)}
           command={stepValue(step)}
           note={i === option.steps.length - 1 ? warnings : undefined}
         />
       ))}
-    </>
+    </div>
   );
 }
 

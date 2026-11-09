@@ -248,18 +248,18 @@ const AGENT_PLUGIN = { isAgentPlugin: true };
 const NOT_AGENT_PLUGIN = { isAgentPlugin: false };
 
 describe("pluginInstallOptions", () => {
-  it("lists VS Code, Kiro, then npx plugins, for a feed without the verdict", () => {
+  it("lists Kiro, VS Code, then npx plugins, for a feed without the verdict", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }).tools, [
-      "vscode",
       "kiro",
+      "vscode",
       "npx-plugins",
     ]);
   });
 
   it("offers Kiro and not npx plugins for an Agent Plugin", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }, AGENT_PLUGIN).tools, [
-      "vscode",
       "kiro",
+      "vscode",
     ]);
   });
 
@@ -270,10 +270,10 @@ describe("pluginInstallOptions", () => {
     ]);
   });
 
-  it("lists Claude Code before Kiro and npx plugins", () => {
+  it("lists Kiro first, then Claude Code, VS Code and npx plugins", () => {
     assert.deepEqual(
       optionsFor({ commit: COMMIT }, { publishedMarketplaces: [GOOGLE] }).tools,
-      ["claude-code", "vscode", "kiro", "npx-plugins"],
+      ["kiro", "claude-code", "vscode", "npx-plugins"],
     );
   });
 
@@ -718,13 +718,13 @@ describe("pluginInstallOptions", () => {
       );
     });
 
-    it("lists Codex after Claude Code and before Kiro", () => {
+    it("lists Codex after Kiro and Claude Code, and before VS Code", () => {
       assert.deepEqual(
         optionsFor(
           { commit: COMMIT },
           { publishedMarketplaces: [GOOGLE], marketplaceFiles: [LISTED] },
         ).tools,
-        ["claude-code", "codex", "vscode", "kiro", "npx-plugins"],
+        ["kiro", "claude-code", "codex", "vscode", "npx-plugins"],
       );
     });
   });
