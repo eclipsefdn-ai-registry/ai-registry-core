@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { skillsAddArgs } from "./skillsAdd.js";
+import { installerEnv, skillsAddArgs } from "./skillsAdd.js";
 import type { Skill } from "./types.js";
 
 const COMMIT = "7b4a44e40e0112233445566778899aabbccddeef";
@@ -95,5 +95,22 @@ describe("skillsAddArgs", () => {
         "-y",
       ],
     );
+  });
+});
+
+describe("installerEnv", () => {
+  // skills resolves the owner/repo shorthand against GH_HOST, so a GitHub
+  // Enterprise user's would clone from a host other than the approved one.
+  it("drops GH_HOST, so owner/repo resolves to github.com as printed", () => {
+    assert.deepEqual(
+      installerEnv({ GH_HOST: "ghe.example.com", PATH: "/usr/bin" }),
+      { PATH: "/usr/bin" },
+    );
+  });
+
+  it("leaves the environment it was given untouched", () => {
+    const env = { GH_HOST: "ghe.example.com" };
+    installerEnv(env);
+    assert.deepEqual(env, { GH_HOST: "ghe.example.com" });
   });
 });

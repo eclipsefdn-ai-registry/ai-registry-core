@@ -23,10 +23,9 @@ export function field(name: string | undefined, value: string): string {
  */
 export function describeSkill(
   skill: Skill,
-  organizations: Organization[],
+  orgName: (id: string) => string,
   generatedAt?: string,
 ): string[] {
-  const orgName = organizationNamer(organizations);
   return [
     `${skill.name} (${skill.skillId})`,
     field("Source", sourceTreeUrl(skill.source)),

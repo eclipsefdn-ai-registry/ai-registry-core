@@ -83,6 +83,7 @@ describe("guardrailLines", () => {
   it("says the guardrail is off and where that was set", () => {
     const g = { requireApprovalFrom: "off" as const, setBy: "default" };
     const lines = guardrailLines(
+      [ANTHROPIC],
       checkApprovals([ANTHROPIC], "off"),
       g,
       orgName,
@@ -92,6 +93,7 @@ describe("guardrailLines", () => {
 
   it("names the required organization that approved it", () => {
     const lines = guardrailLines(
+      [ANTHROPIC],
       checkApprovals([ANTHROPIC], ["anthropic"]),
       guardrail(["anthropic"]),
       orgName,
@@ -104,6 +106,7 @@ describe("guardrailLines", () => {
 
   it("shows the delegation behind a trust-derived approval", () => {
     const lines = guardrailLines(
+      [ANTHROPIC, THEIA_VIA_ANTHROPIC],
       checkApprovals([ANTHROPIC, THEIA_VIA_ANTHROPIC], ["theia"]),
       guardrail(["theia"]),
       orgName,
@@ -117,6 +120,7 @@ describe("guardrailLines", () => {
 
   it("on refusal, names who did approve it and how to override", () => {
     const lines = guardrailLines(
+      [ANTHROPIC, THEIA_VIA_ANTHROPIC],
       checkApprovals([ANTHROPIC, THEIA_VIA_ANTHROPIC], ["eclipse", "acme"]),
       guardrail(["eclipse", "acme"]),
       orgName,

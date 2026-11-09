@@ -1,20 +1,19 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { describeSkill } from "./describeSkill.js";
+import { describeSkill, organizationNamer } from "./describeSkill.js";
 import type { Skill } from "./types.js";
 
 const COMMIT = "7b4a44e40e0112233445566778899aabbccddeef";
 
-const ORGS = [
+const ORG_NAME = organizationNamer([
   { id: "anthropic", name: "Anthropic" },
   { id: "theia", name: "Theia" },
-];
+]);
 
 function skill(overrides: Partial<Skill> = {}): Skill {
   return {
     skillId: "io.github.anthropics/code-review",
     name: "code-review",
-    description: "Reviews code",
     source: {
       url: "https://github.com/anthropics/skills.git",
       path: "skills/code-review",
@@ -29,7 +28,7 @@ function skill(overrides: Partial<Skill> = {}): Skill {
 
 describe("describeSkill", () => {
   it("names the skill, its source, who approved it, the target and the hash", () => {
-    assert.deepEqual(describeSkill(skill(), ORGS), [
+    assert.deepEqual(describeSkill(skill(), ORG_NAME), [
       "code-review (io.github.anthropics/code-review)",
       `Source:         https://github.com/anthropics/skills/tree/${COMMIT}/skills/code-review`,
       "Approved by:    Anthropic, 2026-01-02",
@@ -51,7 +50,7 @@ describe("describeSkill", () => {
           { organizationId: "acme", date: "2026-03-04" },
         ],
       }),
-      ORGS,
+      ORG_NAME,
     );
     assert.deepEqual(lines.slice(2, 5), [
       "Approved by:    Anthropic, 2026-01-02",
@@ -62,7 +61,7 @@ describe("describeSkill", () => {
 
   describe("approved target", () => {
     const target = (overrides: Partial<Skill>, generatedAt?: string) =>
-      describeSkill(skill(overrides), ORGS, generatedAt).find((line) =>
+      describeSkill(skill(overrides), ORG_NAME, generatedAt).find((line) =>
         line.startsWith("Target:"),
       );
 
