@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import type { Organization } from "../types";
 import { MultiSelect } from "./MultiSelect";
 
@@ -143,14 +143,29 @@ export function BrowserSearch({
             >
               Plugins
             </span>
-            <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer">
+            {/* The box mirrors MultiSelect's option checkboxes; the native
+                input stays underneath, visually hidden, for keyboard and
+                screen readers. */}
+            <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
                 aria-describedby={pluginsLabelId}
                 checked={agentPluginsOnly}
                 onChange={(e) => onAgentPluginsOnlyChange(e.target.checked)}
-                className="h-4 w-4 accent-primary"
+                className="peer sr-only"
               />
+              <span
+                aria-hidden
+                className={`h-4 w-4 shrink-0 flex items-center justify-center rounded border transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring/50 ${
+                  agentPluginsOnly
+                    ? "bg-primary border-primary text-primary-foreground"
+                    : "border-muted-foreground"
+                }`}
+              >
+                {agentPluginsOnly && (
+                  <Check className="h-3 w-3" strokeWidth={3} />
+                )}
+              </span>
               Agent Plugins only
             </label>
           </div>
