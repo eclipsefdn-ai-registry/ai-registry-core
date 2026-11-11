@@ -50,10 +50,12 @@ does a GitHub org literally named after the vendor id exist, and is it verified?
   repo's existing commit history, **and must justify each artifact concisely but traceably**: for
   every plugin/skill/MCP server added, name it, say briefly why it cleared the bar, and how origin
   was verified (e.g. "verified org, not a fork/archived", "matches vendor's own docs page
-  verbatim", "confirmed absent from the MCP registry via direct lookup"). This is what lets a
-  human reviewer (or a future audit) trust the approval without re-doing the verification from
-  scratch. See `ai-registry-google`'s `vendor-audit-2026-09-18` commit
-  ("Approve Google self-published MCP servers and two new skill categories") for a worked example.
+  verbatim", "absent from the MCP registry: namespace searched, no remote URL match"). This is
+  what lets a human reviewer (or a future audit) trust the approval without re-doing the
+  verification from scratch. See `ai-registry-google`'s `vendor-audit-2026-09-18` commit
+  ("Approve Google self-published MCP servers and two new skill categories") for the format,
+  but not its registry check: it looked up minted ids directly, and 13 of the servers it called
+  absent were registered (see `mcp-audit.md`).
   **Never push.**
 - Validate with `npm run validate-vendor -- ../ai-registry-<id>` from `ai-registry-core`. Any file
   **this run added** that doesn't PASS gets dropped from the branch and moved to the reject pile
