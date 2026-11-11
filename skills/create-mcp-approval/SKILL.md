@@ -18,7 +18,7 @@ Vendors maintain their own repositories with approval files for MCP servers they
 ## Your Workflow
 
 1. **Identify the MCP server** — The user provides a server ID (e.g., `io.github.ChromeDevTools/chrome-devtools-mcp`).
-2. **Verify the server exists** — Fetch `https://registry.modelcontextprotocol.io/v0.1/servers/<serverId>/versions` (URL-encode the serverId). If the server is not found (404), warn the user but allow them to proceed. In this case, offer to add `metadata` (see below) so the server shows a real name/description instead of the raw serverId.
+2. **Verify the server exists** — Fetch `https://registry.modelcontextprotocol.io/v0.1/servers/<serverId>/versions` (URL-encode the serverId). If the server is not found (404), warn the user but allow them to proceed. In this case, offer to add `metadata` (see below) so the server shows a real name/description instead of the raw serverId. Also offer `metadata` when the server is found but its latest version has no `title`, since it would otherwise be named by its raw serverId.
 3. **Read the vendor's organization.json** — Find `organization.json` in the repo root to determine the vendor ID and available tools.
 4. **Read the approval schema** — Fetch the schema from `https://ai.open-vsx.org/schemas/mcp-approval.schema.json` to ensure you follow the current contract.
 5. **Read tool-specific config docs** — Check `ai-docs/mcp-approval.md` in the repo. If it exists, read it to understand how to construct the `config` and `installUrl` for this vendor's tools.
@@ -45,7 +45,7 @@ Example: Server ID `io.github.ChromeDevTools/chrome-devtools-mcp` becomes filena
   - **instructions**: Human-readable setup instructions. On an entry with `"config": "derived"`, omit it to inherit the generic config's `notes`; set it only when the tool needs something the notes don't say, since it replaces them rather than adding to them.
   - **installUrl**: Deep-link URL for one-click install (optional). **Omit if the tool declares `mcpInstallUrlPrefix` in `organization.json`** — consolidation generates it automatically as `prefix + serverId`. Set it explicitly only when the tool has no prefix or you need a non-standard URL.
   - **openVsxUrl**: Link to an Open VSX extension (optional).
-- **metadata** (optional): `{ "name": "...", "description": "..." }` — only relevant when the server was not found in the Anthropic MCP registry (step 2). Provides a fallback name/description so the server doesn't show up as a raw serverId with no description. Ignored once the server appears in the registry.
+- **metadata** (optional): `{ "name": "...", "description": "..." }` — relevant when the server was not found in the Anthropic MCP registry (step 2). Provides a fallback name/description so the server doesn't show up as a raw serverId with no description. Once the server appears in the registry the registry's metadata wins, except that `name` still names an entry whose registry version has no `title`.
 - **selfPublished** (optional, boolean): Set to `true` only when the vendor filing this approval is the actual publisher/maintainer of the MCP server — never set this on behalf of a server you merely use or recommend. Do not set it just because you're supplying `metadata`. It drives a distinct "Publisher claim" badge on the website (the claiming vendor's name appears in the tooltip, not the badge text). Two different vendors self-attesting for the same server fails the shared consolidation build, so only set this when you're confident it's accurate.
 
 ## The Generic Root `config`

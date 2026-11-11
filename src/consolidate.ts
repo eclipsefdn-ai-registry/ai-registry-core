@@ -638,6 +638,9 @@ export function findServerKeyCollisions(output: ConsolidatedOutput): string[] {
  *
  * Precedence: Anthropic registry (already applied via enrichWithRegistryData)
  * > publisher-claimed metadata > earliest-dated vendor-suggested metadata.
+ * The one exception is the name of a registry entry without a title, which
+ * the registry names by its bare id: vendor metadata names it instead, while
+ * the registry's description stays.
  *
  * Throws if two different organizations both claim to be the publisher of the
  * same server — that's a genuine contradiction, not a matter of opinion.
@@ -661,7 +664,8 @@ export function resolveVendorMetadata(entry: McpEntry): void {
     entry.publisherClaimedBy = claimingOrgs[0];
   }
 
-  if (entry.mcpRegistryVerified) {
+  const untitled = entry.mcpRegistryVerified && entry.name === entry.serverId;
+  if (entry.mcpRegistryVerified && !untitled) {
     return;
   }
 
@@ -680,7 +684,9 @@ export function resolveVendorMetadata(entry: McpEntry): void {
     )[0];
 
   entry.name = winner.metadata!.name;
-  entry.description = winner.metadata!.description;
+  if (!untitled) {
+    entry.description = winner.metadata!.description;
+  }
 
   const distinctOrgs = new Set(withMetadata.map((a) => a.organizationId));
   console.log(
