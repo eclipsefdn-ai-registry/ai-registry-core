@@ -509,6 +509,49 @@ describe("resolveVendorMetadata", () => {
     assert.equal(entry.description, "Registry description");
     assert.equal(entry.publisherClaimedBy, "acme");
   });
+
+  it("names a registry-verified entry without a title from vendor metadata, keeping the registry description", () => {
+    const entry = baseEntry({
+      name: "io.example/server",
+      description: "Registry description",
+      mcpRegistryVerified: true,
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+          metadata: { name: "Vendor Name", description: "Vendor description" },
+        },
+      ],
+    });
+
+    resolveVendorMetadata(entry);
+
+    assert.equal(entry.name, "Vendor Name");
+    assert.equal(entry.description, "Registry description");
+  });
+
+  it("keeps the bare id as the name of a registry-verified entry without a title when no approval has metadata", () => {
+    const entry = baseEntry({
+      name: "io.example/server",
+      description: "Registry description",
+      mcpRegistryVerified: true,
+      approvals: [
+        {
+          organizationId: "acme",
+          date: "2026-05-01",
+          configHash: "abc",
+          installConfigs: [],
+        },
+      ],
+    });
+
+    resolveVendorMetadata(entry);
+
+    assert.equal(entry.name, "io.example/server");
+    assert.equal(entry.description, "Registry description");
+  });
 });
 
 describe("buildToolView", () => {
