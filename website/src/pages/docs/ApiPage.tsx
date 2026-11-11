@@ -35,6 +35,12 @@ const APPROVAL_FIELDS = [
       "MCP only, and informational: the MCP registry version the organization reviewed, present only when the approval gave one. It doesn't decide what runs; the install configuration does.",
   },
   {
+    name: "genericConfig",
+    type: "object?",
+    description:
+      "MCP only: the approval's generic config, its tool-agnostic connection info as filed (see mcp-server-config.schema.json), present only when the approval gave one. Its optional notes field is text for whoever sets the server up, explaining the config's placeholders. Its optional serverKey field is the server key: what a client stores the server under, and what every install config derived from this config uses. When serverKey is absent, the server key is the serverId's last segment, unless that segment is exactly mcp, server or mcp-server; then it is the nearest dot-separated part of the namespace that isn't one of those, lowercased, or the last segment after all if every part is. Neither field is part of the connection.",
+  },
+  {
     name: "viaTrust",
     type: "string?",
     description:
@@ -106,7 +112,8 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Every organization, tool, MCP server, skill, plugin, A2A agent,
-                and sandbox extension, with approvals merged across all vendors.
+                and sandbox extension, with approvals merged across all
+                organizations.
               </td>
             </tr>
             <tr className="border-b border-border align-top">
@@ -147,13 +154,32 @@ export function ApiPage() {
               </td>
               <td className="py-2">
                 Artifacts approved by one organization, across every tool, with
-                install configs kept in full. Example:{" "}
+                install configs kept in full. Defined for every organization,
+                whether or not it provides tools — for one that provides none,
+                this is the whole of what it approved, and the feed to follow
+                for the list it has vetted. Example:{" "}
                 <a
                   href={`${BASE_URL}api/v1/orgs/eclipsesource.json`}
                   className="text-primary hover:underline"
                 >
                   <InlineCode>eclipsesource.json</InlineCode>
                 </a>
+              </td>
+            </tr>
+            <tr className="border-b border-border align-top">
+              <td className="py-2 pr-3">
+                <a
+                  href={`${BASE_URL}api/v1/marketplace.json`}
+                  className="text-primary hover:underline"
+                >
+                  <InlineCode>marketplace.json</InlineCode>
+                </a>
+                , <InlineCode>orgs/&lt;org-id&gt;/marketplace.json</InlineCode>
+              </td>
+              <td className="py-2">
+                Approved plugins as a Claude Code plugin marketplace, rather
+                than as registry data. A different shape from everything else
+                here — see <InlineCode>Marketplaces</InlineCode> below.
               </td>
             </tr>
             <tr className="border-b border-border align-top">
@@ -218,11 +244,60 @@ export function ApiPage() {
         </p>
       </DocsSection>
 
+      <DocsSection id="marketplaces">
+        <p className="mb-3 leading-relaxed">
+          The registry also publishes its approved plugins as plugin
+          marketplaces, so a client can install from the registry instead of
+          reading it. Add one by URL:
+        </p>
+        <CodeBlock>{`claude plugin marketplace add ${BASE_URL}api/v1/orgs/google/marketplace.json
+claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
+        <p className="mb-3 leading-relaxed">
+          There is one file per organization with at least one plugin to list,
+          plus the aggregate. The per-organization file is the one to subscribe
+          to: trust in this registry is held by an organization, so adding the
+          marketplaces of the organizations you trust is what composes a
+          catalog. The aggregate holds approved plugins regardless of who
+          approved them.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Not every approved plugin is listed. One is left out when its{" "}
+          <InlineCode>pluginId</InlineCode> doesn't make a valid entry name, or
+          makes the same one as another plugin. An approval is left out when it
+          named a different revision from the one the registry fetched and
+          hashed for that plugin, directly or through trust. So an organization
+          can approve plugins and still have no file;{" "}
+          <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> says whether it has
+          one in <InlineCode>hasMarketplace</InlineCode>.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Every entry pins <InlineCode>sha</InlineCode> to{" "}
+          <InlineCode>source.commit</InlineCode>, the commit its{" "}
+          <InlineCode>contentHash</InlineCode> was computed at, so an install is
+          what the registry verified rather than whatever the branch holds now.
+          Each entry's <InlineCode>metadata</InlineCode> carries the{" "}
+          <InlineCode>pluginId</InlineCode>, a link back to its page here, the{" "}
+          <InlineCode>contentHash</InlineCode>, and the approvals themselves —
+          free-form by the format's own rules, so it travels with the plugin
+          without affecting how it installs.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          These files follow Claude Code's marketplace format, and they are the
+          only ones here that carry no <InlineCode>generatedAt</InlineCode>: the
+          schema is Anthropic's, and an unrecognised top-level key is a
+          validation warning in it. Codex and Copilot read a marketplace out of
+          a git repository rather than from a URL, so neither can add these.
+          Nothing else in this API changes shape for a tool, and these are the
+          exception.
+        </p>
+      </DocsSection>
+
       <DocsSection id="response-shapes">
         <p className="mb-3 leading-relaxed">
           <InlineCode>all.json</InlineCode> returns an object with all eight
           top-level keys. <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode>{" "}
-          returns the six artifact-type keys, filtered;{" "}
+          returns the six artifact-type keys, filtered, plus{" "}
+          <InlineCode>hasMarketplace</InlineCode>;{" "}
           <InlineCode>tools/&lt;tool-id&gt;.json</InlineCode> returns the four
           that carry install configs (<InlineCode>mcp</InlineCode>,{" "}
           <InlineCode>skills</InlineCode>, <InlineCode>plugins</InlineCode>,{" "}
@@ -257,7 +332,7 @@ export function ApiPage() {
 }`}</CodeBlock>
         <p className="mb-3 leading-relaxed">
           These shapes are produced by consolidation and differ from the
-          approval files vendors write. Fields such as{" "}
+          approval files organizations write. Fields such as{" "}
           <InlineCode>approvals</InlineCode>,{" "}
           <InlineCode>contentHash</InlineCode>, and{" "}
           <InlineCode>containedSkills</InlineCode> exist only in the output.
@@ -560,7 +635,8 @@ export function ApiPage() {
             {
               name: "instructions",
               type: "string?",
-              description: "Human-readable setup notes.",
+              description:
+                "Human-readable setup notes. On an MCP install config derived from a generic config, that generic config's notes, unless the approval wrote its own.",
             },
           ]}
         />
@@ -568,9 +644,9 @@ export function ApiPage() {
 
       <DocsSection id="schemas">
         <p className="mb-3 leading-relaxed">
-          These schemas describe the approval files vendors write, not the API
-          responses above. Consolidation reads them, enriches them, and emits
-          the response shapes.
+          These schemas describe the approval files organizations write, not the
+          API responses above. Consolidation reads them, enriches them, and
+          emits the response shapes.
         </p>
         <table className="w-full text-sm mt-3">
           <thead>
@@ -585,8 +661,12 @@ export function ApiPage() {
           </thead>
           <tbody>
             {[
-              ["organization.schema.json", "Vendor organization metadata"],
+              ["organization.schema.json", "Organization metadata"],
               ["mcp-approval.schema.json", "MCP server approval file"],
+              [
+                "mcp-server-config.schema.json",
+                "Generic MCP server config, the root config of an MCP approval",
+              ],
               ["skill-approval.schema.json", "Agent Skill approval file"],
               [
                 "plugin-approval.schema.json",
@@ -620,8 +700,8 @@ export function ApiPage() {
 
       <DocsSection id="stability">
         <p className="mb-3 leading-relaxed">
-          Registry data is rebuilt whenever a vendor updates their approvals,
-          and daily to pick up changes in{" "}
+          Registry data is rebuilt whenever an organization updates their
+          approvals, and daily to pick up changes in{" "}
           <a
             href="https://registry.modelcontextprotocol.io/"
             target="_blank"

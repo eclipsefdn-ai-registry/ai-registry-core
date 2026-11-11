@@ -53,7 +53,7 @@
           },
           "instructions": {
             "type": "string",
-            "description": "Human-readable setup instructions"
+            "description": "Human-readable setup instructions. On an entry with config \"derived\", leave it out to inherit the notes of the generic config the entry is derived from; set it and it replaces them."
           }
         }
       }
@@ -62,7 +62,7 @@
       "type": "object",
       "required": ["name", "description"],
       "additionalProperties": false,
-      "description": "Vendor-supplied fallback metadata, used only when the server is not found in the Anthropic MCP registry.",
+      "description": "Vendor-supplied fallback metadata, used when the server is not found in the Anthropic MCP registry. For a registry entry without a title, name is used as its display name; the registry description still applies.",
       "properties": {
         "name": {
           "type": "string",

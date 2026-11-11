@@ -1,8 +1,16 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import type { McpServer, Organization, Tool, InstallConfig } from "../types";
+import type {
+  McpServer,
+  Organization,
+  Tool,
+  InstallConfig,
+  GenericConfig,
+} from "../types";
 import { sanitizeUrl } from "../sanitize";
 import { orgBadge } from "../orgBadge";
+import { hoistSharedInstructions } from "../sharedInstructions";
+import { genericConfigBox, type GenericConfigBox } from "../genericConfigBox";
 import { McpVerificationBadge } from "./McpVerificationBadge";
 
 export function ServerDetail({
@@ -45,7 +53,6 @@ export function ServerDetail({
             approval={approval}
             org={getOrg(approval.organizationId)}
             getTool={getTool}
-            serverId={server.serverId}
           />
         ))}
       </div>
@@ -62,7 +69,7 @@ interface ApprovalCardApproval {
   date: string;
   configHash: string;
   installConfigs: InstallConfig[];
-  genericConfig?: Record<string, unknown>;
+  genericConfig?: GenericConfig;
 }
 
 /**
@@ -95,21 +102,26 @@ export function ApprovalCard({
   approval,
   org,
   getTool,
-  serverId,
   approvedTitle = defaultApprovedTitle,
 }: {
   approval: ApprovalCardApproval;
   org: Organization | undefined;
   getTool: (id: string) => Tool | undefined;
-  // Only used for the genericConfig branch below — optional so callers with
-  // no server identity (and no genericConfig) don't need to supply one.
-  serverId?: string;
   approvedTitle?: (org: Organization) => string;
 }) {
   const badge = orgBadge(org, {
     fallbackId: approval.organizationId,
     approvedTitle: org ? approvedTitle(org) : "Approved by this organization",
   });
+  // One value both renders the generic config box and tells the dedupe below
+  // its notes are on screen, so the two can't disagree.
+  const generic = approval.genericConfig
+    ? genericConfigBox(approval.genericConfig)
+    : undefined;
+  const { hoisted, installConfigs } = hoistSharedInstructions(
+    approval.installConfigs,
+    generic?.notes,
+  );
   return (
     <div className="bg-background border border-border rounded-lg p-4 mb-3">
       <div className="flex items-center gap-2 mb-3 text-sm flex-wrap">
@@ -123,41 +135,28 @@ export function ApprovalCard({
         </span>
         <span className="text-muted-foreground">Approved: {approval.date}</span>
       </div>
-      {approval.genericConfig && serverId && (
-        <GenericConfigView
-          config={approval.genericConfig}
-          slug={serverIdSlug(serverId)}
-        />
-      )}
-      {approval.installConfigs.map((config, j) => (
+      {generic && <GenericConfigView box={generic} />}
+      {hoisted && <SetupText>{hoisted}</SetupText>}
+      {installConfigs.map((config, j) => (
         <InstallConfigView key={j} config={config} getTool={getTool} />
       ))}
     </div>
   );
 }
 
-// The last "/"-segment of serverId — the same rule consolidate.ts uses to
-// key a derived config's server-name entry (e.g. "review-guard" from
-// "io.github.eclipsesource/review-guard"). Not stored in genericConfig
-// itself (that would duplicate serverId as a second, driftable identity) —
-// computed here purely so the copy box can show a paste-ready, name-keyed
-// snippet.
-function serverIdSlug(serverId: string): string {
-  return serverId.split("/").pop() ?? serverId;
-}
-
 // Shared by GenericConfigView and InstallConfigView — both need an
 // expand/collapse toggle, a copy-to-clipboard button with a 2s "Copied!"
 // reset, and a syntax-highlighted <pre>. `caveat` is an optional italic note
 // shown only while expanded (GenericConfigView's "this isn't a finished
-// config" disclaimer); InstallConfigView's always-visible instructions text
-// has different visibility rules and is rendered separately, not through
-// this prop.
+// config" disclaimer). `children` render inside the box, below the JSON and
+// caveat, expanded or not (GenericConfigView's notes); InstallConfigView
+// renders its own box, so its always-visible instructions go there instead.
 function CollapsibleJson({
   label,
   json,
   caveat,
   boxed = true,
+  children,
 }: {
   label: string;
   json: Record<string, unknown> | undefined;
@@ -166,6 +165,7 @@ function CollapsibleJson({
   // InstallConfigView) — avoids nesting this component's own border/bg
   // inside that card's identical one.
   boxed?: boolean;
+  children?: React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -216,23 +216,37 @@ function CollapsibleJson({
           )}
         </>
       )}
+      {children}
     </div>
   );
 }
 
-export function GenericConfigView({
-  config,
-  slug,
+// Prose for whoever sets the server up: a generic config's notes, an install
+// config's instructions, or the text a card shows once for all its tools.
+// One component, so the three always look alike.
+function SetupText({
+  children,
+  compact,
 }: {
-  config: Record<string, unknown>;
-  slug: string;
+  children: React.ReactNode;
+  compact?: boolean;
 }) {
   return (
-    <CollapsibleJson
-      label="Generic config"
-      json={{ [slug]: config }}
-      caveat="Generic, tool-agnostic connection info — nest this under your client's own top-level key (e.g. mcpServers, servers) instead of pasting it in as shown."
-    />
+    <div
+      className={`mt-2 text-sm text-muted-foreground italic break-words overflow-hidden ${compact ? "line-clamp-2" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// notes explain the config to a person and aren't part of it, so they're
+// shown like an install config's instructions, outside the copied JSON.
+export function GenericConfigView({ box }: { box: GenericConfigBox }) {
+  return (
+    <CollapsibleJson label="Generic config" json={box.json} caveat={box.caveat}>
+      {box.notes && <SetupText>{box.notes}</SetupText>}
+    </CollapsibleJson>
   );
 }
 
@@ -284,11 +298,7 @@ export function InstallConfigView({
         boxed={false}
       />
       {config.instructions && (
-        <div
-          className={`mt-2 text-muted-foreground italic break-words overflow-hidden ${compact ? "line-clamp-2" : ""}`}
-        >
-          {config.instructions}
-        </div>
+        <SetupText compact={compact}>{config.instructions}</SetupText>
       )}
     </div>
   );

@@ -238,6 +238,29 @@ export function isPinnedRef(
 }
 
 /**
+ * What an entry publishes as source.pinned: isPinnedRef, with the remote's
+ * branches looked up through `remote`. No ref follows the default branch and a
+ * full commit SHA is a fixed point, and neither takes a lookup to know.
+ *
+ * Undefined when the ref is a name and the branches can't be listed, since it
+ * could then be a branch or a tag. That leaves the entry unclassified, never
+ * unpublished. It isn't reported here: recordLatest hits the same failed
+ * lookup straight after and its warning names pinned too.
+ */
+export function sourcePinned(
+  source: { url: string; ref?: string },
+  remote: RemoteBranchesLookup,
+): boolean | undefined {
+  if (source.ref === undefined) return false;
+  if (COMMIT_SHA_PATTERN.test(source.ref)) return true;
+  try {
+    return isPinnedRef(source.ref, remote(source.url).branches);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Whether finding out what a source ships now needs a second checkout, of its
  * default branch.
  *
@@ -278,11 +301,12 @@ export interface ResolvedContent {
  *
  * A failure costs the entry only these two fields, never the entry itself:
  * what it resolved to is still what was approved. `id` names the entry in the
- * warning.
+ * warning, which also names source.pinned when sourcePinned, run against the
+ * same lookup just before, had to leave it out.
  */
 export function recordLatest(
   entry: {
-    source: { url: string; ref?: string };
+    source: { url: string; ref?: string; pinned?: boolean };
     latestCommit?: string;
     latestHash?: string;
   },
@@ -306,8 +330,12 @@ export function recordLatest(
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const left =
+      entry.source.pinned === undefined
+        ? "pinned/latestCommit/latestHash"
+        : "latestCommit/latestHash";
     console.warn(
-      `  WARNING: ${id} — could not tell what the default branch ships now, published without latestCommit/latestHash`,
+      `  WARNING: ${id} — could not tell what the default branch ships now, published without ${left}`,
     );
     console.warn(`    ${message}`);
   }

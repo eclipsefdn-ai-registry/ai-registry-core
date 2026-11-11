@@ -1143,3 +1143,124 @@ describe("enrichSkillMetadata latest", () => {
     assert.equal(a.latestHash, undefined);
   });
 });
+
+// --- enrichSkillMetadata pinned ---
+
+describe("enrichSkillMetadata pinned", () => {
+  let sourceDir: string;
+  let url: string;
+  let commit: string;
+  let releaseTip: string;
+
+  before(() => {
+    sourceDir = mkdtempSync(join(tmpdir(), "skill-pinned-src-"));
+    url = `file://${sourceDir}`;
+    initSourceRepo(sourceDir);
+    writeSkill(sourceDir, "skills/a", "a");
+    writeSkill(sourceDir, "skills/b", "b");
+    commit = commitAll(sourceDir, "v1");
+    execSync("git tag v1.0.0", { cwd: sourceDir, stdio: "pipe" });
+    execSync("git branch develop", { cwd: sourceDir, stdio: "pipe" });
+    // release is a tag here and a branch one commit ahead of it.
+    execSync("git tag release && git checkout -q -b release", {
+      cwd: sourceDir,
+      stdio: "pipe",
+    });
+    writeSkill(sourceDir, "skills/a", "a-on-release");
+    releaseTip = commitAll(sourceDir, "release");
+    execSync("git checkout -q main", { cwd: sourceDir, stdio: "pipe" });
+  });
+
+  after(() => {
+    rmSync(sourceDir, { recursive: true, force: true });
+  });
+
+  const unlistable = () => {
+    throw new Error("the remote can't be listed");
+  };
+
+  function entry(path: string, ref?: string): SkillEntry {
+    const source: SkillEntry["source"] = { url, path };
+    if (ref !== undefined) source.ref = ref;
+    return {
+      skillId: `io.example/${path.split("/").pop()}`,
+      name: "",
+      description: "",
+      source,
+      contentHash: "",
+      approvals: [],
+    };
+  }
+
+  it("says a skill approved at a tag is pinned", () => {
+    const [a] = enrichSkillMetadata(
+      [entry("skills/a", "v1.0.0")],
+      remoteBranchesLookup(),
+    );
+    assert.equal(a.source.pinned, true);
+  });
+
+  it("says a skill approved at a branch is not pinned", () => {
+    const [a] = enrichSkillMetadata(
+      [entry("skills/a", "develop")],
+      remoteBranchesLookup(),
+    );
+    assert.equal(a.source.pinned, false);
+  });
+
+  // A skill with no ref follows the default branch, which needs no branch
+  // listing to know, so a remote that can't be listed doesn't change it.
+  it("says a skill with no ref is not pinned, without listing branches", () => {
+    const [a] = enrichSkillMetadata([entry("skills/a")], unlistable);
+    assert.ok(a, "the skill was not published");
+    assert.equal(a.source.pinned, false);
+  });
+
+  // A full SHA is a fixed point by its form alone. The failed lookup costs it
+  // only the latest fields, as it does for any entry.
+  it("says a skill approved at a commit SHA is pinned, without listing branches", () => {
+    const [a] = enrichSkillMetadata([entry("skills/a", commit)], unlistable);
+    assert.ok(a, "the skill was not published");
+    assert.equal(a.source.pinned, true);
+    assert.equal(a.latestHash, undefined);
+  });
+
+  // Without the branches, v1.0.0 could be either. The skill is still what was
+  // approved, so only the classification goes.
+  it("leaves pinned out for a named ref when the branches can't be listed", () => {
+    const [a] = enrichSkillMetadata([entry("skills/a", "v1.0.0")], unlistable);
+    assert.ok(a, "the skill was not published");
+    assert.equal(a.source.pinned, undefined);
+  });
+
+  // Vendor validation passes no lookup and publishes nothing.
+  it("leaves pinned out when no lookup is given", () => {
+    const [a] = enrichSkillMetadata([entry("skills/a", "v1.0.0")]);
+    assert.equal(a.source.pinned, undefined);
+  });
+
+  // git clone --branch looks in refs/heads/ before refs/tags/, so the branch is
+  // what was checked out and hashed, and what the entry follows.
+  it("says a skill approved at a name that is both a branch and a tag is not pinned", () => {
+    const [a] = enrichSkillMetadata(
+      [entry("skills/a", "release")],
+      remoteBranchesLookup(),
+    );
+    assert.equal(a.source.commit, releaseTip);
+    assert.equal(a.source.pinned, false);
+  });
+
+  it("says every skill a glob expands into is pinned", () => {
+    const skills = enrichSkillMetadata(
+      [entry("skills/*", "v1.0.0")],
+      remoteBranchesLookup(),
+    );
+    assert.deepEqual(
+      skills.map((s) => [s.source.path, s.source.pinned]),
+      [
+        ["skills/a", true],
+        ["skills/b", true],
+      ],
+    );
+  });
+});

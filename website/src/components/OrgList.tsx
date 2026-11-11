@@ -11,22 +11,19 @@ import type {
 } from "../types";
 import { sanitizeUrl, safeCssColor } from "../sanitize";
 import { INFERRED_DISCLAIMER } from "../orgBadge";
+import { filterByOrgs } from "../filterArtifacts";
+import { approvedArtifactsLabel } from "../approvedArtifacts";
 
-// Every artifact type's approvals count the same way, so the artifact lists
-// are summed through one helper rather than one reduce apiece — a seventh
-// type should not mean a seventh copy of the same three lines.
-function countApprovals(
+// Counts artifacts rather than approvals, through the same filter as the
+// homepage's organization filter, so the number on the tile is what the
+// organization's page lists. Every artifact type counts the same way, so the
+// lists are summed through one helper — a seventh type should not mean a
+// seventh copy.
+function countApprovedArtifacts(
   orgId: string,
   artifactLists: { approvals: { organizationId: string }[] }[][],
 ): number {
-  return artifactLists
-    .flat()
-    .reduce(
-      (count, artifact) =>
-        count +
-        artifact.approvals.filter((a) => a.organizationId === orgId).length,
-      0,
-    );
+  return filterByOrgs(artifactLists.flat(), [orgId]).length;
 }
 
 export function OrgList({
@@ -59,7 +56,7 @@ export function OrgList({
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {organizations.map((org) => {
-        const approvalCount = countApprovals(org.id, [
+        const artifactCount = countApprovedArtifacts(org.id, [
           servers,
           skills,
           plugins,
@@ -108,25 +105,24 @@ export function OrgList({
                 </a>
               )}
             </div>
-            <div className="flex gap-2 flex-wrap mt-4">
-              {tools.map((tool) => (
-                <Link
-                  key={tool.id}
-                  to={`/tools/${tool.id}`}
-                  className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors no-underline"
-                >
-                  {tool.name}
-                </Link>
-              ))}
-              <span className="inline-flex text-xs px-2 py-0.5 rounded-full bg-verified-bg text-verified border border-verified/20">
-                {approvalCount} approval{approvalCount !== 1 ? "s" : ""}
-              </span>
-            </div>
+            {tools.length > 0 && (
+              <div className="flex gap-2 flex-wrap mt-4">
+                {tools.map((tool) => (
+                  <Link
+                    key={tool.id}
+                    to={`/tools/${tool.id}`}
+                    className="inline-flex text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors no-underline"
+                  >
+                    {tool.name}
+                  </Link>
+                ))}
+              </div>
+            )}
             <Link
               to={`/orgs/${org.id}`}
               className="inline-flex items-center text-sm font-medium text-primary mt-4 no-underline"
             >
-              View approved artifacts
+              {approvedArtifactsLabel(artifactCount)}
               <ChevronRight className="h-4 w-4 ml-1" />
             </Link>
           </div>

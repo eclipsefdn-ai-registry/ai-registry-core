@@ -86,6 +86,16 @@ export function ClientsPage() {
           organization, or it can show the approval chain behind each artifact.
           Both are valid; the second gives the user something to evaluate.
         </p>
+        <p className="mb-3 leading-relaxed">
+          An organization approving an artifact it wrote itself leaves the same
+          record as one approving somebody else's, and the registry does not
+          check who owns the source.{" "}
+          <strong>Do not read authorship into an approval</strong>, or into an
+          organization's source repository matching its name. The one place a
+          publisher is named is <InlineCode>selfPublished</InlineCode> on an MCP
+          approval, which is the organization's own claim rather than anything
+          verified.
+        </p>
         <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
           <li className="leading-relaxed">
             MCP servers are described by configuration, not by content. The
@@ -104,8 +114,11 @@ export function ClientsPage() {
             <InlineCode>source.commit</InlineCode> to verify the hash. With no{" "}
             <InlineCode>source.ref</InlineCode>, the approval follows the
             default branch and <InlineCode>source.commit</InlineCode> moves with
-            it on every run. Each entry also carries{" "}
-            <InlineCode>latestCommit</InlineCode> and{" "}
+            it on every run. <InlineCode>source.pinned</InlineCode> says whether
+            the ref is a fixed point: <InlineCode>true</InlineCode> for a tag or
+            a full commit SHA, <InlineCode>false</InlineCode> for a branch or no
+            ref, and absent when consolidation couldn't tell. Each entry also
+            carries <InlineCode>latestCommit</InlineCode> and{" "}
             <InlineCode>latestHash</InlineCode>, what the source ships at the
             same path now, whenever consolidation could find that out. They show
             when a pinned approval has fallen behind its source, and they are
@@ -126,8 +139,18 @@ export function ClientsPage() {
             <InlineCode>latestHash</InlineCode>, all the same way. They can also
             name a specific revision: <InlineCode>source.ref</InlineCode> holds
             a git tag, branch, or full commit SHA when the organization approved
-            one. A branch is still a moving target, so read the ref rather than
-            treating its presence as a pin.
+            one. A branch is still a moving target, so read{" "}
+            <InlineCode>source.pinned</InlineCode> rather than treating the
+            ref's presence as a pin.
+          </li>
+          <li className="leading-relaxed">
+            An entry's <InlineCode>source</InlineCode> is one organization's.
+            When organizations approve one ID at different sources, the entry
+            publishes the first one collected, and{" "}
+            <InlineCode>source.pinned</InlineCode>,{" "}
+            <InlineCode>contentHash</InlineCode>, and the latest fields all
+            describe that one. Another approval on the same entry may have named
+            a different ref, and nothing in the feed says so.
           </li>
           <li className="leading-relaxed">
             Withdrawing an approval removes the entry from the feed, but so does
@@ -164,6 +187,15 @@ export function ClientsPage() {
           <InlineCode>agents.json</InlineCode> scope the other way, to one
           artifact type across the whole registry. Reach for these when your
           client's boundary is an organization or a type rather than a tool.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          An organization-scoped feed exists whether or not that organization
+          provides tools, which makes it the one to follow for a client whose
+          boundary is a vetted list: an organization can approve artifacts
+          purely to publish what it allows, with no{" "}
+          <InlineCode>tools</InlineCode> and no install configuration anywhere.
+          Such a feed carries no <InlineCode>installConfigs</InlineCode> to act
+          on, so decide how your client installs what it finds there.
         </p>
         <p className="mb-3 leading-relaxed">
           Both keep every entry's <InlineCode>approvals</InlineCode> and{" "}
@@ -302,6 +334,52 @@ export function ClientsPage() {
             entry. Install all of them or install none. Picking one silently
             gives the user a partial server set with no indication anything is
             missing.
+          </li>
+          <li className="leading-relaxed">
+            <InlineCode>installConfigs[].instructions</InlineCode>, when
+            present, is setup text for the person installing: what to put in
+            place of a <InlineCode>&lt;name&gt;</InlineCode> placeholder in the
+            config, and what a <InlineCode>{"${VAR}"}</InlineCode> reference
+            must hold. Show it with the config, since the config may not work
+            until those values are filled in. On an entry derived from an
+            organization's generic config, it is that config's{" "}
+            <InlineCode>notes</InlineCode>.
+          </li>
+          <li className="leading-relaxed">
+            An install config is derived from an organization's generic config
+            by its tool's transform in core. The tools with one today are Theia
+            (<InlineCode>theia-ide</InlineCode>,{" "}
+            <InlineCode>theia-ide-next</InlineCode>) and Kiro (
+            <InlineCode>kiro</InlineCode>). Each handles a{" "}
+            <InlineCode>{"${VAR}"}</InlineCode> reference the way its tool
+            needs: Kiro's keeps <InlineCode>{"${VAR}"}</InlineCode> as written,
+            since Kiro resolves it, and Theia's puts a{" "}
+            <InlineCode>&lt;VAR&gt;</InlineCode> placeholder in its place.
+          </li>
+          <li className="leading-relaxed">
+            <InlineCode>approvals[].genericConfig</InlineCode>, when present, is
+            the organization's tool-agnostic connection info as filed. If you
+            build your own config from it, its <InlineCode>notes</InlineCode> is
+            the same kind of text as <InlineCode>instructions</InlineCode>, not
+            connection info, so leave it out of what you write.
+          </li>
+          <li className="leading-relaxed">
+            Store a server you build from <InlineCode>genericConfig</InlineCode>{" "}
+            under its <InlineCode>serverKey</InlineCode>, which is also the key
+            every install config derived from it uses, so your client stores it
+            under the same name as a client installing from one of those.{" "}
+            <InlineCode>serverKey</InlineCode> is not connection info either, so
+            leave it out of the config too. When it's absent, use the last
+            segment of the <InlineCode>serverId</InlineCode>, unless that
+            segment is exactly <InlineCode>mcp</InlineCode>,{" "}
+            <InlineCode>server</InlineCode> or{" "}
+            <InlineCode>mcp-server</InlineCode>. In that case, use the nearest
+            dot-separated part of the namespace that isn't one of those,
+            lowercased (<InlineCode>com.stripe/mcp</InlineCode> →{" "}
+            <InlineCode>stripe</InlineCode>,{" "}
+            <InlineCode>aws.api.us-east-1.ecs-mcp/server</InlineCode> →{" "}
+            <InlineCode>ecs-mcp</InlineCode>). If every part is one of those,
+            use the last segment after all.
           </li>
           <li className="leading-relaxed">
             <InlineCode>mcpRegistryVerified</InlineCode> means the server is
@@ -592,9 +670,9 @@ export function ClientsPage() {
         <p className="mb-3 leading-relaxed">
           An installed artifact vanishing from the feed can mean an organization
           withdrew its approval, or that consolidation skipped the entry because
-          its source was briefly unreachable, or that a vendor retargeted the
-          approval, or that an id was renamed. The data does not distinguish
-          them.
+          its source was briefly unreachable, or that the organization
+          retargeted the approval, or that an id was renamed. The data does not
+          distinguish them.
         </p>
         <p className="mb-3 leading-relaxed">
           Surface it and act on nothing. Mark the artifact as no longer listed,
@@ -681,7 +759,23 @@ export function ClientsPage() {
             <InlineCode>source.commit</InlineCode> and{" "}
             <InlineCode>contentHash</InlineCode> by construction. A tag or a
             full commit SHA is a fixed point, and the default branch can move
-            past it.
+            past it. Read <InlineCode>source.pinned</InlineCode> to tell them
+            apart rather than guessing from the name, since{" "}
+            <InlineCode>v1.2.0</InlineCode> can be a branch:{" "}
+            <InlineCode>true</InlineCode> for a tag or full SHA,{" "}
+            <InlineCode>false</InlineCode> for a branch or no ref. It is absent
+            in feeds that predate it and when consolidation couldn't list the
+            source's branches. Treat that as unknown, except that a full
+            40-character SHA is always pinned.
+          </li>
+          <li className="leading-relaxed">
+            <strong>A marketplace's pin is the marketplace's.</strong> A plugin
+            approval carrying <InlineCode>sourcedFrom</InlineCode> came from an
+            organization approving a vendor's marketplace file, which
+            consolidation reads again on every run. Its ref, and with it{" "}
+            <InlineCode>source.pinned</InlineCode>, is whatever that marketplace
+            lists now, and the vendor can move it to new content that nobody
+            approved.
           </li>
           <li className="leading-relaxed">
             <strong>Absent means unknown.</strong> Both fields are missing when
@@ -818,7 +912,7 @@ export function ClientsPage() {
 
       <DocsSection id="deep-links">
         <p className="mb-3 leading-relaxed">
-          A vendor declaring an install URL prefix in its{" "}
+          An organization declaring an install URL prefix in its{" "}
           <InlineCode>organization.json</InlineCode> causes consolidation to
           mint an <InlineCode>installUrl</InlineCode> for every approval
           targeting that tool. Handling these is optional, so ignore{" "}
@@ -896,7 +990,7 @@ export function ClientsPage() {
           The <InlineCode>inferred</InlineCode> flag is worth surfacing in any
           of these. It marks an organization pre-seeded from a public source
           rather than one participating in the registry directly, which is a
-          different kind of approval than a vendor filing its own.
+          different kind of approval than an organization filing its own.
         </p>
         <h3 className="font-semibold mt-5 mb-2">Auto-update policy</h3>
         <p className="mb-3 leading-relaxed">
@@ -960,6 +1054,7 @@ export function ClientsPage() {
           items={[
             "Compare latestHash with contentHash, never latestCommit with source.commit",
             "Treat a missing latestHash as unknown rather than behind",
+            "Tell a pin from a branch by source.pinned, not by the ref's name, and treat a missing one as unknown",
             "Word a difference without a direction, since the default branch can be behind a pinned tag",
             "State the approved revision and any change together, and never call a pinned approval outdated or stale",
             "Show generatedAt next to anything derived from the latest fields",

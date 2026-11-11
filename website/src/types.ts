@@ -21,6 +21,14 @@ export interface InstallConfig {
   instructions?: string;
 }
 
+// Mirrors GenericMcpConfig only as far as the website reads it: the
+// connection fields are printed as JSON and nothing more, notes is shown as
+// text, and serverKey names the key a client stores the server under.
+export type GenericConfig = Record<string, unknown> & {
+  notes?: string;
+  serverKey?: string;
+};
+
 export interface Approval {
   organizationId: string;
   date: string;
@@ -29,7 +37,7 @@ export interface Approval {
   version?: string;
   configHash: string;
   installConfigs: InstallConfig[];
-  genericConfig?: Record<string, unknown>;
+  genericConfig?: GenericConfig;
   viaTrust?: string;
 }
 
@@ -61,9 +69,11 @@ export interface Skill {
   name: string;
   description: string;
   // pinned says whether ref names a fixed point, a tag or a full commit SHA,
-  // rather than a branch. Absent in feeds that don't carry it, which reads as
-  // unknown rather than false: a named ref could be either. Same on Plugin and
-  // SandboxExtension.
+  // rather than a branch, and is false with no ref. Absent in feeds that
+  // predate it and when consolidation couldn't list the source's branches,
+  // which reads as unknown rather than false: a named ref could be either.
+  // It describes the ref above, which is one organization's when approvals
+  // name different sources. Same on Plugin and SandboxExtension.
   source: {
     url: string;
     path?: string;
@@ -207,4 +217,8 @@ export interface RegistryData {
   agents: Agent[];
   sandboxTools: SandboxExtension[];
   sandboxFeatures: SandboxExtension[];
+  // Only orgs/<id>.json carries it: whether orgs/<id>/marketplace.json was
+  // written. An organization can list plugins and still have none, when every
+  // entry was left out of it (see src/marketplace-output.ts).
+  hasMarketplace?: boolean;
 }

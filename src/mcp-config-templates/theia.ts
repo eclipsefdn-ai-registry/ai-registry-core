@@ -82,13 +82,16 @@ function toTheiaAuth(headers: Record<string, string> | undefined) {
   };
 }
 
-export const theiaMcpConfigTransform: McpConfigTransform = (config, slug) => {
+export const theiaMcpConfigTransform: McpConfigTransform = (
+  config,
+  serverKey,
+) => {
   if (config.type === "stdio") {
     // cwd is dropped: Theia's format has no equivalent, and most servers do not
     // need one, so a card minus cwd beats no card at all.
     return {
       servers: {
-        [slug]: toTheiaPlaceholders({
+        [serverKey]: toTheiaPlaceholders({
           command: config.command,
           args: config.args,
           env: config.env,
@@ -109,7 +112,7 @@ export const theiaMcpConfigTransform: McpConfigTransform = (config, slug) => {
 
   return {
     servers: {
-      [slug]: toTheiaPlaceholders({
+      [serverKey]: toTheiaPlaceholders({
         serverUrl: config.url,
         ...toTheiaAuth(config.headers),
         ...(oauth && { oauth }),

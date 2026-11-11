@@ -14,9 +14,12 @@ permissions:
   pages: write
   id-token: write
 
+# Scoped per ref so a run never cancels another branch's required `build` check.
+# PR runs supersede their own earlier runs; main (push, schedule, dispatch) queues
+# instead, so a deployment is never aborted half-way.
 concurrency:
-  group: "pages"
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:

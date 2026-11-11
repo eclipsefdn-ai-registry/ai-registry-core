@@ -147,10 +147,7 @@ export function ToolPage() {
         {tabs.map((t) => (
           <button
             key={t.key}
-            onClick={() => {
-              setTab(t.key);
-              setSearch("");
-            }}
+            onClick={() => setTab(t.key)}
             className={`h-11 px-4 text-sm font-medium border-b-2 transition-colors ${
               tab === t.key
                 ? "border-primary text-primary"
