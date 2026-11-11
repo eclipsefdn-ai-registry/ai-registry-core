@@ -6,6 +6,7 @@ import {
   DEFAULT_REGISTRY,
   loadOrganizationsFeed,
   loadSkillsFeed,
+  resolveRegistry,
 } from "./registry.js";
 import { skillsAddArgs } from "./skillsAdd.js";
 import type { SkillsFeed } from "./types.js";
@@ -74,7 +75,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
       },
     });
   } catch (error) {
-    return usageError(deps, error instanceof Error ? error.message : "");
+    return usageError(deps, (error as Error).message);
   }
   const { values, positionals } = parsed;
   if (values.help) {
@@ -88,18 +89,12 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
 
   let guardrail: Guardrail;
   try {
-    guardrail = await resolveGuardrail({
-      flag: values["require-approval-from"],
-      env: deps.env,
-      cwd: deps.cwd,
-      homeDir: deps.homeDir,
-    });
+    guardrail = await resolveGuardrail(values["require-approval-from"], deps);
   } catch (error) {
     deps.printErr((error as Error).message);
     return 1;
   }
-  const registry =
-    values.registry ?? deps.env.AI_REGISTRY_URL ?? DEFAULT_REGISTRY;
+  const registry = resolveRegistry(values.registry, deps.env);
   // Organization names are display only: without them approvals show ids,
   // which is no reason to refuse an install.
   const organizations = loadOrganizationsFeed(registry).then(
@@ -144,11 +139,14 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     agents: values.agent,
     global: values.global,
   });
-  // Never falls back to the default branch: that would install content
-  // nobody approved.
+  // Never falls back to the default branch or a search by name: either would
+  // install content nobody approved.
   if (!args) {
+    const target = [skill.source.path, skill.source.ref]
+      .filter(Boolean)
+      .join(" at ");
     deps.printErr(
-      `Not installing: the skills CLI can't install ${skill.source.ref} from ${skill.source.url}. It reads a ref only from GitHub and gitlab.com sources, and anything else would install something other than what was approved.`,
+      `Not installing: the skills CLI can't be pointed at ${target} in ${skill.source.url}, and anything else would install something other than what was approved.`,
     );
     return 1;
   }

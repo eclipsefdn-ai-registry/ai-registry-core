@@ -7,16 +7,10 @@ import {
   type Guardrail,
   type RequireApprovalFrom,
 } from "./guardrail.js";
+import type { Deps } from "./run.js";
 
 export const GUARDRAIL_ENV = "AI_REGISTRY_REQUIRE_APPROVAL_FROM";
 export const PROJECT_CONFIG = ".ai-registry.json";
-
-interface GuardrailSources {
-  flag: string | undefined;
-  env: Record<string, string | undefined>;
-  cwd: string;
-  homeDir: string;
-}
 
 /**
  * The guardrail in force, from the first of: the --require-approval-from
@@ -25,12 +19,10 @@ interface GuardrailSources {
  * an error naming the setting it couldn't read: a guardrail someone meant to
  * set must never quietly read as off.
  */
-export async function resolveGuardrail({
-  flag,
-  env,
-  cwd,
-  homeDir,
-}: GuardrailSources): Promise<Guardrail> {
+export async function resolveGuardrail(
+  flag: string | undefined,
+  { env, cwd, homeDir }: Pick<Deps, "env" | "cwd" | "homeDir">,
+): Promise<Guardrail> {
   for (const [value, setBy] of [
     [flag, "--require-approval-from"],
     // an exported but empty variable reads as unset, as it does in most tools
@@ -67,9 +59,7 @@ async function readConfigFile(
     config = JSON.parse(await readFile(path, "utf-8"));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw new Error(
-      `Could not read ${path}: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new Error(`Could not read ${path}: ${(error as Error).message}`);
   }
   if (typeof config !== "object" || config === null || Array.isArray(config)) {
     throw new Error(`${path} must hold a JSON object.`);

@@ -5,6 +5,18 @@ import type { OrganizationsFeed, SkillsFeed } from "./types.js";
 export const DEFAULT_REGISTRY = "https://ai.open-vsx.org/api/v1/";
 
 /**
+ * The registry to read, from the first of: the --registry flag, the
+ * AI_REGISTRY_URL variable, and the default. An empty value reads as unset:
+ * kept, it would read the feed out of the working directory.
+ */
+export function resolveRegistry(
+  flag: string | undefined,
+  env: Record<string, string | undefined>,
+): string {
+  return flag || env.AI_REGISTRY_URL || DEFAULT_REGISTRY;
+}
+
+/**
  * Reads one file of the published feed from a registry: an http(s) base URL,
  * or a local directory such as the dist/api/v1/ consolidation writes. Throws
  * an error naming the location it couldn't read.
@@ -25,9 +37,7 @@ async function readFeedFile(registry: string, file: string): Promise<unknown> {
     }
     return JSON.parse(text);
   } catch (error) {
-    throw new Error(
-      `Could not read ${location}: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new Error(`Could not read ${location}: ${(error as Error).message}`);
   }
 }
 

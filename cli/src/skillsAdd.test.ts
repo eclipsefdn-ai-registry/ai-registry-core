@@ -20,27 +20,66 @@ function skill(source: Partial<Skill["source"]> = {}) {
 }
 
 describe("skillsAddArgs", () => {
-  it("picks the skill by name when it has a path", () => {
+  // The path makes the installer look only there; --skill alone would install
+  // the first SKILL.md anywhere in the repository with that name.
+  it("points the installer at the skill's path", () => {
     assert.deepEqual(skillsAddArgs(skill(), {}), [
+      "add",
+      "anthropics/skills/skills/code-review",
+      "--skill",
+      "code-review",
+      "--full-depth",
+    ]);
+  });
+
+  it("installs the approved one of two skills sharing a name", () => {
+    assert.deepEqual(
+      skillsAddArgs(skill({ path: ".claude/skills/code-review" }), {})?.[1],
+      "anthropics/skills/.claude/skills/code-review",
+    );
+  });
+
+  // Without it skills fetches some owners' files from skills.sh rather than
+  // cloning the source that was printed as approved.
+  it("always passes --full-depth, which skips the blob download", () => {
+    assert.ok(
+      skillsAddArgs(
+        skill({ url: "https://github.com/vercel-labs/skills" }),
+        {},
+      )?.includes("--full-depth"),
+    );
+  });
+
+  // --full-depth searches below a root SKILL.md too, so a skill at the root
+  // needs --skill as much as one in a subdirectory.
+  it("picks a skill at the repository root by name", () => {
+    assert.deepEqual(skillsAddArgs(skill({ path: undefined }), {}), [
       "add",
       "anthropics/skills",
       "--skill",
       "code-review",
+      "--full-depth",
     ]);
   });
 
   // A tag can be moved after it was hashed; the commit it pointed at can't.
   it("installs the commit that was hashed for a pinned tag", () => {
     assert.deepEqual(
-      skillsAddArgs(skill({ ref: "v1.2.0", pinned: true, commit: COMMIT }), {}),
-      ["add", `anthropics/skills#${COMMIT}`, "--skill", "code-review"],
+      skillsAddArgs(
+        skill({ ref: "v1.2.0", pinned: true, commit: COMMIT }),
+        {},
+      )?.[1],
+      `anthropics/skills/skills/code-review#${COMMIT}`,
     );
   });
 
   it("installs a branch ref as given, so the installer keeps following it", () => {
     assert.deepEqual(
-      skillsAddArgs(skill({ ref: "main", pinned: false, commit: COMMIT }), {}),
-      ["add", "anthropics/skills#main", "--skill", "code-review"],
+      skillsAddArgs(
+        skill({ ref: "main", pinned: false, commit: COMMIT }),
+        {},
+      )?.[1],
+      "anthropics/skills/skills/code-review#main",
     );
   });
 
@@ -49,33 +88,92 @@ describe("skillsAddArgs", () => {
   it("refuses a ref on a host the installer can't carry one for", () => {
     assert.equal(
       skillsAddArgs(
-        skill({ url: "https://git.example.org/team/kit.git", ref: "v1.0.0" }),
+        skill({
+          url: "https://git.example.org/team/kit.git",
+          path: undefined,
+          ref: "v1.0.0",
+        }),
         {},
       ),
       undefined,
     );
   });
 
-  it("carries a ref on gitlab.com, nested groups included", () => {
+  it("refuses a path on a host the installer can't carry one for", () => {
+    assert.equal(
+      skillsAddArgs(skill({ url: "https://git.example.org/team/kit.git" }), {}),
+      undefined,
+    );
+  });
+
+  it("installs from any host when the approval names no path or ref", () => {
     assert.deepEqual(
       skillsAddArgs(
-        skill({ url: "https://gitlab.com/group/sub/kit", ref: "release" }),
+        skill({ url: "https://git.example.org/team/kit.git", path: undefined }),
         {},
       ),
       [
         "add",
-        "https://gitlab.com/group/sub/kit#release",
+        "https://git.example.org/team/kit",
         "--skill",
         "code-review",
+        "--full-depth",
       ],
     );
   });
 
-  it("installs from any host when the approval names no ref", () => {
-    assert.deepEqual(
-      skillsAddArgs(skill({ url: "https://git.example.org/team/kit.git" }), {}),
-      ["add", "https://git.example.org/team/kit", "--skill", "code-review"],
+  it("carries a ref on gitlab.com, nested groups included", () => {
+    assert.equal(
+      skillsAddArgs(
+        skill({
+          url: "https://gitlab.com/group/sub/kit",
+          path: undefined,
+          ref: "release",
+        }),
+        {},
+      )?.[1],
+      "https://gitlab.com/group/sub/kit#release",
     );
+  });
+
+  // gitlab.com takes a path only inside a tree URL, which needs a revision.
+  it("carries a path on gitlab.com in a tree URL at the ref", () => {
+    assert.equal(
+      skillsAddArgs(
+        skill({ url: "https://gitlab.com/group/sub/kit", ref: "release" }),
+        {},
+      )?.[1],
+      "https://gitlab.com/group/sub/kit/-/tree/release/skills/code-review",
+    );
+  });
+
+  it("refuses a path on gitlab.com without a ref", () => {
+    assert.equal(
+      skillsAddArgs(skill({ url: "https://gitlab.com/group/sub/kit" }), {}),
+      undefined,
+    );
+  });
+
+  // The tree URL ends the ref at the first slash, so the rest would be read
+  // as part of the path.
+  it("refuses a path on gitlab.com with a ref holding a slash", () => {
+    assert.equal(
+      skillsAddArgs(
+        skill({ url: "https://gitlab.com/group/sub/kit", ref: "release/1.x" }),
+        {},
+      ),
+      undefined,
+    );
+  });
+
+  // skills reads everything after the first # as the ref.
+  it("refuses a path holding a #", () => {
+    assert.equal(skillsAddArgs(skill({ path: "skills/c#" }), {}), undefined);
+  });
+
+  // skills splits a skill filter off the revision at an @.
+  it("refuses a revision holding an @", () => {
+    assert.equal(skillsAddArgs(skill({ ref: "team@v1" }), {}), undefined);
   });
 
   it("forwards the installer options it was given", () => {
@@ -88,6 +186,9 @@ describe("skillsAddArgs", () => {
       [
         "add",
         "anthropics/skills",
+        "--skill",
+        "code-review",
+        "--full-depth",
         "--agent",
         "claude-code",
         "cursor",
@@ -104,6 +205,18 @@ describe("installerEnv", () => {
   it("drops GH_HOST, so owner/repo resolves to github.com as printed", () => {
     assert.deepEqual(
       installerEnv({ GH_HOST: "ghe.example.com", PATH: "/usr/bin" }),
+      { PATH: "/usr/bin" },
+    );
+  });
+
+  // --full-depth already skips the download; this keeps a later skills from
+  // taking files from anywhere but the source either.
+  it("drops SKILLS_DOWNLOAD_URL, so no file comes from another host", () => {
+    assert.deepEqual(
+      installerEnv({
+        SKILLS_DOWNLOAD_URL: "https://mirror.example",
+        PATH: "/usr/bin",
+      }),
       { PATH: "/usr/bin" },
     );
   });

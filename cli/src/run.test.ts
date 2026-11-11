@@ -95,12 +95,22 @@ describe("run install skill", () => {
     );
     assert.equal(code, 0);
     assert.deepEqual(f.installs, [
-      ["add", "anthropics/skills", "--skill", "code-review", "-y"],
+      [
+        "add",
+        "anthropics/skills/skills/code-review",
+        "--skill",
+        "code-review",
+        "--full-depth",
+        "-y",
+      ],
     ]);
     const out = f.stderr.join("\n");
     assert.match(out, /Approved by: +Anthropic, 2026-01-02/);
     assert.match(out, /Content hash: +49b0db08bdaa/);
-    assert.match(out, /skills add anthropics\/skills --skill code-review -y/);
+    assert.match(
+      out,
+      /skills add anthropics\/skills\/skills\/code-review --skill code-review --full-depth -y/,
+    );
   });
 
   it("fails on an id the registry doesn't hold, without running the installer", async () => {
@@ -150,7 +160,13 @@ describe("run install skill", () => {
       assert.equal(code, 0);
       assert.equal(f.questions.length, 1);
       assert.deepEqual(f.installs, [
-        ["add", "anthropics/skills", "--skill", "code-review"],
+        [
+          "add",
+          "anthropics/skills/skills/code-review",
+          "--skill",
+          "code-review",
+          "--full-depth",
+        ],
       ]);
     });
   });
@@ -181,7 +197,10 @@ describe("run install skill", () => {
     );
     assert.equal(code, 1);
     assert.deepEqual(f.installs, []);
-    assert.match(f.stderr.join("\n"), /can't install v1\.0\.0/);
+    assert.match(
+      f.stderr.join("\n"),
+      /can't be pointed at skills\/code-review at v1\.0\.0 in https:\/\/git\.example\.org/,
+    );
   });
 
   it("exits with the installer's exit code", async () => {
