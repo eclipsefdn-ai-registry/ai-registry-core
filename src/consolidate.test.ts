@@ -26,6 +26,7 @@ import {
   buildOrgEntryView,
   findOrCreate,
   configHashOf,
+  publishOrgMarketplaces,
   type ConsolidatedOutput,
   type ApprovalData,
   type SkillApprovalData,
@@ -4053,5 +4054,124 @@ describe("findServerKeyCollisions", () => {
     resolveMcpCrossVendorConfigs(output);
 
     assert.deepEqual(findServerKeyCollisions(output), []);
+  });
+});
+
+// --- publishOrgMarketplaces ---
+
+describe("publishOrgMarketplaces", () => {
+  const COMMIT = "7b4a44e40e0112233445566778899aabbccddeef";
+
+  function pluginEntry(pluginId: string, orgIds: string[]): PluginEntry {
+    return {
+      pluginId,
+      name: pluginId,
+      description: "",
+      source: { url: "https://github.com/acme/plugins.git", commit: COMMIT },
+      contentHash: "49b0db08bdaa",
+      containedSkills: [],
+      containedMcpServers: [],
+      approvals: orgIds.map((organizationId) => ({
+        organizationId,
+        date: "2026-09-11",
+        configHash: "f400c1e06354",
+        installConfigs: [],
+      })),
+    };
+  }
+
+  function outputWith(plugins: PluginEntry[]): ConsolidatedOutput {
+    return {
+      ...emptyOutput(),
+      organizations: [
+        { id: "acme", name: "Acme" },
+        { id: "other", name: "Other" },
+      ] as ConsolidatedOutput["organizations"],
+      plugins,
+    };
+  }
+
+  function publishQuietly(
+    output: ConsolidatedOutput,
+    mismatches: Set<string> = new Set(),
+  ) {
+    const originalWarn = console.warn;
+    console.warn = () => {};
+    try {
+      return publishOrgMarketplaces(output, mismatches);
+    } finally {
+      console.warn = originalWarn;
+    }
+  }
+
+  it("records on each plugin the organization files that list it", () => {
+    const output = outputWith([pluginEntry("io.github.acme/one", ["acme"])]);
+    const files = publishQuietly(output);
+
+    assert.deepEqual([...files.keys()], ["acme"]);
+    assert.deepEqual(output.plugins[0].publishedMarketplaces, [
+      {
+        orgId: "acme",
+        marketplaceName: "ai-registry-acme",
+        entryName: "io.github.acme.one",
+      },
+    ]);
+  });
+
+  // Present and empty rather than absent, which a client reads as unknown.
+  it("records an empty listing for a plugin no file carries", () => {
+    const output = outputWith([
+      pluginEntry("io.github.acme/has space", ["acme"]),
+      pluginEntry("io.github.acme/two", ["acme", "other"]),
+    ]);
+    const files = publishQuietly(
+      output,
+      new Set(["io.github.acme/two::acme", "io.github.acme/two::other"]),
+    );
+
+    assert.equal(files.size, 0);
+    assert.deepEqual(output.plugins[0].publishedMarketplaces, []);
+    assert.deepEqual(output.plugins[1].publishedMarketplaces, []);
+  });
+
+  it("records no listing for the loser of two ids that derive one name", () => {
+    const output = outputWith([
+      pluginEntry("a.b/c", ["acme"]),
+      pluginEntry("a/b.c", ["acme"]),
+    ]);
+    publishQuietly(output);
+
+    assert.deepEqual(
+      output.plugins.map((p) => [p.pluginId, p.publishedMarketplaces]),
+      [
+        [
+          "a.b/c",
+          [
+            {
+              orgId: "acme",
+              marketplaceName: "ai-registry-acme",
+              entryName: "a.b.c",
+            },
+          ],
+        ],
+        ["a/b.c", []],
+      ],
+    );
+  });
+
+  it("leaves out only the organization whose revision lost", () => {
+    const output = outputWith([
+      pluginEntry("io.github.acme/two", ["acme", "other"]),
+    ]);
+    const files = publishQuietly(
+      output,
+      new Set(["io.github.acme/two::other"]),
+    );
+
+    assert.deepEqual([...files.keys()], ["acme"]);
+    assert.deepEqual(
+      output.plugins[0].publishedMarketplaces?.map((m) => m.orgId),
+      ["acme"],
+    );
   });
 });

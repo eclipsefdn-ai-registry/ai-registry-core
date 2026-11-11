@@ -49,3 +49,15 @@ export function filterByTool<
     ),
   );
 }
+
+// Keeps the plugins that are Agent Plugins when onlyAgentPlugins is set, and
+// every plugin otherwise. A plugin from a feed that predates the verdict has
+// no isAgentPlugin, which is unknown rather than false, but the filter only
+// keeps what is known to conform, so it drops those too.
+export function filterAgentPlugins<T extends { isAgentPlugin?: boolean }>(
+  items: T[],
+  onlyAgentPlugins: boolean,
+): T[] {
+  if (!onlyAgentPlugins) return items;
+  return items.filter((item) => item.isAgentPlugin === true);
+}

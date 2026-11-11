@@ -474,21 +474,231 @@ export function ClientsPage() {
 
       <DocsSection id="agent-plugins">
         <p className="mb-3 leading-relaxed">
-          An{" "}
+          A plugin is a directory holding a <InlineCode>plugin.json</InlineCode>{" "}
+          manifest, optional{" "}
+          <InlineCode>skills/&lt;name&gt;/SKILL.md</InlineCode> folders, and an
+          optional <InlineCode>mcp.json</InlineCode>.{" "}
+          <InlineCode>source.path</InlineCode> points at that directory; omit it
+          and the plugin is at the repository root.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          A plugin that conforms to the{" "}
           <a
             href="https://agent-plugins.org"
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover:underline"
           >
-            Agent Plugin
+            Agent Plugins specification
           </a>{" "}
-          is a directory holding a <InlineCode>plugin.json</InlineCode>{" "}
-          manifest, optional{" "}
-          <InlineCode>skills/&lt;name&gt;/SKILL.md</InlineCode> folders, and an
-          optional <InlineCode>mcp.json</InlineCode>.{" "}
-          <InlineCode>source.path</InlineCode> points at that directory; omit it
-          and the plugin is at the repository root.
+          is an <strong>Agent Plugin</strong>. Not every plugin in the feed is
+          one: conformance is not a condition of approval, and a plugin that
+          doesn&apos;t conform stays in the registry with its approvals.
+        </p>
+        <h3 className="font-semibold mt-5 mb-2">Agent Plugin or not</h3>
+        <p className="mb-3 leading-relaxed">
+          <InlineCode>isAgentPlugin</InlineCode> is consolidation&apos;s verdict
+          on whether the plugin conforms, checked at{" "}
+          <InlineCode>source.commit</InlineCode> against the specification
+          versions the registry bundles. It is <InlineCode>true</InlineCode>{" "}
+          only when every check passes:
+        </p>
+        <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
+          <li className="leading-relaxed">
+            <InlineCode>plugin.json</InlineCode>, and{" "}
+            <InlineCode>mcp.json</InlineCode> when present, name a known
+            specification version in <InlineCode>$schema</InlineCode>. The
+            registry never fetches the <InlineCode>$schema</InlineCode> URL, so
+            a version it hasn&apos;t adopted yet counts as unknown, and an
+            unknown version is not conformant.
+          </li>
+          <li className="leading-relaxed">
+            Both files match that version&apos;s schema.
+          </li>
+          <li className="leading-relaxed">
+            Every MCP server declares an explicit <InlineCode>type</InlineCode>.
+          </li>
+          <li className="leading-relaxed">
+            No MCP server is one the specification tells clients to skip, such
+            as a <InlineCode>command</InlineCode> that is a shell command line,
+            a <InlineCode>cwd</InlineCode> or <InlineCode>./</InlineCode> path
+            leaving the plugin root, a non-HTTPS <InlineCode>url</InlineCode> to
+            a host other than loopback, or an <InlineCode>mcp.json</InlineCode>{" "}
+            targeting a different version than{" "}
+            <InlineCode>plugin.json</InlineCode>.
+          </li>
+          <li className="leading-relaxed">
+            Every skill&apos;s <InlineCode>SKILL.md</InlineCode> frontmatter has
+            a <InlineCode>name</InlineCode> and a{" "}
+            <InlineCode>description</InlineCode>.
+          </li>
+        </ul>
+        <p className="mb-3 leading-relaxed">
+          When it is <InlineCode>false</InlineCode>,{" "}
+          <InlineCode>agentPluginIssues</InlineCode> lists why, one readable
+          message per failed check. They are the messages the vendor saw during
+          validation, so show them as they are. The field is omitted when the
+          plugin conforms.
+        </p>
+        <InfoCallout>
+          <strong>A missing isAgentPlugin means unknown, never false.</strong>{" "}
+          Feeds from before the verdict was published have neither field. Treat
+          such a plugin as one you haven&apos;t checked: don&apos;t label it
+          non-conforming, and don&apos;t show an empty issue list. To show only
+          Agent Plugins, keep those with <code>isAgentPlugin === true</code>.
+        </InfoCallout>
+        <p className="mt-3 mb-3 leading-relaxed">
+          The verdict is about the specification, not about any one tool.
+          Whether a given tool can install a plugin depends on that tool&apos;s
+          own rules, which the feed doesn&apos;t publish.
+        </p>
+        <p className="mt-3 mb-3 leading-relaxed">
+          If you hand a plugin to another tool rather than installing it
+          yourself, the registry website applies these rules you can reuse:
+        </p>
+        <ul className="mb-3 space-y-2 text-sm list-disc pl-5">
+          <li>
+            Offer the <InlineCode>plugins</InlineCode> CLI (
+            <InlineCode>npx plugins add &lt;source&gt;</InlineCode>) only for a
+            plugin that isn&apos;t an Agent Plugin, and only when the approval
+            names no <InlineCode>source.ref</InlineCode>. The CLI clones the
+            default branch with no way to target a ref, and an Agent Plugin has
+            tools that install it at the endorsed commit instead. Say that it
+            installs every plugin in the repository, not only this one: it takes
+            a repository and can&apos;t select a plugin in it.
+          </li>
+          <li>
+            Offer Kiro&apos;s <strong>Import power from GitHub</strong> only for
+            an Agent Plugin on github.com, as the plugin&apos;s folder at{" "}
+            <InlineCode>source.commit</InlineCode> (
+            <InlineCode>
+              {"https://github.com/<owner>/<repo>/tree/<commit>/<path>"}
+            </InlineCode>
+            ). Kiro rejects any other host and won&apos;t load a{" "}
+            <InlineCode>plugin.json</InlineCode> without{" "}
+            <InlineCode>$schema</InlineCode>. With no{" "}
+            <InlineCode>source.commit</InlineCode>, offer nothing.
+          </li>
+          <li>
+            Offer Codex only for an Agent Plugin with a{" "}
+            <InlineCode>source.commit</InlineCode>, and only when the first of{" "}
+            <InlineCode>.agents/plugins/marketplace.json</InlineCode>,{" "}
+            <InlineCode>.agents/plugins/api_marketplace.json</InlineCode>,{" "}
+            <InlineCode>.claude-plugin/marketplace.json</InlineCode> and{" "}
+            <InlineCode>.cursor-plugin/marketplace.json</InlineCode> that
+            appears in <InlineCode>marketplaceFiles</InlineCode> has an{" "}
+            <InlineCode>entryName</InlineCode>. Codex reads that first file and
+            no other, so a listing in a later one doesn&apos;t count. The
+            commands are{" "}
+            <InlineCode>
+              {"codex plugin marketplace add <source> --ref <commit>"}
+            </InlineCode>
+            , then{" "}
+            <InlineCode>
+              {"codex plugin add <entryName>@<marketplaceName>"}
+            </InlineCode>
+            , where <InlineCode>&lt;source&gt;</InlineCode> is{" "}
+            <InlineCode>owner/repo</InlineCode> on github.com and the git URL
+            anywhere else. <InlineCode>--ref</InlineCode> pins the marketplace
+            file, and the repository-relative entry inside it with it, so this
+            installs the endorsed commit whatever ref the approval names.
+          </li>
+          <li>
+            Offer VS Code (GitHub Copilot) only for a plugin on github.com,
+            Agent Plugin or not, in one of two forms. When the first of{" "}
+            <InlineCode>marketplace.json</InlineCode>,{" "}
+            <InlineCode>.plugin/marketplace.json</InlineCode>,{" "}
+            <InlineCode>.github/plugin/marketplace.json</InlineCode> and{" "}
+            <InlineCode>.claude-plugin/marketplace.json</InlineCode> that
+            appears in <InlineCode>marketplaceFiles</InlineCode> has an{" "}
+            <InlineCode>entryName</InlineCode>, run{" "}
+            <strong>Chat: Add Marketplace</strong> with{" "}
+            <InlineCode>{"owner/repo#<source.commit>"}</InlineCode>, then
+            install <InlineCode>&lt;entryName&gt;</InlineCode> from it. That
+            pins the marketplace and its repository-relative entries, so it
+            installs the endorsed commit whatever ref the approval names; with
+            no <InlineCode>source.commit</InlineCode>, offer nothing. When none
+            of those four files appears in{" "}
+            <InlineCode>marketplaceFiles</InlineCode>, and only for a plugin at
+            the repository root (no <InlineCode>source.path</InlineCode>) whose
+            approval names no <InlineCode>source.ref</InlineCode>, run{" "}
+            <strong>Chat: Install Plugin from Source</strong> with{" "}
+            <InlineCode>owner/repo</InlineCode>. If the first file is there but
+            has no <InlineCode>entryName</InlineCode>, offer neither form: VS
+            Code reads the repository as that marketplace, not as this plugin.
+            Never append <InlineCode>{"#<sha>"}</InlineCode> there: VS Code
+            ignores it, installs the default branch, and still displays the{" "}
+            <InlineCode>{"#<sha>"}</InlineCode>. In both forms, warn when a{" "}
+            <InlineCode>containedMcpServers</InlineCode> item has{" "}
+            <InlineCode>usesPluginData</InlineCode>, naming those servers, since
+            VS Code doesn&apos;t expand{" "}
+            <InlineCode>{"${PLUGIN_DATA}"}</InlineCode>.
+          </li>
+          <li>
+            Offer Claude Code once per record in{" "}
+            <InlineCode>publishedMarketplaces</InlineCode>, Agent Plugin or not:{" "}
+            <InlineCode>
+              {
+                "claude plugin marketplace add <base>/api/v1/orgs/<orgId>/marketplace.json"
+              }
+            </InlineCode>
+            , then{" "}
+            <InlineCode>
+              {"claude plugin install <entryName>@<marketplaceName>"}
+            </InlineCode>
+            . The published entry pins <InlineCode>sha</InlineCode> to{" "}
+            <InlineCode>source.commit</InlineCode>, so this installs the
+            endorsed commit whatever ref the approval names. With no record, no{" "}
+            <InlineCode>publishedMarketplaces</InlineCode>, or no{" "}
+            <InlineCode>source.commit</InlineCode>, offer nothing: never build
+            an entry name yourself, since the plugin may have been left out of
+            that file. Claude Code reads a plugin&apos;s MCP servers only from{" "}
+            <InlineCode>.mcp.json</InlineCode> and from{" "}
+            <InlineCode>mcpServers</InlineCode> in{" "}
+            <InlineCode>.claude-plugin/plugin.json</InlineCode>, never from{" "}
+            <InlineCode>mcp.json</InlineCode>, so when{" "}
+            <InlineCode>containedMcpServers</InlineCode> isn&apos;t empty and{" "}
+            <InlineCode>mcpConfigFiles</InlineCode> is, warn on each of these
+            instructions, naming the servers: the plugin installs without them.
+            A missing <InlineCode>mcpConfigFiles</InlineCode> is unknown, so
+            don&apos;t warn.
+          </li>
+        </ul>
+        <p className="mt-3 mb-3 leading-relaxed">
+          A missing <InlineCode>isAgentPlugin</InlineCode> is unknown, not
+          false, so it passes the Agent Plugin half of the rules that have one.
+          The ref, host, commit, path and marketplace-file conditions still
+          apply.
+        </p>
+        <p className="mt-3 mb-3 leading-relaxed">
+          <InlineCode>marketplaceFiles</InlineCode> lists the known marketplace
+          files present in the plugin&apos;s repository at{" "}
+          <InlineCode>source.commit</InlineCode>, one{" "}
+          <InlineCode>{"{ path, marketplaceName, entryName }"}</InlineCode>{" "}
+          each, in no tool&apos;s order. The paths scanned are the four above
+          plus <InlineCode>marketplace.json</InlineCode>,{" "}
+          <InlineCode>.plugin/marketplace.json</InlineCode> and{" "}
+          <InlineCode>.github/plugin/marketplace.json</InlineCode>; a file that
+          isn&apos;t there has no record.{" "}
+          <InlineCode>marketplaceName</InlineCode> is the file&apos;s own{" "}
+          <InlineCode>name</InlineCode>. <InlineCode>entryName</InlineCode> is
+          set only when the file has an entry whose source is a path in the
+          repository (a bare string or a <InlineCode>local</InlineCode> source)
+          resolving to the plugin&apos;s <InlineCode>source.path</InlineCode>;
+          an entry sourced from a git URL doesn&apos;t count, since it says
+          nothing about <InlineCode>source.commit</InlineCode>. A file that
+          can&apos;t be parsed has a record with neither name. These are facts
+          about files, not tools: which tool reads which file, and which one
+          first, is yours to apply. A missing{" "}
+          <InlineCode>marketplaceFiles</InlineCode> means unknown.
+        </p>
+        <p className="mt-3 mb-3 leading-relaxed">
+          <InlineCode>mcpConfigFiles</InlineCode> lists which of{" "}
+          <InlineCode>.mcp.json</InlineCode>, and{" "}
+          <InlineCode>.claude-plugin/plugin.json</InlineCode> when it declares{" "}
+          <InlineCode>mcpServers</InlineCode>, the plugin directory has at{" "}
+          <InlineCode>source.commit</InlineCode>, relative to the plugin. Empty
+          means neither; missing means unknown.
         </p>
         <InfoCallout>
           <strong>Install the plugin whole.</strong> Download the plugin
@@ -533,8 +743,11 @@ export function ClientsPage() {
           <li className="leading-relaxed">
             <InlineCode>containedMcpServers</InlineCode> gives only a name and a
             transport, and the transport is empty when the entry declares no{" "}
-            <InlineCode>type</InlineCode>. The feed cannot tell you how to run
-            anything.
+            <InlineCode>type</InlineCode>.{" "}
+            <InlineCode>usesPluginData: true</InlineCode> marks a server whose
+            config references <InlineCode>{"${PLUGIN_DATA}"}</InlineCode>, which
+            not every tool expands; a missing field in an older feed means
+            unknown. The feed cannot tell you how to run anything.
           </li>
           <li className="leading-relaxed">
             Approval attaches to the plugin as a whole. No contained MCP server
@@ -1027,6 +1240,7 @@ export function ClientsPage() {
             "Record provenance for everything you install, and never overwrite what you did not",
             "Offer adoption when a local slot is already occupied",
             "Install plugins whole, keyed by pluginId, and load from inside the plugin root",
+            'Read a missing isAgentPlugin as unknown, not as "not an Agent Plugin"',
             "Tell the user what a sandbox extension can do before installing it — it runs as root at build and start time",
             "Surface artifacts missing from the feed without removing them",
           ]}

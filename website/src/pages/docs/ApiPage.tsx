@@ -268,7 +268,9 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
           hashed for that plugin, directly or through trust. So an organization
           can approve plugins and still have no file;{" "}
           <InlineCode>orgs/&lt;org-id&gt;.json</InlineCode> says whether it has
-          one in <InlineCode>hasMarketplace</InlineCode>.
+          one in <InlineCode>hasMarketplace</InlineCode>. Each plugin entry says
+          which organization files list it, and under which entry name, in{" "}
+          <InlineCode>publishedMarketplaces</InlineCode>.
         </p>
         <p className="mb-3 leading-relaxed">
           Every entry pins <InlineCode>sha</InlineCode> to{" "}
@@ -508,7 +510,37 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
               name: "containedMcpServers",
               type: "array",
               description:
-                "Servers declared in mcp.json, each with name and transport. Transport is empty when the entry declares no type.",
+                "Servers declared in mcp.json, each with name and transport. Transport is empty when the entry declares no type. usesPluginData is true when the server's config references ${PLUGIN_DATA}, and absent otherwise; absent in feeds that predate it, which means unknown.",
+            },
+            {
+              name: "isAgentPlugin",
+              type: "boolean?",
+              description:
+                "Whether the plugin is an Agent Plugin: it conforms to the Agent Plugins specification (agent-plugins.org), checked at source.commit against the specification versions the registry bundles. Every check must pass: plugin.json, and mcp.json when present, name a known version in $schema and match its schema; every MCP server declares a type; no MCP server is one the specification tells clients to skip; every skill's SKILL.md frontmatter has a name and description. False keeps the plugin in the registry. Absent in feeds that predate it, which means unknown, not false.",
+            },
+            {
+              name: "agentPluginIssues",
+              type: "string[]?",
+              description:
+                "Why the plugin isn't an Agent Plugin: one readable message per failed check, the same text vendor validation prints. Omitted when isAgentPlugin is true, and absent in feeds that predate it.",
+            },
+            {
+              name: "publishedMarketplaces",
+              type: "array?",
+              description:
+                "The per-organization marketplaces this registry publishes that list the plugin, one { orgId, marketplaceName, entryName } each: add orgs/<orgId>/marketplace.json, then install <entryName>@<marketplaceName>. Read off the written files, so it never names an entry that was left out. Empty when no file lists it; absent in feeds that predate it, which means unknown.",
+            },
+            {
+              name: "marketplaceFiles",
+              type: "array?",
+              description:
+                "The known marketplace files present in the plugin's repository at source.commit, one { path, marketplaceName, entryName } each: .agents/plugins/marketplace.json, .agents/plugins/api_marketplace.json, .claude-plugin/marketplace.json, .cursor-plugin/marketplace.json, marketplace.json, .plugin/marketplace.json and .github/plugin/marketplace.json are scanned, and a file that isn't there has no record. marketplaceName is the file's own name. entryName is set only when the file has an entry whose source is a path in the repository (a bare string or a local source) resolving to this plugin's path; entries sourced from a git URL don't count. A file that can't be parsed has a record with neither name. Facts about files, not tools: which tool reads which file first is the client's to apply. Absent in feeds that predate it, which means unknown.",
+            },
+            {
+              name: "mcpConfigFiles",
+              type: "string[]?",
+              description:
+                "Which of .mcp.json, and .claude-plugin/plugin.json when it declares mcpServers, the plugin directory has at source.commit, paths relative to the plugin, in that order. Empty when it has neither. These are the files Claude Code reads a plugin's MCP servers from, never mcp.json, but they're published as facts about files, not tools. Absent in feeds that predate it, which means unknown.",
             },
             {
               name: "approvals",
@@ -668,10 +700,7 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
                 "Generic MCP server config, the root config of an MCP approval",
               ],
               ["skill-approval.schema.json", "Agent Skill approval file"],
-              [
-                "plugin-approval.schema.json",
-                "Agent Plugin (agent-plugins.org) approval file",
-              ],
+              ["plugin-approval.schema.json", "Plugin approval file"],
               ["agent-approval.schema.json", "A2A agent approval file"],
               [
                 "marketplace-approval.schema.json",

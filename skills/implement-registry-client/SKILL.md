@@ -185,9 +185,11 @@ Record the hash you computed, not the one from the feed. The recorded hash is th
 
 A skill's identity is the `name` in its `SKILL.md` frontmatter, because that is what the agent runtime and the model address it by. Two skills with the same name collide no matter which directories they occupy.
 
-## Agent Plugins
+## Plugins
 
-An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.json` manifest, optional `skills/<name>/SKILL.md` folders, and an optional `mcp.json`. `source.path` points at that directory; omit it and the plugin is at the repository root.
+A plugin is a directory holding a `plugin.json` manifest, optional `skills/<name>/SKILL.md` folders, and an optional `mcp.json`. `source.path` points at that directory; omit it and the plugin is at the repository root.
+
+A plugin that conforms to the [Agent Plugins specification](https://agent-plugins.org) is an **Agent Plugin**. Not every plugin in the feed is one: conformance is not a condition of approval, and a plugin that doesn't conform stays in the registry with its approvals.
 
 ```json
 {
@@ -209,6 +211,22 @@ An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.js
     }
   ],
   "containedMcpServers": [{ "name": "bigquery", "transport": "stdio" }],
+  "isAgentPlugin": true,
+  "publishedMarketplaces": [
+    {
+      "orgId": "example-org",
+      "marketplaceName": "ai-registry-example-org",
+      "entryName": "io.github.gemini-cli-extensions.bigquery-data-analytics"
+    }
+  ],
+  "marketplaceFiles": [
+    {
+      "path": ".agents/plugins/marketplace.json",
+      "marketplaceName": "bigquery-data-analytics",
+      "entryName": "bigquery-data-analytics"
+    }
+  ],
+  "mcpConfigFiles": [".mcp.json"],
   "approvals": [
     {
       "organizationId": "example-org",
@@ -218,6 +236,44 @@ An [Agent Plugin](https://agent-plugins.org) is a directory holding a `plugin.js
   ]
 }
 ```
+
+### Agent Plugin or not
+
+`isAgentPlugin` is consolidation's verdict on whether the plugin conforms to the Agent Plugins specification, checked at `source.commit` against the specification versions the registry bundles. It is `true` only when every check passes:
+
+- `plugin.json`, and `mcp.json` when present, name a known specification version in `$schema`. The registry never fetches the `$schema` URL, so a version it hasn't adopted yet counts as unknown, and an unknown version is not conformant.
+- Both files match that version's schema.
+- Every MCP server declares an explicit `type`.
+- No MCP server is one the specification tells clients to skip, such as a `command` that is a shell command line, a `cwd` or `./` path leaving the plugin root, a non-HTTPS `url` to a host other than loopback, or an `mcp.json` targeting a different version than `plugin.json`.
+- Every skill's `SKILL.md` frontmatter has a `name` and a `description`.
+
+When it is `false`, `agentPluginIssues` lists why, one readable message per failed check. They are the messages the vendor saw during validation, so show them as they are rather than rewording them. The field is omitted when the plugin conforms.
+
+**A missing `isAgentPlugin` means unknown, never `false`.** Feeds from before the verdict was published have neither field. Treat such a plugin as you would one you haven't checked: don't label it non-conforming, and don't show an empty issue list. If you want to show only Agent Plugins, keep only those with `isAgentPlugin === true`.
+
+The verdict is about the specification, not about any one tool. Whether a given tool can install a plugin depends on that tool's own rules, which the feed doesn't publish.
+
+If you hand a plugin to another tool rather than installing it yourself, the registry website applies these rules you can reuse:
+
+- Offer the `plugins` CLI (`npx plugins add <source>`) only for a plugin that isn't an Agent Plugin, and only when the approval names no `source.ref`. The CLI clones the default branch with no way to target a ref, and an Agent Plugin has tools that install it at the endorsed commit instead. Say that it installs every plugin in the repository, not only this one: it takes a repository and can't select a plugin in it.
+- Offer Kiro's **Import power from GitHub** only for an Agent Plugin on github.com, as the plugin's folder at `source.commit` (`https://github.com/<owner>/<repo>/tree/<commit>/<path>`). Kiro rejects any other host and won't load a `plugin.json` without `$schema`. With no `source.commit`, offer nothing.
+- Offer Codex only for an Agent Plugin with a `source.commit`, and only when the first of `.agents/plugins/marketplace.json`, `.agents/plugins/api_marketplace.json`, `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json` that appears in `marketplaceFiles` has an `entryName`. Codex reads that first file and no other, so a listing in a later one doesn't count. The commands are `codex plugin marketplace add <source> --ref <commit>`, then `codex plugin add <entryName>@<marketplaceName>`, where `<source>` is `owner/repo` on github.com and the git URL anywhere else. `--ref` pins the marketplace file, and the repository-relative entry inside it with it, so this installs the endorsed commit whatever ref the approval names.
+- Offer VS Code (GitHub Copilot) only for a plugin on github.com, Agent Plugin or not, in one of two forms. When the first of `marketplace.json`, `.plugin/marketplace.json`, `.github/plugin/marketplace.json` and `.claude-plugin/marketplace.json` that appears in `marketplaceFiles` has an `entryName`, run **Chat: Add Marketplace** with `owner/repo#<source.commit>`, then install `<entryName>` from it. That pins the marketplace and its repository-relative entries, so it installs the endorsed commit whatever ref the approval names; with no `source.commit`, offer nothing. When none of those four files appears in `marketplaceFiles`, and only for a plugin at the repository root (no `source.path`) whose approval names no `source.ref`, run **Chat: Install Plugin from Source** with `owner/repo`. If the first file is there but has no `entryName`, offer neither form: VS Code reads the repository as that marketplace, not as this plugin. Never append `#<sha>` there: VS Code ignores it, installs the default branch, and still displays the `#<sha>`. In both forms, warn when a `containedMcpServers` item has `usesPluginData`, naming those servers, since VS Code doesn't expand `${PLUGIN_DATA}`.
+- Offer Claude Code once per record in `publishedMarketplaces`, Agent Plugin or not: `claude plugin marketplace add <base>/api/v1/orgs/<orgId>/marketplace.json`, then `claude plugin install <entryName>@<marketplaceName>`. The published entry pins `sha` to `source.commit`, so this installs the endorsed commit whatever ref the approval names. With no record, no `publishedMarketplaces`, or no `source.commit`, offer nothing. Never build an entry name yourself: the plugin may have been left out of that file. Claude Code reads a plugin's MCP servers only from `.mcp.json` and from `mcpServers` in `.claude-plugin/plugin.json`, never from `mcp.json`, so when `containedMcpServers` isn't empty and `mcpConfigFiles` is, warn on each of these instructions, naming the servers: the plugin installs without them. A missing `mcpConfigFiles` is unknown, so don't warn.
+
+A missing `isAgentPlugin` is unknown, not `false`, so it passes the Agent Plugin half of the rules that have one. The ref, host, commit, path and marketplace-file conditions still apply.
+
+### Marketplace files in the plugin's repository
+
+`marketplaceFiles` lists the known marketplace files present in the plugin's repository at `source.commit`, one `{ path, marketplaceName, entryName }` each, in no tool's order. The paths scanned are `.agents/plugins/marketplace.json`, `.agents/plugins/api_marketplace.json`, `.claude-plugin/marketplace.json`, `.cursor-plugin/marketplace.json`, `marketplace.json`, `.plugin/marketplace.json` and `.github/plugin/marketplace.json`. A file that isn't there has no record.
+
+- `marketplaceName` is the file's own `name`.
+- `entryName` is set only when the file has an entry whose source is a path in the repository (a bare string or a `local` source) resolving to the plugin's `source.path`. An entry sourced from a git URL doesn't count, since the tool fetches that itself and it says nothing about `source.commit`.
+- A file that can't be parsed has a record with neither name.
+
+These are facts about files, not tools. Which tool reads which file, and which one first, is yours to apply, as the Codex rule above does. A missing `marketplaceFiles` means unknown.
+
+`mcpConfigFiles` lists which of `.mcp.json`, and `.claude-plugin/plugin.json` when it declares `mcpServers`, the plugin directory has at `source.commit`, relative to the plugin. Empty means neither; missing means unknown.
 
 ### Install the plugin whole
 
@@ -238,7 +294,7 @@ The handoff is the verified plugin root on disk. From there, follow [Implement a
 Two facts about the feed belong on this side of the line:
 
 - `containedSkills` and `containedMcpServers` are what consolidation read from the plugin at the time it ran. Use them to tell the user what they are about to install. Discover components yourself from the plugin root, and let the root win if the two disagree.
-- `containedMcpServers` gives only `name` and `transport`, and `transport` is empty when the entry declares no `type`. The feed cannot tell you how to run anything.
+- `containedMcpServers` gives only `name` and `transport`, and `transport` is empty when the entry declares no `type`. `usesPluginData: true` marks a server whose config references `${PLUGIN_DATA}`, which not every tool expands; a missing field in an older feed means unknown. The feed cannot tell you how to run anything.
 
 Endorsement attaches to the plugin as a whole. No contained MCP server is endorsed independently, and since a plugin's MCP servers can run arbitrary local commands, say so before installing.
 
@@ -339,6 +395,7 @@ Removing artifacts automatically deletes working installations whenever a source
 - [ ] Record provenance for everything you install, and never overwrite what you did not
 - [ ] Offer adoption when a local slot is already occupied
 - [ ] Install plugins whole, keyed by `pluginId`, and load from inside the plugin root
+- [ ] Read a missing `isAgentPlugin` as unknown, not as "not an Agent Plugin"
 - [ ] Tell the user what a sandbox extension can do before installing it — it runs as root at build and start time
 - [ ] Surface artifacts missing from the feed without removing them
 

@@ -12,6 +12,7 @@ import {
   stripPathPrefix,
   fetchPluginManifest,
   enrichPluginMetadata,
+  readMarketplaceFile,
 } from "./plugin-source.js";
 import { computeContentHash } from "./skill-source.js";
 import { remoteBranchesLookup } from "./git-source.js";
@@ -229,6 +230,23 @@ describe("parseMcpServers", () => {
   it("throws on invalid JSON", () => {
     assert.throws(() => parseMcpServers("not json"));
   });
+
+  it("marks a server whose config references ${PLUGIN_DATA}, wherever it is", () => {
+    const content = JSON.stringify({
+      mcpServers: {
+        args: { type: "stdio", command: "x", args: ["${PLUGIN_DATA}/db"] },
+        env: { type: "stdio", command: "x", env: { D: "${PLUGIN_DATA}" } },
+        cwd: { type: "stdio", command: "x", cwd: "${PLUGIN_DATA}" },
+        root: { type: "stdio", command: "x", cwd: "${PLUGIN_ROOT}" },
+      },
+    });
+    assert.deepEqual(parseMcpServers(content), [
+      { name: "args", transport: "stdio", usesPluginData: true },
+      { name: "env", transport: "stdio", usesPluginData: true },
+      { name: "cwd", transport: "stdio", usesPluginData: true },
+      { name: "root", transport: "stdio" },
+    ]);
+  });
 });
 
 // --- fetchPluginManifest with ref ---
@@ -371,6 +389,11 @@ function writeManifest(
   );
 }
 
+function writeFile(dir: string, path: string, content: string): void {
+  mkdirSync(join(dir, path, ".."), { recursive: true });
+  writeFileSync(join(dir, path), content);
+}
+
 function entry(
   pluginId: string,
   url: string,
@@ -511,5 +534,592 @@ describe("enrichPluginMetadata pinned", () => {
     );
     assert.ok(a, "the plugin was not published");
     assert.equal(a.source.pinned, undefined);
+  });
+});
+
+// --- Agent Plugin conformance through fetchPluginManifest ---
+
+describe("fetchPluginManifest Agent Plugin conformance", () => {
+  const PLUGIN_SCHEMA =
+    "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json";
+  const MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json";
+
+  function writePlugin(
+    dir: string,
+    files: { plugin: object; mcp?: object; skills?: Record<string, string> },
+  ): void {
+    const root = join(dir, "plugins/demo");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "plugin.json"), JSON.stringify(files.plugin));
+    if (files.mcp) {
+      writeFileSync(join(root, "mcp.json"), JSON.stringify(files.mcp));
+    }
+    for (const [name, skillMd] of Object.entries(files.skills ?? {})) {
+      mkdirSync(join(root, "skills", name), { recursive: true });
+      writeFileSync(join(root, "skills", name, "SKILL.md"), skillMd);
+    }
+  }
+
+  function fetchFrom(sourceDir: string) {
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-conformance-test-"));
+    try {
+      return fetchPluginManifest(`file://${sourceDir}`, "plugins/demo", tmpDir);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  it("calls a conforming plugin an Agent Plugin, with no issues", () => {
+    const sourceDir = initRepo();
+    try {
+      writePlugin(sourceDir, {
+        plugin: { $schema: PLUGIN_SCHEMA, name: "demo" },
+        mcp: {
+          $schema: MCP_SCHEMA,
+          mcpServers: { local: { type: "stdio", command: "uvx" } },
+        },
+        skills: { alpha: "---\nname: alpha\ndescription: Alpha\n---\n" },
+      });
+      commitAll(sourceDir, "conforming");
+
+      const metadata = fetchFrom(sourceDir);
+      assert.equal(metadata.isAgentPlugin, true);
+      assert.deepEqual(metadata.agentPluginIssues, []);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a non-conforming plugin's issues, paths relative to the plugin", () => {
+    const sourceDir = initRepo();
+    try {
+      writePlugin(sourceDir, {
+        plugin: { name: "demo" },
+        mcp: {
+          $schema: MCP_SCHEMA,
+          mcpServers: { local: { command: "uvx" } },
+        },
+        skills: { beta: "---\nname: beta\n---\n" },
+      });
+      commitAll(sourceDir, "non-conforming");
+
+      const metadata = fetchFrom(sourceDir);
+      assert.equal(metadata.isAgentPlugin, false);
+      assert.equal(metadata.agentPluginIssues.length, 3);
+      assert.match(metadata.agentPluginIssues[0], /^plugin\.json has no/);
+      assert.equal(
+        metadata.agentPluginIssues[1],
+        'mcp.json server "local" declares no "type"',
+      );
+      assert.equal(
+        metadata.agentPluginIssues[2],
+        'skill "skills/beta": SKILL.md frontmatter has no "description"',
+      );
+      // Still a Plugin: its metadata is all there.
+      assert.equal(metadata.name, "demo");
+      assert.equal(metadata.containedSkills.length, 1);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("marks the contained MCP servers that use ${PLUGIN_DATA}", () => {
+    const sourceDir = initRepo();
+    try {
+      writePlugin(sourceDir, {
+        plugin: { $schema: PLUGIN_SCHEMA, name: "demo" },
+        mcp: {
+          $schema: MCP_SCHEMA,
+          mcpServers: {
+            store: {
+              type: "stdio",
+              command: "uvx",
+              args: ["--data", "${PLUGIN_DATA}/cache"],
+            },
+            remote: { type: "http", url: "https://example.com/mcp" },
+          },
+        },
+      });
+      commitAll(sourceDir, "plugin-data");
+
+      assert.deepEqual(fetchFrom(sourceDir).containedMcpServers, [
+        { name: "store", transport: "stdio", usesPluginData: true },
+        { name: "remote", transport: "http" },
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("enrichPluginMetadata Agent Plugin fields", () => {
+  it("sets isAgentPlugin, and agentPluginIssues only when there are some", () => {
+    const sourceDir = initRepo();
+    try {
+      mkdirSync(join(sourceDir, "good"), { recursive: true });
+      writeFileSync(
+        join(sourceDir, "good/plugin.json"),
+        JSON.stringify({
+          $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+          name: "good",
+        }),
+      );
+      writeManifest(sourceDir, "bad", "bad", "1.0.0");
+      commitAll(sourceDir, "plugins");
+      const url = `file://${sourceDir}`;
+
+      const [good, bad] = enrichPluginMetadata([
+        entry("io.example/good", url, "good"),
+        entry("io.example/bad", url, "bad"),
+      ]);
+      assert.equal(good.isAgentPlugin, true);
+      assert.equal("agentPluginIssues" in good, false);
+      assert.equal(bad.isAgentPlugin, false);
+      assert.equal(bad.agentPluginIssues?.length, 1);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- Marketplace files through fetchPluginManifest ---
+
+describe("fetchPluginManifest marketplace files", () => {
+  const CODEX = ".agents/plugins/marketplace.json";
+  const CLAUDE = ".claude-plugin/marketplace.json";
+
+  function marketplace(name: string, plugins: object[]): string {
+    return JSON.stringify({ name, plugins });
+  }
+
+  function fetchFrom(sourceDir: string, path?: string, ref?: string) {
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-marketplace-test-"));
+    try {
+      return fetchPluginManifest(`file://${sourceDir}`, path, tmpDir, ref, {
+        readMarketplaceFiles: true,
+      });
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  it("records each known file, with the entry that points at the plugin", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [
+          { name: "other", source: { source: "local", path: "./plugins/x" } },
+          {
+            name: "demo-entry",
+            source: { source: "local", path: "./plugins/demo" },
+          },
+        ]),
+      );
+      writeFile(
+        sourceDir,
+        CLAUDE,
+        marketplace("acme-claude", [
+          { name: "demo-c", source: "./plugins/demo/" },
+        ]),
+      );
+      writeFile(sourceDir, "marketplace.json", marketplace("root", []));
+      commitAll(sourceDir, "marketplaces");
+
+      const { marketplaceFiles, marketplaceFileWarnings } = fetchFrom(
+        sourceDir,
+        "plugins/demo",
+      );
+      // In scan-list order, which is not the order tools read them in.
+      assert.deepEqual(marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme", entryName: "demo-entry" },
+        { path: CLAUDE, marketplaceName: "acme-claude", entryName: "demo-c" },
+        { path: "marketplace.json", marketplaceName: "root" },
+      ]);
+      assert.deepEqual(marketplaceFileWarnings, []);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("matches a plugin at the repository root", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, ".", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [
+          { name: "demo", source: { source: "local", path: "./" } },
+        ]),
+      );
+      commitAll(sourceDir, "root");
+
+      assert.deepEqual(fetchFrom(sourceDir).marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme", entryName: "demo" },
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  // A git URL names some revision of some repository, not this checkout.
+  it("doesn't count an entry sourced from a git URL", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [
+          {
+            name: "demo",
+            source: {
+              source: "git-subdir",
+              url: "https://github.com/acme/repo.git",
+              path: "plugins/demo",
+            },
+          },
+          {
+            name: "demo-url",
+            source: { source: "url", url: "./", path: "plugins/demo" },
+          },
+        ]),
+      );
+      commitAll(sourceDir, "git-url");
+
+      assert.deepEqual(fetchFrom(sourceDir, "plugins/demo").marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme" },
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the plugin and warns on a malformed file", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(sourceDir, CODEX, "{ not json");
+      writeFile(
+        sourceDir,
+        CLAUDE,
+        JSON.stringify({
+          plugins: [{ name: "demo", source: "./plugins/demo" }],
+        }),
+      );
+      commitAll(sourceDir, "malformed");
+
+      const metadata = fetchFrom(sourceDir, "plugins/demo");
+      assert.equal(metadata.name, "demo");
+      assert.deepEqual(metadata.marketplaceFiles, [
+        { path: CODEX },
+        { path: CLAUDE },
+      ]);
+      assert.equal(metadata.marketplaceFileWarnings?.length, 2);
+      assert.match(
+        metadata.marketplaceFileWarnings![0],
+        /^\.agents\/plugins\/marketplace\.json: /,
+      );
+      assert.match(metadata.marketplaceFileWarnings![1], /"name"/);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the files at the approved commit, not as they are now", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("acme", [{ name: "demo", source: "./plugins/demo" }]),
+      );
+      const approved = commitAll(sourceDir, "approved");
+      writeFile(
+        sourceDir,
+        CODEX,
+        marketplace("renamed", [{ name: "moved", source: "./plugins/demo" }]),
+      );
+      writeFile(sourceDir, CLAUDE, marketplace("later", []));
+      commitAll(sourceDir, "later");
+
+      const pinned = fetchFrom(sourceDir, "plugins/demo", approved);
+      assert.equal(pinned.commit, approved);
+      assert.deepEqual(pinned.marketplaceFiles, [
+        { path: CODEX, marketplaceName: "acme", entryName: "demo" },
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads no marketplace files unless asked", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFile(sourceDir, CODEX, marketplace("acme", []));
+      commitAll(sourceDir, "unasked");
+
+      const tmpDir = mkdtempSync(join(tmpdir(), "plugin-marketplace-test-"));
+      try {
+        const metadata = fetchPluginManifest(
+          `file://${sourceDir}`,
+          "plugins/demo",
+          tmpDir,
+        );
+        assert.equal(metadata.marketplaceFiles, undefined);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("enrichPluginMetadata marketplace files", () => {
+  it("publishes marketplaceFiles, and leaves the latest fields as before", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      mkdirSync(join(sourceDir, ".agents/plugins"), { recursive: true });
+      writeFileSync(
+        join(sourceDir, ".agents/plugins/marketplace.json"),
+        JSON.stringify({
+          name: "acme",
+          plugins: [{ name: "demo", source: "./plugins/demo" }],
+        }),
+      );
+      const approved = commitAll(sourceDir, "approved");
+      writeManifest(sourceDir, "plugins/demo", "demo", "2.0.0");
+      const head = commitAll(sourceDir, "later");
+      const url = `file://${sourceDir}`;
+
+      const [a] = enrichPluginMetadata(
+        [entry("io.example/demo", url, "plugins/demo", approved)],
+        remoteBranchesLookup(),
+      );
+      assert.deepEqual(a.marketplaceFiles, [
+        {
+          path: ".agents/plugins/marketplace.json",
+          marketplaceName: "acme",
+          entryName: "demo",
+        },
+      ]);
+      assert.equal(a.latestCommit, head);
+      assert.notEqual(a.latestHash, a.contentHash);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- readMarketplaceFile ---
+
+describe("readMarketplaceFile", () => {
+  const PATH = ".agents/plugins/marketplace.json";
+  const file = (plugins: unknown, name: unknown = "acme") =>
+    JSON.stringify({ name, plugins });
+
+  it("ignores an entry that climbs out of the repository", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([{ name: "up", source: "../plugins/demo" }]),
+      "plugins/demo",
+    );
+    assert.deepEqual(record, { path: PATH, marketplaceName: "acme" });
+  });
+
+  it("ignores an absolute path", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([
+        { name: "abs", source: { source: "local", path: "/plugins/demo" } },
+      ]),
+      "plugins/demo",
+    );
+    assert.equal(record.entryName, undefined);
+  });
+
+  it("resolves a path with redundant segments", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([{ name: "demo", source: "./plugins/x/../demo/" }]),
+      "plugins/demo/",
+    );
+    assert.equal(record.entryName, "demo");
+  });
+
+  it("takes the first entry that points at the plugin", () => {
+    const { record } = readMarketplaceFile(
+      PATH,
+      file([
+        { name: "first", source: "./plugins/demo" },
+        { name: "second", source: "plugins/demo" },
+      ]),
+      "plugins/demo",
+    );
+    assert.equal(record.entryName, "first");
+  });
+
+  it("calls a file with an empty name malformed", () => {
+    const { record, warning } = readMarketplaceFile(
+      PATH,
+      file([], ""),
+      undefined,
+    );
+    assert.deepEqual(record, { path: PATH });
+    assert.match(warning ?? "", /"name"/);
+  });
+
+  it("calls a file that isn't a JSON object malformed", () => {
+    const { record, warning } = readMarketplaceFile(PATH, "[]", undefined);
+    assert.deepEqual(record, { path: PATH });
+    assert.match(warning ?? "", /not a JSON object/);
+  });
+
+  it("calls a file without a plugins array malformed", () => {
+    const { record, warning } = readMarketplaceFile(
+      PATH,
+      JSON.stringify({ name: "acme" }),
+      undefined,
+    );
+    assert.deepEqual(record, { path: PATH });
+    assert.match(warning ?? "", /"plugins"/);
+  });
+});
+
+// --- Claude Code's MCP config files through fetchPluginManifest ---
+
+describe("fetchPluginManifest MCP config files", () => {
+  function mcpConfigFilesOf(files: Record<string, string>): string[] {
+    const sourceDir = initRepo();
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-mcp-config-test-"));
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      for (const [path, content] of Object.entries(files)) {
+        writeFile(sourceDir, `plugins/demo/${path}`, content);
+      }
+      commitAll(sourceDir, "plugin");
+      return fetchPluginManifest(`file://${sourceDir}`, "plugins/demo", tmpDir)
+        .mcpConfigFiles;
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  }
+
+  const MCP_SERVERS = JSON.stringify({
+    mcpServers: { local: { command: "uvx" } },
+  });
+
+  it("records none when the plugin has neither file", () => {
+    assert.deepEqual(mcpConfigFilesOf({ "mcp.json": MCP_SERVERS }), []);
+  });
+
+  it("records .mcp.json", () => {
+    assert.deepEqual(mcpConfigFilesOf({ ".mcp.json": MCP_SERVERS }), [
+      ".mcp.json",
+    ]);
+  });
+
+  it("records .claude-plugin/plugin.json when it declares mcpServers", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({
+          name: "demo",
+          mcpServers: { local: { command: "uvx" } },
+        }),
+      }),
+      [".claude-plugin/plugin.json"],
+    );
+  });
+
+  it("records .claude-plugin/plugin.json when mcpServers names a file", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({
+          name: "demo",
+          mcpServers: "./servers.json",
+        }),
+      }),
+      [".claude-plugin/plugin.json"],
+    );
+  });
+
+  it("doesn't record a .claude-plugin/plugin.json without mcpServers", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({ name: "demo" }),
+      }),
+      [],
+    );
+  });
+
+  it("doesn't record a .claude-plugin/plugin.json that can't be parsed", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({ ".claude-plugin/plugin.json": "{ not json" }),
+      [],
+    );
+  });
+
+  it("records both, in a fixed order", () => {
+    assert.deepEqual(
+      mcpConfigFilesOf({
+        ".claude-plugin/plugin.json": JSON.stringify({
+          name: "demo",
+          mcpServers: { local: { command: "uvx" } },
+        }),
+        ".mcp.json": MCP_SERVERS,
+      }),
+      [".mcp.json", ".claude-plugin/plugin.json"],
+    );
+  });
+
+  it("reads the files at the approved commit, not as they are now", () => {
+    const sourceDir = initRepo();
+    const tmpDir = mkdtempSync(join(tmpdir(), "plugin-mcp-config-test-"));
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      const approved = commitAll(sourceDir, "approved");
+      writeFile(sourceDir, "plugins/demo/.mcp.json", MCP_SERVERS);
+      commitAll(sourceDir, "later");
+
+      const metadata = fetchPluginManifest(
+        `file://${sourceDir}`,
+        "plugins/demo",
+        tmpDir,
+        approved,
+      );
+      assert.deepEqual(metadata.mcpConfigFiles, []);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("enrichPluginMetadata MCP config files", () => {
+  it("publishes mcpConfigFiles", () => {
+    const sourceDir = initRepo();
+    try {
+      writeManifest(sourceDir, "plugins/demo", "demo", "1.0.0");
+      writeFileSync(
+        join(sourceDir, "plugins/demo/.mcp.json"),
+        JSON.stringify({ mcpServers: {} }),
+      );
+      commitAll(sourceDir, "plugin");
+
+      const [a] = enrichPluginMetadata([
+        entry("io.example/demo", `file://${sourceDir}`, "plugins/demo"),
+      ]);
+      assert.deepEqual(a.mcpConfigFiles, [".mcp.json"]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
   });
 });

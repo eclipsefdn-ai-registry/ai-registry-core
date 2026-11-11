@@ -118,6 +118,9 @@ export interface ContainedSkill {
 export interface ContainedMcpServer {
   name: string;
   transport: string;
+  // Set when the server's config references `${PLUGIN_DATA}`, which not every
+  // tool expands. Absent otherwise, and in feeds that predate it.
+  usesPluginData?: true;
 }
 
 export interface Plugin {
@@ -142,7 +145,46 @@ export interface Plugin {
   latestHash?: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
+  // Whether the plugin conforms to the Agent Plugins specification
+  // (agent-plugins.org), and if not, one readable message per failed check.
+  // agentPluginIssues is omitted for an Agent Plugin. Both are absent in feeds
+  // that predate them, which reads as unknown, never as "not an Agent Plugin".
+  isAgentPlugin?: boolean;
+  agentPluginIssues?: string[];
+  // The per-organization marketplaces the registry publishes that list this
+  // plugin, one record each, read off the files themselves so none names an
+  // entry that was left out. Empty when none does; absent in feeds that
+  // predate it, which reads as unknown.
+  publishedMarketplaces?: PublishedMarketplace[];
+  // One record per known marketplace file present in the plugin's repository
+  // at source.commit. entryName is set only when the file has a local or
+  // relative-path entry for this plugin's path; marketplaceName is absent when
+  // the file can't be parsed. Facts about files, not tools: which tool reads
+  // which file, and in what order, lives in installCommand.ts. Absent in feeds
+  // that predate it, which reads as unknown.
+  marketplaceFiles?: RepositoryMarketplaceFile[];
+  // Which of `.mcp.json`, and `.claude-plugin/plugin.json` when it declares
+  // mcpServers, the plugin directory has at source.commit, relative to the
+  // plugin. Facts about files, not tools: that Claude Code reads MCP servers
+  // only from these lives in installCommand.ts. Absent in feeds that predate
+  // it, which reads as unknown.
+  mcpConfigFiles?: string[];
   approvals: PluginApproval[];
+}
+
+// A marketplace file in a plugin's repository, as consolidation read it.
+export interface RepositoryMarketplaceFile {
+  path: string;
+  marketplaceName?: string;
+  entryName?: string;
+}
+
+// Where a plugin is listed in an organization's published marketplace, which
+// together make `claude plugin install <entryName>@<marketplaceName>`.
+export interface PublishedMarketplace {
+  orgId: string;
+  marketplaceName: string;
+  entryName: string;
 }
 
 export interface AgentInstallConfig {

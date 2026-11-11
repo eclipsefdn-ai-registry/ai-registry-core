@@ -19,6 +19,7 @@ import {
   enrichPluginMetadata,
   type ContainedSkill,
   type ContainedMcpServer,
+  type RepositoryMarketplaceFile,
 } from "./plugin-source.js";
 import { enrichAgentMetadata } from "./agent-source.js";
 import {
@@ -27,8 +28,9 @@ import {
 } from "./marketplace-source.js";
 import {
   buildMarketplace,
-  buildOrgMarketplace,
+  buildOrgMarketplaces,
   type MarketplaceFile,
+  type PublishedMarketplace,
 } from "./marketplace-output.js";
 import { enrichSandboxExtensions, type SandboxKind } from "./sandbox-source.js";
 import { authenticatedRepoUrl, remoteBranchesLookup } from "./git-source.js";
@@ -278,6 +280,35 @@ export interface PluginEntry {
   latestHash?: string;
   containedSkills: ContainedSkill[];
   containedMcpServers: ContainedMcpServer[];
+  // Output only, set at enrichment: whether the Plugin conforms to the Agent
+  // Plugins specification (agent-plugins.org), checked against the schemas
+  // bundled in schemas/agent-plugins/ (see agent-plugin-conformance.ts). A
+  // non-conforming Plugin stays in the registry. agentPluginIssues gives one
+  // readable message per failed check, and is omitted when there are none.
+  // Both are absent in feeds that predate them, which reads as unknown.
+  isAgentPlugin?: boolean;
+  agentPluginIssues?: string[];
+  // Output only, set just before writing: one record per per-organization
+  // marketplace the registry publishes that lists this plugin, read off the
+  // files themselves (see publishOrgMarketplaces), so it never names an entry
+  // that was left out. Empty when none does; absent in feeds that predate it,
+  // which reads as unknown.
+  publishedMarketplaces?: PublishedMarketplace[];
+  // Output only, set at enrichment: one record per known marketplace file
+  // (KNOWN_MARKETPLACE_FILE_PATHS) present in the repository at
+  // source.commit. entryName is set only when the file has a local or
+  // relative-path entry resolving to this plugin's path, and marketplaceName
+  // is absent when the file can't be parsed. Raw facts about files, not about
+  // tools, so a tool's rules can change on the website alone. Absent in feeds
+  // that predate it, which reads as unknown.
+  marketplaceFiles?: RepositoryMarketplaceFile[];
+  // Output only, set at enrichment: which of MCP_CONFIG_FILE_PATHS
+  // (`.mcp.json`, and `.claude-plugin/plugin.json` when it declares
+  // mcpServers) the plugin directory has at source.commit, relative to the
+  // plugin. Facts about files, not tools: Claude Code reads a plugin's MCP
+  // servers only from these, never from mcp.json, and the website draws that
+  // conclusion. Absent in feeds that predate it, which reads as unknown.
+  mcpConfigFiles?: string[];
   approvals: PluginApproval[];
 }
 
@@ -1458,6 +1489,29 @@ function writeJson(filePath: string, data: unknown): void {
   writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n");
 }
 
+/**
+ * Builds the per-organization marketplace files and records on each plugin
+ * entry the ones that list it, as publishedMarketplaces. Returns the files,
+ * keyed by organization id, for writeOutput to write; an organization whose
+ * file would list nothing has none.
+ *
+ * One builder produces both, so an entry and the files can't disagree.
+ */
+export function publishOrgMarketplaces(
+  output: ConsolidatedOutput,
+  pluginSourceMismatches: ReadonlySet<string>,
+): Map<string, MarketplaceFile> {
+  const { files, listings } = buildOrgMarketplaces(
+    output.plugins,
+    output.organizations,
+    pluginSourceMismatches,
+  );
+  for (const plugin of output.plugins) {
+    plugin.publishedMarketplaces = listings.get(plugin.pluginId) ?? [];
+  }
+  return files;
+}
+
 // Every file goes through `write`, which stamps it with generatedAt: the time
 // this run started, before any source was read. That is what dates the
 // latestCommit/latestHash values in it. A client reading only
@@ -1484,6 +1538,13 @@ function writeOutput(
     writeJson(filePath, data);
     console.log(`Written: ${filePath}`);
   };
+
+  // Built before any file is written, since every file that carries plugin
+  // entries carries their publishedMarketplaces.
+  const orgMarketplaces = publishOrgMarketplaces(
+    output,
+    pluginSourceMismatches,
+  );
 
   write(resolve(outputDir, "all.json"), output);
 
@@ -1523,13 +1584,9 @@ function writeOutput(
   mkdirSync(orgsDir, { recursive: true });
 
   for (const org of output.organizations) {
-    // Built first, so orgs/<id>.json can say whether the file exists: an
-    // organization can list plugins and still get none (see buildOrgMarketplace).
-    const marketplace = buildOrgMarketplace(
-      output.plugins,
-      org,
-      pluginSourceMismatches,
-    );
+    // An organization can list plugins and still get no file (see
+    // publishOrgMarketplaces), so orgs/<id>.json says whether it exists.
+    const marketplace = orgMarketplaces.get(org.id);
 
     write(resolve(orgsDir, `${org.id}.json`), {
       mcp: buildOrgEntryView(org.id, output.mcp),

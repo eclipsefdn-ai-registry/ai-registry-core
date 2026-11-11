@@ -7,7 +7,7 @@ import {
   rmSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { resolve, join, dirname } from "node:path";
+import { resolve, join, dirname, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   discoverSkillPaths,
@@ -22,6 +22,7 @@ import {
   sourcePinned,
   type RemoteBranchesLookup,
 } from "./git-source.js";
+import { agentPluginIssues } from "./agent-plugin-conformance.js";
 import type { PluginEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -47,6 +48,20 @@ export interface ContainedSkill {
 export interface ContainedMcpServer {
   name: string;
   transport: string;
+  // Set when the server's config references `${PLUGIN_DATA}`, which not every
+  // tool expands. Absent otherwise.
+  usesPluginData?: true;
+}
+
+/**
+ * A marketplace file in the Plugin's repository at the approved commit: its
+ * own `name`, and the name of the entry that points at this Plugin, if one
+ * does. Both are absent when the file can't be parsed.
+ */
+export interface RepositoryMarketplaceFile {
+  path: string;
+  marketplaceName?: string;
+  entryName?: string;
 }
 
 export interface PluginMetadata extends PluginManifestFields {
@@ -54,6 +69,18 @@ export interface PluginMetadata extends PluginManifestFields {
   containedMcpServers: ContainedMcpServer[];
   contentHash: string;
   commit: string;
+  // Whether the Plugin is an Agent Plugin (agent-plugins.org), and if not,
+  // why: one readable message per failed check, empty when it is one.
+  isAgentPlugin: boolean;
+  agentPluginIssues: string[];
+  // Which of MCP_CONFIG_FILE_PATHS the plugin directory has, in that order
+  // (see presentMcpConfigFiles).
+  mcpConfigFiles: string[];
+  // Only when fetchPluginManifest was asked to read them: one record per
+  // known marketplace file present at `commit`, and one warning per file that
+  // couldn't be parsed.
+  marketplaceFiles?: RepositoryMarketplaceFile[];
+  marketplaceFileWarnings?: string[];
 }
 
 // --- plugin.json parsing ---
@@ -97,6 +124,9 @@ export function parsePluginManifest(content: string): PluginManifestFields {
 
 // --- mcp.json parsing ---
 
+// Anywhere in a server's config: args, env, cwd, headers or a URL.
+const PLUGIN_DATA = "${PLUGIN_DATA}";
+
 export function parseMcpServers(content: string): ContainedMcpServer[] {
   const data = JSON.parse(content) as { mcpServers?: unknown };
 
@@ -110,9 +140,44 @@ export function parseMcpServers(content: string): ContainedMcpServer[] {
         typeof (config as { type?: unknown }).type === "string"
           ? (config as { type: string }).type
           : "";
-      return { name, transport };
+      return JSON.stringify(config ?? null).includes(PLUGIN_DATA)
+        ? { name, transport, usesPluginData: true as const }
+        : { name, transport };
     },
   );
+}
+
+// --- MCP config files ---
+
+/**
+ * The files besides `mcp.json` that declare a plugin's MCP servers, relative
+ * to the plugin: Claude Code reads its servers from these and never from
+ * `mcp.json`. `.claude-plugin/plugin.json` counts only when it has
+ * `mcpServers` (an object, or a path to a file). A fact about files: which
+ * tool reads which is the website's business.
+ */
+export const MCP_CONFIG_FILE_PATHS = [
+  ".mcp.json",
+  ".claude-plugin/plugin.json",
+] as const;
+
+/** Which of MCP_CONFIG_FILE_PATHS the plugin directory has, in that order. */
+export function presentMcpConfigFiles(pluginDir: string): string[] {
+  return MCP_CONFIG_FILE_PATHS.filter((path) => {
+    const fullPath = join(pluginDir, path);
+    if (!existsSync(fullPath)) return false;
+    if (path === ".mcp.json") return true;
+    try {
+      const data = JSON.parse(readFileSync(fullPath, "utf-8")) as unknown;
+      return (
+        typeof data === "object" &&
+        data !== null &&
+        (data as { mcpServers?: unknown }).mcpServers != null
+      );
+    } catch {
+      return false;
+    }
+  });
 }
 
 // A trailing separator would otherwise shift every downstream computation
@@ -136,6 +201,148 @@ export function normalizePluginPath(
 export function stripPathPrefix(fullPath: string, prefix: string): string {
   const prefixSegments = prefix.split("/").filter(Boolean).length;
   return fullPath.split("/").slice(prefixSegments).join("/");
+}
+
+// --- Marketplace files ---
+
+/**
+ * Every path a tool reads a marketplace file from, in no tool's order. Which
+ * tool reads which, and which it reads first, is the website's business, so
+ * a tool changing its rules costs a website change: this is the union, and a
+ * tool reading a new location costs one more path here.
+ */
+export const KNOWN_MARKETPLACE_FILE_PATHS = [
+  ".agents/plugins/marketplace.json",
+  ".agents/plugins/api_marketplace.json",
+  ".claude-plugin/marketplace.json",
+  ".cursor-plugin/marketplace.json",
+  "marketplace.json",
+  ".plugin/marketplace.json",
+  ".github/plugin/marketplace.json",
+];
+
+/**
+ * The repository-relative path an entry's source names, "" for the root, or
+ * undefined when the source isn't a path in this repository. Only a bare
+ * string and a `local` source count: a git URL (`url`, `git-subdir`,
+ * `github`) names some revision of some repository, which a tool fetches on
+ * its own, so it says nothing about the commit read here. A path climbing out
+ * of the repository counts as no path.
+ */
+function repositoryRelativePath(source: unknown): string | undefined {
+  let raw: unknown = source;
+  if (typeof source === "object" && source !== null) {
+    const { source: kind, path } = source as {
+      source?: unknown;
+      path?: unknown;
+    };
+    if (kind !== "local") return undefined;
+    raw = path;
+  }
+  if (typeof raw !== "string") return undefined;
+  const normalized = posix.normalize(raw).replace(/\/+$/, "");
+  if (normalized === "." || normalized === "") return "";
+  if (normalized === ".." || normalized.startsWith("../")) return undefined;
+  if (normalized.startsWith("/")) return undefined;
+  return normalized;
+}
+
+/**
+ * Reads one marketplace file: its `name`, and the first entry whose source is
+ * a repository-relative path resolving to `pluginPath` (undefined or "" for a
+ * plugin at the root). Paths resolve against the repository root, which is the
+ * marketplace root for every file in the scan list.
+ *
+ * A file that isn't JSON, or has no string `name` or no `plugins` array, gets
+ * a record with neither name and a warning: present, but of no use to a tool.
+ */
+export function readMarketplaceFile(
+  path: string,
+  content: string,
+  pluginPath: string | undefined,
+): { record: RepositoryMarketplaceFile; warning?: string } {
+  let data: unknown;
+  try {
+    data = JSON.parse(content);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      record: { path },
+      warning: `${path}: not valid JSON (${message})`,
+    };
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return { record: { path }, warning: `${path}: not a JSON object` };
+  }
+  const { name, plugins } = data as { name?: unknown; plugins?: unknown };
+  if (typeof name !== "string" || name === "") {
+    return { record: { path }, warning: `${path}: has no "name"` };
+  }
+  if (!Array.isArray(plugins)) {
+    return { record: { path }, warning: `${path}: has no "plugins" array` };
+  }
+  const target = normalizePluginPath(pluginPath) ?? "";
+  const entry = plugins.find(
+    (p): p is { name: string; source: unknown } =>
+      typeof p === "object" &&
+      p !== null &&
+      typeof (p as { name?: unknown }).name === "string" &&
+      repositoryRelativePath((p as { source?: unknown }).source) === target,
+  );
+  const record: RepositoryMarketplaceFile = { path, marketplaceName: name };
+  if (entry) record.entryName = entry.name;
+  return { record };
+}
+
+/**
+ * The known marketplace files present at `commit` in a clone, read from the
+ * commit's tree rather than the working tree, which sparse checkout narrowed
+ * to the Plugin's directory. No second clone: in a blobless clone each blob is
+ * fetched on its own, and only for a file that exists.
+ */
+function readMarketplaceFiles(
+  repoRoot: string,
+  commit: string,
+  pluginPath: string | undefined,
+): { records: RepositoryMarketplaceFile[]; warnings: string[] } {
+  const present = new Set(
+    execFileSync(
+      "git",
+      [
+        "-C",
+        repoRoot,
+        "ls-tree",
+        "--name-only",
+        commit,
+        "--",
+        ...KNOWN_MARKETPLACE_FILE_PATHS,
+      ],
+      { stdio: "pipe", encoding: "utf-8" },
+    )
+      .split("\n")
+      .filter(Boolean),
+  );
+  const records: RepositoryMarketplaceFile[] = [];
+  const warnings: string[] = [];
+  for (const path of KNOWN_MARKETPLACE_FILE_PATHS) {
+    if (!present.has(path)) continue;
+    let content: string;
+    try {
+      content = execFileSync(
+        "git",
+        ["-C", repoRoot, "cat-file", "blob", `${commit}:${path}`],
+        { stdio: "pipe", encoding: "utf-8" },
+      );
+    } catch {
+      records.push({ path });
+      warnings.push(`${path}: could not be read`);
+      continue;
+    }
+    const { record, warning } = readMarketplaceFile(path, content, pluginPath);
+    records.push(record);
+    if (warning) warnings.push(warning);
+  }
+  return { records, warnings };
 }
 
 // --- Plugin source fetching ---
@@ -221,11 +428,18 @@ function clonePluginRepo(
   return { repoRoot: cloneDir, pluginDir, commit };
 }
 
+/**
+ * `options.readMarketplaceFiles` also reads the known marketplace files at the
+ * resolved commit (see readMarketplaceFiles). Only consolidation asks for
+ * them: vendor validation does no extra network work for them, and the
+ * default-branch fetch behind latestHash doesn't need them.
+ */
 export function fetchPluginManifest(
   sourceUrl: string,
   sourcePath?: string,
   tmpDir?: string,
   ref?: string,
+  options: { readMarketplaceFiles?: boolean } = {},
 ): PluginMetadata {
   sourcePath = normalizePluginPath(sourcePath);
   const dir = tmpDir ?? join(ROOT, ".tmp-plugins");
@@ -248,36 +462,63 @@ export function fetchPluginManifest(
     throw new Error(`plugin.json not found at ${location}`);
   }
 
-  const manifest = parsePluginManifest(readFileSync(manifestPath, "utf-8"));
+  const pluginJson = readFileSync(manifestPath, "utf-8");
+  const manifest = parsePluginManifest(pluginJson);
 
   const skillsPrefix = sourcePath ? `${sourcePath}/skills` : "skills";
-  const skillPaths = discoverSkillPaths(repoRoot, `${skillsPrefix}/*`);
-  const containedSkills: ContainedSkill[] = skillPaths.map((path) => {
-    const skillMdPath = join(repoRoot, path, "SKILL.md");
-    const { name, description } = existsSync(skillMdPath)
-      ? parseSkillFrontmatter(readFileSync(skillMdPath, "utf-8"))
-      : { name: "", description: "" };
-    return {
-      name: name || path.split("/").pop()!,
-      description,
-      path: sourcePath ? stripPathPrefix(path, sourcePath) : path,
-    };
-  });
+  const skillFiles = discoverSkillPaths(repoRoot, `${skillsPrefix}/*`).map(
+    (path) => {
+      const skillMdPath = join(repoRoot, path, "SKILL.md");
+      return {
+        path: sourcePath ? stripPathPrefix(path, sourcePath) : path,
+        skillMd: existsSync(skillMdPath)
+          ? readFileSync(skillMdPath, "utf-8")
+          : "",
+      };
+    },
+  );
+  const containedSkills: ContainedSkill[] = skillFiles.map(
+    ({ path, skillMd }) => {
+      const { name, description } = parseSkillFrontmatter(skillMd);
+      return { name: name || path.split("/").pop()!, description, path };
+    },
+  );
 
   const mcpJsonPath = join(pluginDir, "mcp.json");
-  const containedMcpServers = existsSync(mcpJsonPath)
-    ? parseMcpServers(readFileSync(mcpJsonPath, "utf-8"))
-    : [];
+  const mcpJson = existsSync(mcpJsonPath)
+    ? readFileSync(mcpJsonPath, "utf-8")
+    : undefined;
+  const containedMcpServers =
+    mcpJson !== undefined ? parseMcpServers(mcpJson) : [];
+
+  const conformanceIssues = agentPluginIssues({
+    pluginJson,
+    mcpJson,
+    skills: skillFiles,
+  });
 
   const contentHash = computeContentHash(pluginDir);
 
-  return {
+  const metadata: PluginMetadata = {
     ...manifest,
     containedSkills,
     containedMcpServers,
     contentHash,
     commit,
+    isAgentPlugin: conformanceIssues.length === 0,
+    agentPluginIssues: conformanceIssues,
+    mcpConfigFiles: presentMcpConfigFiles(pluginDir),
   };
+  if (options.readMarketplaceFiles) {
+    const { records, warnings } = readMarketplaceFiles(
+      repoRoot,
+      commit,
+      sourcePath,
+    );
+    metadata.marketplaceFiles = records;
+    metadata.marketplaceFileWarnings = warnings;
+  }
+  return metadata;
 }
 
 // --- Enrichment (called by consolidate.ts) ---
@@ -309,6 +550,7 @@ export function enrichPluginMetadata(
           entry.source.path,
           tmpDir,
           entry.source.ref,
+          { readMarketplaceFiles: true },
         );
         entry.name = metadata.name || entry.pluginId;
         entry.description = metadata.description;
@@ -320,9 +562,25 @@ export function enrichPluginMetadata(
         entry.source = { ...entry.source, commit: metadata.commit };
         entry.containedSkills = metadata.containedSkills;
         entry.containedMcpServers = metadata.containedMcpServers;
+        entry.isAgentPlugin = metadata.isAgentPlugin;
+        if (metadata.agentPluginIssues.length > 0) {
+          entry.agentPluginIssues = metadata.agentPluginIssues;
+        } else {
+          delete entry.agentPluginIssues;
+        }
+        entry.marketplaceFiles = metadata.marketplaceFiles ?? [];
+        entry.mcpConfigFiles = metadata.mcpConfigFiles;
         console.log(`  Enriched: ${entry.pluginId}`);
         console.log(`    Name: ${entry.name}`);
         console.log(`    Hash: ${metadata.contentHash}`);
+        // Kept, and the file recorded as listing nothing.
+        for (const warning of metadata.marketplaceFileWarnings ?? []) {
+          console.warn(`    WARNING: marketplace file ${warning}`);
+        }
+        // Kept, but not an Agent Plugin: say why, so the vendor can fix it.
+        for (const issue of metadata.agentPluginIssues) {
+          console.warn(`    WARNING: not an Agent Plugin: ${issue}`);
+        }
         if (remote) {
           const pinned = sourcePinned(entry.source, remote);
           if (pinned !== undefined) entry.source.pinned = pinned;

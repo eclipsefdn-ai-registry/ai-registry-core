@@ -4,6 +4,7 @@ import {
   buildMarketplace,
   marketplaceEntryName,
   buildOrgMarketplace,
+  buildOrgMarketplaces,
 } from "./marketplace-output.js";
 import type { PluginEntry } from "./consolidate.js";
 
@@ -299,6 +300,137 @@ describe("buildOrgMarketplace", () => {
       ),
       undefined,
     );
+  });
+});
+
+// --- buildOrgMarketplaces ---
+
+describe("buildOrgMarketplaces", () => {
+  const google = { id: "google", name: "Google" };
+  const aws = { id: "aws", name: "AWS" };
+
+  function approval(organizationId: string, viaTrust?: string) {
+    return {
+      organizationId,
+      date: "2026-09-11",
+      configHash: "f400c1e06354",
+      installConfigs: [],
+      ...(viaTrust ? { viaTrust } : {}),
+    };
+  }
+
+  function buildAllQuietly(
+    plugins: PluginEntry[],
+    mismatches: ReadonlySet<string> = new Set(),
+  ) {
+    const originalWarn = console.warn;
+    console.warn = () => {};
+    try {
+      return buildOrgMarketplaces(plugins, [google, aws], mismatches);
+    } finally {
+      console.warn = originalWarn;
+    }
+  }
+
+  // The listing a plugin's entry would publish, read back off the files, so
+  // every case below asserts that entries and files agree.
+  function listedIn(
+    files: ReadonlyMap<
+      string,
+      {
+        name: string;
+        plugins: { name: string; metadata: { pluginId: string } }[];
+      }
+    >,
+    pluginId: string,
+  ) {
+    return [...files].flatMap(([orgId, file]) =>
+      file.plugins
+        .filter((entry) => entry.metadata.pluginId === pluginId)
+        .map((entry) => ({
+          orgId,
+          marketplaceName: file.name,
+          entryName: entry.name,
+        })),
+    );
+  }
+
+  it("lists a plugin under every organization whose file carries it", () => {
+    const { files, listings } = buildAllQuietly([
+      plugin({ approvals: [approval("google"), approval("aws")] }),
+    ]);
+    const id = "io.github.gemini-cli-extensions/looker";
+    assert.deepEqual(listings.get(id), [
+      {
+        orgId: "google",
+        marketplaceName: "ai-registry-google",
+        entryName: "io.github.gemini-cli-extensions.looker",
+      },
+      {
+        orgId: "aws",
+        marketplaceName: "ai-registry-aws",
+        entryName: "io.github.gemini-cli-extensions.looker",
+      },
+    ]);
+    assert.deepEqual(listings.get(id), listedIn(files, id));
+  });
+
+  it("builds no file for an organization that would list nothing", () => {
+    const { files } = buildAllQuietly([plugin()]);
+    assert.deepEqual([...files.keys()], ["google"]);
+  });
+
+  it("has no listing for a plugin whose id makes no entry name", () => {
+    const id = "io.github.acme/has space";
+    const { files, listings } = buildAllQuietly([plugin({ pluginId: id })]);
+    assert.equal(listings.get(id), undefined);
+    assert.equal(files.size, 0);
+  });
+
+  it("lists only the winner of two ids that derive one name", () => {
+    const { files, listings } = buildAllQuietly([
+      plugin({ pluginId: "a.b/c" }),
+      plugin({ pluginId: "a/b.c" }),
+    ]);
+    // "." sorts before "/", so "a.b/c" takes the name.
+    assert.equal(listings.get("a/b.c"), undefined);
+    assert.deepEqual(listings.get("a.b/c"), listedIn(files, "a.b/c"));
+    assert.equal(listings.get("a.b/c")?.length, 1);
+  });
+
+  it("leaves out the organization that approved another revision", () => {
+    const id = "io.github.acme/one";
+    const { files, listings } = buildAllQuietly(
+      [
+        plugin({
+          pluginId: id,
+          approvals: [approval("google"), approval("aws")],
+        }),
+      ],
+      new Set([`${id}::aws`]),
+    );
+    assert.deepEqual(listings.get(id), [
+      {
+        orgId: "google",
+        marketplaceName: "ai-registry-google",
+        entryName: "io.github.acme.one",
+      },
+    ]);
+    assert.deepEqual(listings.get(id), listedIn(files, id));
+  });
+
+  it("leaves out a trusting organization when the trusted revision lost", () => {
+    const id = "io.github.acme/one";
+    const { listings } = buildAllQuietly(
+      [
+        plugin({
+          pluginId: id,
+          approvals: [approval("google"), approval("aws", "google")],
+        }),
+      ],
+      new Set([`${id}::google`]),
+    );
+    assert.equal(listings.get(id), undefined);
   });
 });
 

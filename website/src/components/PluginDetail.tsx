@@ -1,4 +1,5 @@
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import type {
   Plugin,
   Organization,
@@ -9,12 +10,16 @@ import type {
 import { sanitizeUrl } from "../sanitize";
 import { ApprovalCard } from "./ServerDetail";
 import { sourceTreeUrl } from "../cliSource";
-import { kiroPowerUrl, pluginsCommand } from "../installCommand";
+import {
+  pluginInstallOptions,
+  type InstallStep,
+  type PluginInstallOption,
+} from "../installCommand";
 import { sourceLinkTitle } from "../approvedTarget";
-import { InstallFromCli, InstallFromCliUnavailable } from "./InstallFromCli";
+import { InstallFromCli } from "./InstallFromCli";
+import { TabButtons } from "./TabButtons";
 import { ApprovedTarget } from "./ApprovedTarget";
-
-const OTHER_AGENTS_LABEL = "Install in other agents";
+import { AgentPluginBadge } from "./AgentPluginBadge";
 
 export function PluginDetail({
   plugin,
@@ -30,9 +35,6 @@ export function PluginDetail({
   generatedAt?: string;
 }) {
   const sourceUrl = sourceTreeUrl(plugin.source);
-  // Undefined whenever the approval names a ref, which the plugins CLI can't
-  // target yet; see pluginsCommand.
-  const installCommand = pluginsCommand(plugin);
 
   return (
     <div className="bg-card border border-primary/50 rounded-xl p-6 shadow-md">
@@ -46,6 +48,7 @@ export function PluginDetail({
       <h2 className="text-xl font-bold mb-1">{plugin.name}</h2>
       <p className="text-muted-foreground mb-4">{plugin.description}</p>
       <div className="flex gap-3 mb-4 flex-wrap items-center text-sm">
+        <AgentPluginBadge plugin={plugin} />
         <span className="text-muted-foreground font-mono text-xs">
           {plugin.pluginId}
         </span>
@@ -106,6 +109,8 @@ export function PluginDetail({
         </div>
       )}
 
+      <AgentPluginIssues plugin={plugin} />
+
       <ContainedComponents
         skills={plugin.containedSkills}
         mcpServers={plugin.containedMcpServers}
@@ -126,36 +131,158 @@ export function PluginDetail({
         ))}
       </div>
 
-      <InstallFromCli
-        label="Install in Kiro"
-        command={kiroPowerUrl(plugin)}
-        lead={
-          <>
-            In Kiro, open{" "}
-            <strong>
-              Powers → Add Custom Power → Import power from GitHub
-            </strong>{" "}
-            and paste:
-          </>
-        }
+      <InstallOptions
+        options={pluginInstallOptions(
+          plugin,
+          new URL(import.meta.env.BASE_URL, window.location.origin).href,
+        )}
       />
-
-      {installCommand ? (
-        <InstallFromCli
-          label={OTHER_AGENTS_LABEL}
-          lead="For other agents, this plugin might be installable with:"
-          command={installCommand}
-        />
-      ) : (
-        <InstallFromCliUnavailable label={OTHER_AGENTS_LABEL}>
-          Installing the approved version isn't currently possible with{" "}
-          <code>npx plugins add</code>. This approval names{" "}
-          <code>{plugin.source.ref}</code>, and the plugins CLI always installs
-          from the repository's default branch.
-        </InstallFromCliUnavailable>
-      )}
     </div>
   );
+}
+
+type InstallTool = PluginInstallOption["tool"];
+
+// Every way to install the plugin, one tab per tool in the order
+// pluginInstallOptions gives, so the page shows one tool's steps at a time
+// rather than all of them stacked. A tool with several options (Claude Code,
+// once per organization marketplace) shows them all in its tab.
+function InstallOptions({ options }: { options: PluginInstallOption[] }) {
+  const tools = [...new Set(options.map((option) => option.tool))];
+  const [selected, setSelected] = useState<InstallTool | undefined>();
+  if (tools.length === 0) return null;
+  const active = selected && tools.includes(selected) ? selected : tools[0];
+  const tabs = tools.map((tool) => ({
+    key: tool,
+    label: toolName(options.find((option) => option.tool === tool)!.label),
+  }));
+  return (
+    <div className="mt-6">
+      <h3 className="text-base font-semibold mb-1">Install</h3>
+      <div className="mb-4 border-b border-border">
+        <TabButtons tabs={tabs} active={active} onSelect={setSelected} />
+      </div>
+      <div className="space-y-4">
+        {options
+          .filter((option) => option.tool === active)
+          .map((option, i) => (
+            <InstallOption key={i} option={option} />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// "Install in VS Code (GitHub Copilot)" → "VS Code (GitHub Copilot)",
+// "Install in other agents" → "Other agents".
+function toolName(label: string): string {
+  const name = label.replace(/^Install in /, "");
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+// Why a plugin isn't an Agent Plugin, as consolidation reported it. Shown
+// only for a plugin known not to conform: an older feed without the verdict
+// shows nothing, since there it's unknown.
+function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
+  const issues = plugin.agentPluginIssues ?? [];
+  if (plugin.isAgentPlugin !== false || issues.length === 0) return null;
+  return (
+    <div className="mb-6 rounded-lg border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
+      <div className="flex items-center gap-2 font-medium text-warning mb-2">
+        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+        Not an Agent Plugin
+      </div>
+      <p className="text-card-foreground mb-2">
+        This plugin doesn&apos;t conform to the{" "}
+        <a
+          href="https://agent-plugins.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline"
+        >
+          Agent Plugins specification
+        </a>
+        . It is still approved, but tools that only load Agent Plugins may not
+        install it.
+      </p>
+      <ul className="list-disc pl-5 space-y-1 text-card-foreground">
+        {issues.map((issue, i) => (
+          <li key={i} className="break-words">
+            {issue}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// One option's instructions in one card, so its steps read as a sequence and
+// not as separate sections: a numbered copy box per step, with warnings under
+// the last one, or the explanation when the tool can't install the approved
+// revision.
+function InstallOption({ option }: { option: PluginInstallOption }) {
+  const warnings =
+    option.warnings.length > 0 ? (
+      <>
+        {option.warnings.map((warning, i) => (
+          <span key={i} className="block mt-2 first:mt-0">
+            {withCode(warning)}
+          </span>
+        ))}
+      </>
+    ) : undefined;
+  if ("unavailable" in option) {
+    return (
+      <div className="border border-border rounded-lg p-4">
+        <p className="text-xs text-muted-foreground">
+          {withCode(option.unavailable)}
+        </p>
+        {warnings && (
+          <p className="mt-2 text-xs text-muted-foreground">{warnings}</p>
+        )}
+      </div>
+    );
+  }
+  const numbered = option.steps.length > 1;
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-4">
+      {option.steps.map((step, i) => (
+        <InstallFromCli
+          key={i}
+          className=""
+          label={numbered ? `Step ${i + 1}` : ""}
+          lead={stepLead(step)}
+          command={stepValue(step)}
+          note={i === option.steps.length - 1 ? warnings : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+function stepLead(step: InstallStep): React.ReactNode {
+  if (step.kind === "command") return step.lead;
+  if (step.kind === "install") {
+    return <>In {step.app}, install this plugin from that marketplace:</>;
+  }
+  return (
+    <>
+      In {step.app}, open <strong>{step.action}</strong> and paste:
+    </>
+  );
+}
+
+function stepValue(step: InstallStep): string {
+  if (step.kind === "command") return step.command;
+  if (step.kind === "install") return step.plugin;
+  return step.value;
+}
+
+// Renders the backtick-marked spans of an option's prose as code.
+function withCode(text: string): React.ReactNode {
+  return text
+    .split("`")
+    .map((part, i) => (i % 2 === 1 ? <code key={i}>{part}</code> : part));
 }
 
 // Read-only for now — a future cross-link pass can match these by id against

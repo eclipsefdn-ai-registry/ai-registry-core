@@ -1,5 +1,6 @@
 import type { Plugin, Organization } from "../types";
 import { ArtifactList } from "./ArtifactList";
+import { AgentPluginBadge } from "./AgentPluginBadge";
 
 export function PluginList({
   plugins,
@@ -18,6 +19,7 @@ export function PluginList({
       onSelect={onSelect}
       emptyLabel="No plugins found."
       approvedTitle={(org) => `Approved by ${org.name}`}
+      renderBadge={(plugin) => <AgentPluginBadge plugin={plugin} interactive />}
       renderExtra={(plugin) => {
         const summary = contentsSummary(plugin);
         return summary ? (

@@ -16,8 +16,11 @@ export function InstallFromCli({
   lead,
   note,
   label = "Install from CLI",
+  className = "mt-6",
 }: {
   command: string;
+  // The box's outer spacing, replaced where a container spaces its boxes.
+  className?: string;
   // Said before the command, where the reader needs it to know what the
   // command is for or, for a URL, where to paste it; `note` comes after it.
   lead?: React.ReactNode;
@@ -38,7 +41,7 @@ export function InstallFromCli({
   };
 
   return (
-    <div className="mt-6">
+    <div className={className}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-muted-foreground">
           {label}
@@ -55,25 +58,6 @@ export function InstallFromCli({
         {command}
       </pre>
       {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
-    </div>
-  );
-}
-
-/**
- * Takes the install box's place when no command can install what was approved.
- * Same label and spacing, but nothing to copy: an explanation is all there is.
- */
-export function InstallFromCliUnavailable({
-  children,
-  label = "Install from CLI",
-}: {
-  children: React.ReactNode;
-  label?: string;
-}) {
-  return (
-    <div className="mt-6">
-      <span className="text-sm font-medium text-muted-foreground">{label}</span>
-      <p className="mt-2 text-xs text-muted-foreground">{children}</p>
     </div>
   );
 }
