@@ -107,6 +107,10 @@ export function deriveRepoNamespace(url: string): {
 // exercised by any currently-known real marketplace (each lists at most one
 // git-subdir entry per external repo) — accepted as a scope limit rather
 // than adding a disambiguation scheme for a case with no real data yet.
+// The same holds across repositories: nested groups don't enter the ID
+// (see deriveRepoNamespace), so gitlab.com/org/a/plugins and
+// gitlab.com/org/b/plugins derive the same ID too, as direct approvals of
+// them already would.
 export function derivePluginIdFromSource(
   resolved: ResolvedPluginSource,
 ): string {
