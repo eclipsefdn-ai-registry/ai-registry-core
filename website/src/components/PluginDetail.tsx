@@ -188,8 +188,8 @@ function InstallOptions({
 }
 
 // That a plugin isn't an Agent Plugin, and why, as consolidation reported it,
-// above the install tabs, since what it changes is which tools can install the
-// plugin. It says the tools can't, not that the plugin is risky: the plugin is
+// above the install tabs, since what it changes is which tools are offered.
+// It says which tools are offered, not that the plugin is risky: the plugin is
 // approved either way. Shown only for a plugin known not to conform: an older
 // feed without the verdict shows nothing, since there it's unknown.
 function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
@@ -211,7 +211,7 @@ function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
         >
           Agent Plugins specification
         </a>
-        , so tools that only load Agent Plugins can&apos;t install it.
+        , so install instructions are given only for the tools below.
       </p>
       {issues.length > 0 && (
         <ul className="mt-2 list-disc pl-5 space-y-1 text-card-foreground">

@@ -406,16 +406,27 @@ describe("pluginInstallOptions", () => {
     ]);
   });
 
+  // The registry offers the tools that read the Agent Plugins specification
+  // only for a plugin that conforms to it.
+  it("lists only Claude Code and other agents for a plugin that isn't an Agent Plugin", () => {
+    assert.deepEqual(
+      optionsFor(
+        { commit: COMMIT },
+        { ...NOT_AGENT_PLUGIN, publishedMarketplaces: [GOOGLE] },
+      ).tools,
+      ["claude-code", "npx-plugins"],
+    );
+  });
+
   it("lists Kiro first of the tools that can't install", () => {
     const options = pluginInstallOptions(
-      plugin({ url: "https://gitlab.com/acme/plugins.git" }, NOT_AGENT_PLUGIN),
+      plugin({ url: "https://gitlab.com/acme/plugins.git" }, AGENT_PLUGIN),
       BASE_URL,
       orgName,
     );
     assert.deepEqual(
       options.map((option) => [option.tool, "unavailable" in option]),
       [
-        ["npx-plugins", false],
         ["kiro", true],
         ["claude-code", true],
         ["codex", true],
@@ -425,11 +436,18 @@ describe("pluginInstallOptions", () => {
   });
 
   it("gives an unavailable tool its label and reason, and nothing else", () => {
-    assert.deepEqual(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro, {
-      tool: "kiro",
-      label: "Kiro",
-      unavailable: "Kiro only loads Agent Plugins, and this plugin isn't one.",
-    });
+    assert.deepEqual(
+      optionsFor(
+        { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
+        AGENT_PLUGIN,
+      ).kiro,
+      {
+        tool: "kiro",
+        label: "Kiro",
+        unavailable:
+          "Kiro imports a power only from github.com, and this plugin's repository is on another host.",
+      },
+    );
   });
 
   describe("Claude Code", () => {
@@ -601,27 +619,37 @@ describe("pluginInstallOptions", () => {
   });
 
   describe("npx plugins", () => {
-    const command = {
+    const commandWith = (lead: string) => ({
       tool: "npx-plugins",
       label: "Other agents",
       steps: [
         {
           kind: "command",
-          lead: "For other agents, this plugin might be installable with:",
+          lead,
           value: "npx plugins add gemini-cli-extensions/looker",
         },
       ],
       warnings: [EVERY_PLUGIN],
-    };
+    });
 
+    // Says, without naming it, that the plugin isn't in the shared format, so
+    // the command is a best effort.
     it("offers a command when the approval names no ref", () => {
-      assert.deepEqual(optionsFor({}, NOT_AGENT_PLUGIN).npxPlugins, command);
+      assert.deepEqual(
+        optionsFor({}, NOT_AGENT_PLUGIN).npxPlugins,
+        commandWith(
+          "Other agents might install this plugin with the command below, but it isn't packaged in the format they share, so whether it loads, and how, depends on the agent:",
+        ),
+      );
     });
 
     // An older feed has no verdict, which is unknown rather than false, so it
     // keeps the command it always had.
     it("offers a command in a feed without the verdict", () => {
-      assert.deepEqual(optionsFor().npxPlugins, command);
+      assert.deepEqual(
+        optionsFor().npxPlugins,
+        commandWith("For other agents, this plugin might be installable with:"),
+      );
     });
 
     // An Agent Plugin has tools that install it at the approved commit.
@@ -712,10 +740,10 @@ describe("pluginInstallOptions", () => {
 
     // Kiro won't load a plugin.json without `$schema`, and that is one of the
     // conformance checks.
-    it("is unavailable for a plugin that isn't an Agent Plugin", () => {
+    it("isn't offered for a plugin that isn't an Agent Plugin", () => {
       assert.equal(
-        whyNot(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro),
-        "Kiro only loads Agent Plugins, and this plugin isn't one.",
+        optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro,
+        undefined,
       );
     });
 
@@ -880,15 +908,13 @@ describe("pluginInstallOptions", () => {
       );
     });
 
-    it("is unavailable for a plugin that isn't an Agent Plugin", () => {
+    it("isn't offered for a plugin that isn't an Agent Plugin", () => {
       assert.equal(
-        whyNot(
-          optionsFor(
-            { commit: COMMIT },
-            { ...NOT_AGENT_PLUGIN, marketplaceFiles: [LISTED] },
-          ).codex,
-        ),
-        "Codex only loads Agent Plugins, and this plugin isn't one.",
+        optionsFor(
+          { commit: COMMIT },
+          { ...NOT_AGENT_PLUGIN, marketplaceFiles: [LISTED] },
+        ).codex,
+        undefined,
       );
     });
 
@@ -986,13 +1012,13 @@ describe("pluginInstallOptions", () => {
         );
       });
 
-      it("is offered whether or not the plugin is an Agent Plugin", () => {
-        assert.deepEqual(
+      it("isn't offered for a plugin that isn't an Agent Plugin", () => {
+        assert.equal(
           optionsFor(
             { commit: COMMIT },
             { ...NOT_AGENT_PLUGIN, marketplaceFiles: [LISTED] },
           ).vsCode,
-          pinnedFor(),
+          undefined,
         );
       });
 

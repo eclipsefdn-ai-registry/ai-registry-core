@@ -626,8 +626,11 @@ export function ClientsPage() {
             installs the endorsed commit whatever ref the approval names.
           </li>
           <li>
-            Offer VS Code (GitHub Copilot) only for a plugin on github.com,
-            Agent Plugin or not, in one of two forms. When the first of{" "}
+            Offer VS Code (GitHub Copilot) only for an Agent Plugin on
+            github.com, in one of two forms. VS Code also reads a plugin that
+            isn&apos;t one, but the registry backs the specification, so for
+            such a plugin it offers only Claude Code and the{" "}
+            <InlineCode>plugins</InlineCode> CLI. When the first of{" "}
             <InlineCode>marketplace.json</InlineCode>,{" "}
             <InlineCode>.plugin/marketplace.json</InlineCode>,{" "}
             <InlineCode>.github/plugin/marketplace.json</InlineCode> and{" "}

@@ -151,26 +151,31 @@ type PluginFacts = Pick<
  * The tools that can install the plugin come first, then the ones that can't,
  * each group in the order Kiro, Claude Code, Codex, VS Code, `npx plugins`.
  *
- * Kiro, Claude Code, Codex and VS Code are always listed: one that can't
- * install the approved plugin comes back `unavailable`, with the first reason
- * that stops it, rather than being left out, so the reader sees that it was
- * considered and why it doesn't work. Only `npx plugins` is left out, for an
- * Agent Plugin. A missing `isAgentPlugin` (a feed that predates it) is unknown,
- * not false, so it passes every tool's verdict check; their other checks still
- * apply.
+ * Which tools are listed follows the verdict, since the registry backs the
+ * Agent Plugins specification. An Agent Plugin gets Kiro, Claude Code, Codex
+ * and VS Code; a plugin that isn't one gets only Claude Code and `npx plugins`.
+ * A missing `isAgentPlugin` (a feed that predates it) is unknown, not false,
+ * and gets all five. A listed tool that can't install the approved plugin
+ * comes back `unavailable`, with the first reason that stops it, rather than
+ * being left out, so the reader sees that it was considered and why it doesn't
+ * work.
  */
 export function pluginInstallOptions(
   plugin: PluginFacts,
   baseUrl: string,
   orgName: (orgId: string) => string,
 ): PluginInstallOption[] {
-  const options = [
-    kiroOption(plugin),
-    ...claudeCodeOptions(plugin, baseUrl, orgName),
-    codexOption(plugin),
-    vsCodeOption(plugin),
-    npxPluginsOption(plugin),
-  ].filter((option) => option !== undefined);
+  const claudeCode = claudeCodeOptions(plugin, baseUrl, orgName);
+  const options =
+    plugin.isAgentPlugin === false
+      ? [...claudeCode, npxPluginsOption(plugin)]
+      : [
+          kiroOption(plugin),
+          ...claudeCode,
+          codexOption(plugin),
+          vsCodeOption(plugin),
+          ...(plugin.isAgentPlugin === true ? [] : [npxPluginsOption(plugin)]),
+        ];
   // Stable, so each group keeps the order above.
   return options.sort(
     (a, b) => Number("unavailable" in a) - Number("unavailable" in b),
@@ -179,10 +184,6 @@ export function pluginInstallOptions(
 
 // The reasons more than one tool gives for not installing a plugin. They say
 // that the tool can't do it, never that the plugin is at fault or unsafe.
-function notAgentPlugin(tool: string): string {
-  return `${tool} only loads Agent Plugins, and this plugin isn't one.`;
-}
-
 function noCommit(tool: string): string {
   return `The registry has no commit recorded for this plugin, so ${tool} can't be pointed at the approved version.`;
 }
@@ -296,8 +297,9 @@ const CODEX_MARKETPLACE_FILES = [
  * against Codex 0.167.0), so this installs the approved commit whatever ref
  * the approval names.
  *
- * Available only for an Agent Plugin with a `source.commit` whose first-found
- * Codex marketplace file has an entry for it, and unavailable otherwise. Consolidation sets `entryName`
+ * Available only with a `source.commit` whose first-found Codex marketplace
+ * file has an entry for it, and unavailable otherwise. Listed only for an
+ * Agent Plugin (see pluginInstallOptions). Consolidation sets `entryName`
  * only for a repository-relative entry, so a git-URL entry, which Codex would
  * fetch on its own and only pin by its own `sha`, never qualifies. Any git
  * host: github.com goes as `owner/repo`, any other as its git URL.
@@ -308,9 +310,6 @@ function codexOption(plugin: PluginFacts): PluginInstallOption {
     ...option,
     unavailable: reason,
   });
-  if (plugin.isAgentPlugin === false) {
-    return unavailable(notAgentPlugin("Codex"));
-  }
   const { commit, url } = plugin.source;
   if (!commit) return unavailable(noCommit("Codex"));
   if (!plugin.marketplaceFiles) {
@@ -389,7 +388,8 @@ const VS_CODE_MARKETPLACE_FILES = [
  * matched without it, so the entry could be missing or another plugin's. A
  * feed without `marketplaceFiles` is unknown, and passes.
  *
- * Not gated on `isAgentPlugin`: VS Code also reads a Claude-format plugin. Both
+ * Listed only for an Agent Plugin (see pluginInstallOptions), though VS Code
+ * also reads a Claude-format plugin. Both
  * forms warn when a contained MCP server uses `${PLUGIN_DATA}`, which VS Code
  * leaves unexpanded. Whatever fits neither form is unavailable.
  */
@@ -481,9 +481,10 @@ function pluginDataWarnings(plugin: PluginFacts): string[] {
  * sourceTreeUrl does. The path is required for a plugin in a subfolder: Kiro
  * ignores marketplace files, so the repository root alone doesn't find it.
  *
- * Available only for an Agent Plugin on github.com with a `source.commit`: Kiro
- * rejects a non-GitHub URL and won't load a plugin.json without `$schema`, and
- * without the commit the link could only name a ref or HEAD.
+ * Available only on github.com with a `source.commit`: Kiro rejects a
+ * non-GitHub URL, and without the commit the link could only name a ref or
+ * HEAD. Listed only for an Agent Plugin (see pluginInstallOptions), since Kiro
+ * won't load a plugin.json without `$schema`.
  */
 function kiroOption(plugin: PluginFacts): PluginInstallOption {
   const option = { tool: "kiro" as const, label: "Kiro" };
@@ -491,9 +492,6 @@ function kiroOption(plugin: PluginFacts): PluginInstallOption {
     ...option,
     unavailable: reason,
   });
-  if (plugin.isAgentPlugin === false) {
-    return unavailable(notAgentPlugin("Kiro"));
-  }
   if (!isGitHubUrl(plugin.source.url)) {
     return unavailable(
       "Kiro imports a power only from github.com, and this plugin's repository is on another host.",
@@ -516,8 +514,10 @@ function kiroOption(plugin: PluginFacts): PluginInstallOption {
 
 /**
  * The `npx plugins add` command for a plugin that isn't an Agent Plugin, or why
- * there is none when the approval names a ref. An Agent Plugin gets nothing:
- * the tools that read the specification install it at the approved commit.
+ * there is none when the approval names a ref. Listed only for such a plugin
+ * (see pluginInstallOptions). For one known not to conform, the lead says,
+ * without naming the specification, that it isn't in the format agents share,
+ * so how another agent loads it is a best effort.
  *
  * Keyed to the CLI's capability, not to `source.pinned`: plugins 1.3.4 runs
  * `git clone --depth 1` with no ref and has no flag for one, so a branch ref is
@@ -526,10 +526,7 @@ function kiroOption(plugin: PluginFacts): PluginInstallOption {
  * every plugin it discovers in the repository is installed, which the command
  * says. Remove the suppression once the CLI can target a ref.
  */
-function npxPluginsOption(
-  plugin: PluginFacts,
-): PluginInstallOption | undefined {
-  if (plugin.isAgentPlugin === true) return undefined;
+function npxPluginsOption(plugin: PluginFacts): PluginInstallOption {
   const option = {
     tool: "npx-plugins" as const,
     label: "Other agents",
@@ -546,7 +543,10 @@ function npxPluginsOption(
     steps: [
       {
         kind: "command",
-        lead: "For other agents, this plugin might be installable with:",
+        lead:
+          plugin.isAgentPlugin === false
+            ? "Other agents might install this plugin with the command below, but it isn't packaged in the format they share, so whether it loads, and how, depends on the agent:"
+            : "For other agents, this plugin might be installable with:",
         value: `npx plugins add ${cliSource(url)}`,
       },
     ],
