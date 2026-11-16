@@ -295,6 +295,14 @@ function optionsFor(
   };
 }
 
+// The reason a tool gives for not installing the plugin, or undefined when it
+// has steps (or isn't listed at all).
+function whyNot(
+  option: ReturnType<typeof pluginInstallOptions>[number] | undefined,
+): string | undefined {
+  return option && "unavailable" in option ? option.unavailable : undefined;
+}
+
 function kiroFor(link: string) {
   return {
     tool: "kiro",
@@ -362,33 +370,51 @@ const AGENT_PLUGIN = { isAgentPlugin: true };
 const NOT_AGENT_PLUGIN = { isAgentPlugin: false };
 
 describe("pluginInstallOptions", () => {
-  it("lists Kiro, VS Code, then npx plugins, for a feed without the verdict", () => {
+  // Kiro, Claude Code, Codex and VS Code are always there, installable or
+  // not: the ones that can install first, then the ones that can't.
+  it("lists the tools that can install before the ones that can't", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }).tools, [
       "kiro",
       "vscode",
       "npx-plugins",
+      "claude-code",
+      "codex",
     ]);
   });
 
-  it("offers Kiro and not npx plugins for an Agent Plugin", () => {
+  it("lists the four tools and not npx plugins for an Agent Plugin", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }, AGENT_PLUGIN).tools, [
       "kiro",
       "vscode",
+      "claude-code",
+      "codex",
     ]);
   });
 
-  it("offers npx plugins and not Kiro for a plugin that isn't an Agent Plugin", () => {
-    assert.deepEqual(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).tools, [
-      "vscode",
-      "npx-plugins",
-    ]);
-  });
-
-  it("lists Kiro first, then Claude Code, VS Code and npx plugins", () => {
-    assert.deepEqual(
-      optionsFor({ commit: COMMIT }, { publishedMarketplaces: [GOOGLE] }).tools,
-      ["kiro", "claude-code", "vscode", "npx-plugins"],
+  it("lists Kiro first of the tools that can't install", () => {
+    const options = pluginInstallOptions(
+      plugin({ url: "https://gitlab.com/acme/plugins.git" }, NOT_AGENT_PLUGIN),
+      BASE_URL,
     );
+    assert.deepEqual(
+      options.map((option) => [option.tool, "unavailable" in option]),
+      [
+        ["npx-plugins", false],
+        ["kiro", true],
+        ["claude-code", true],
+        ["codex", true],
+        ["vscode", true],
+      ],
+    );
+  });
+
+  it("gives an unavailable tool its label and no warnings", () => {
+    assert.deepEqual(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro, {
+      tool: "kiro",
+      label: "Install in Kiro",
+      unavailable: "Kiro only loads Agent Plugins, and this plugin isn't one.",
+      warnings: [],
+    });
   });
 
   describe("Claude Code", () => {
@@ -427,34 +453,50 @@ describe("pluginInstallOptions", () => {
       );
     });
 
-    it("is not offered for a plugin no marketplace lists", () => {
-      assert.deepEqual(
-        optionsFor({ commit: COMMIT }, { publishedMarketplaces: [] })
-          .claudeCode,
-        [],
+    function whyNotClaudeCode(options: ReturnType<typeof optionsFor>) {
+      assert.equal(options.claudeCode.length, 1);
+      return whyNot(options.claudeCode[0]);
+    }
+
+    it("is unavailable for a plugin no marketplace lists", () => {
+      assert.equal(
+        whyNotClaudeCode(
+          optionsFor({ commit: COMMIT }, { publishedMarketplaces: [] }),
+        ),
+        "No organization's published marketplace lists this plugin, and Claude Code installs an approved plugin through one.",
       );
     });
 
     // Missing means unknown, and there is no entry to name.
-    it("is not offered in a feed without the listing", () => {
-      assert.deepEqual(optionsFor({ commit: COMMIT }).claudeCode, []);
+    it("is unavailable in a feed without the listing", () => {
+      assert.equal(
+        whyNotClaudeCode(optionsFor({ commit: COMMIT })),
+        "The registry data doesn't record which published marketplaces list this plugin, and Claude Code installs an approved plugin through one.",
+      );
     });
 
+    const NO_SHA =
+      "The registry has no full commit SHA recorded for this plugin, so a published marketplace entry can't pin Claude Code to the approved version.";
+
     // Without the commit, the published entry has no sha to pin the install.
-    it("is not offered without a commit", () => {
-      assert.deepEqual(
-        optionsFor({}, { publishedMarketplaces: [GOOGLE] }).claudeCode,
-        [],
+    it("is unavailable without a commit", () => {
+      assert.equal(
+        whyNotClaudeCode(optionsFor({}, { publishedMarketplaces: [GOOGLE] })),
+        NO_SHA,
       );
     });
 
     // The publisher drops a commit Claude Code won't take, so there is no
     // `sha` either.
-    it("is not offered for a commit shorter than a full SHA", () => {
-      assert.deepEqual(
-        optionsFor({ commit: "7b4a44e" }, { publishedMarketplaces: [GOOGLE] })
-          .claudeCode,
-        [],
+    it("is unavailable for a commit shorter than a full SHA", () => {
+      assert.equal(
+        whyNotClaudeCode(
+          optionsFor(
+            { commit: "7b4a44e" },
+            { publishedMarketplaces: [GOOGLE] },
+          ),
+        ),
+        NO_SHA,
       );
     });
   });
@@ -654,10 +696,10 @@ describe("pluginInstallOptions", () => {
 
     // Kiro won't load a plugin.json without `$schema`, and that is one of the
     // conformance checks.
-    it("is not offered for a plugin that isn't an Agent Plugin", () => {
+    it("is unavailable for a plugin that isn't an Agent Plugin", () => {
       assert.equal(
-        optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro,
-        undefined,
+        whyNot(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro),
+        "Kiro only loads Agent Plugins, and this plugin isn't one.",
       );
     });
 
@@ -672,36 +714,46 @@ describe("pluginInstallOptions", () => {
     });
 
     // Kiro's import rejects any URL that isn't on github.com.
-    it("is not offered for a source on another host", () => {
+    it("is unavailable for a source on another host", () => {
       assert.equal(
-        optionsFor(
-          { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
-          AGENT_PLUGIN,
-        ).kiro,
-        undefined,
+        whyNot(
+          optionsFor(
+            { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
+            AGENT_PLUGIN,
+          ).kiro,
+        ),
+        "Kiro imports a power only from github.com, and this plugin's repository is on another host.",
       );
     });
 
     // Without the commit, the link could only name a ref or HEAD, which may
     // no longer be what was approved.
-    it("is not offered without source.commit", () => {
-      assert.equal(optionsFor({ ref: "0.3.11" }, AGENT_PLUGIN).kiro, undefined);
+    it("is unavailable without source.commit", () => {
+      assert.equal(
+        whyNot(optionsFor({ ref: "0.3.11" }, AGENT_PLUGIN).kiro),
+        "The registry has no commit recorded for this plugin, so Kiro can't be pointed at the approved version.",
+      );
     });
 
     // A missing verdict passes only the verdict check: the link would fail on
     // another host, and without a commit it can't name what was approved.
-    it("is not offered in a feed without the verdict on another host", () => {
+    it("is unavailable in a feed without the verdict on another host", () => {
       assert.equal(
-        optionsFor({
-          url: "https://gitlab.com/acme/plugins.git",
-          commit: COMMIT,
-        }).kiro,
-        undefined,
+        whyNot(
+          optionsFor({
+            url: "https://gitlab.com/acme/plugins.git",
+            commit: COMMIT,
+          }).kiro,
+        ),
+        "Kiro imports a power only from github.com, and this plugin's repository is on another host.",
       );
     });
 
-    it("is not offered in a feed without the verdict or source.commit", () => {
-      assert.equal(optionsFor({ ref: "0.3.11" }).kiro, undefined);
+    it("is unavailable in a feed without the verdict or source.commit", () => {
+      assert.equal(
+        whyNot(optionsFor({ ref: "0.3.11" }).kiro),
+        "The registry has no commit recorded for this plugin, so Kiro can't be pointed at the approved version.",
+      );
     });
   });
   describe("Codex", () => {
@@ -776,59 +828,67 @@ describe("pluginInstallOptions", () => {
     });
 
     // Codex stops at the first file it finds, listing or not.
-    it("is not offered when only a file Codex doesn't reach lists it", () => {
+    it("is unavailable when only a file Codex doesn't reach lists it", () => {
       assert.equal(
-        optionsFor(
-          { commit: COMMIT },
-          {
-            ...AGENT_PLUGIN,
-            marketplaceFiles: [
-              {
-                path: ".agents/plugins/marketplace.json",
-                marketplaceName: "a",
-              },
-              { ...LISTED, path: ".claude-plugin/marketplace.json" },
-            ],
-          },
-        ).codex,
-        undefined,
+        whyNot(
+          optionsFor(
+            { commit: COMMIT },
+            {
+              ...AGENT_PLUGIN,
+              marketplaceFiles: [
+                {
+                  path: ".agents/plugins/marketplace.json",
+                  marketplaceName: "a",
+                },
+                { ...LISTED, path: ".claude-plugin/marketplace.json" },
+              ],
+            },
+          ).codex,
+        ),
+        "Codex reads `.agents/plugins/marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
       );
     });
 
-    it("is not offered when a listing is only in a file Codex never reads", () => {
+    it("is unavailable when a listing is only in a file Codex never reads", () => {
       assert.equal(
-        optionsFor(
-          { commit: COMMIT },
-          {
-            ...AGENT_PLUGIN,
-            marketplaceFiles: [{ ...LISTED, path: "marketplace.json" }],
-          },
-        ).codex,
-        undefined,
+        whyNot(
+          optionsFor(
+            { commit: COMMIT },
+            {
+              ...AGENT_PLUGIN,
+              marketplaceFiles: [{ ...LISTED, path: "marketplace.json" }],
+            },
+          ).codex,
+        ),
+        "Codex installs a plugin through a marketplace file in its repository, and this repository has none of the ones Codex reads.",
       );
     });
 
-    it("is not offered for a plugin that isn't an Agent Plugin", () => {
+    it("is unavailable for a plugin that isn't an Agent Plugin", () => {
       assert.equal(
-        optionsFor(
-          { commit: COMMIT },
-          { ...NOT_AGENT_PLUGIN, marketplaceFiles: [LISTED] },
-        ).codex,
-        undefined,
+        whyNot(
+          optionsFor(
+            { commit: COMMIT },
+            { ...NOT_AGENT_PLUGIN, marketplaceFiles: [LISTED] },
+          ).codex,
+        ),
+        "Codex only loads Agent Plugins, and this plugin isn't one.",
       );
     });
 
-    it("is not offered without source.commit", () => {
+    it("is unavailable without source.commit", () => {
       assert.equal(
-        optionsFor({}, { ...AGENT_PLUGIN, marketplaceFiles: [LISTED] }).codex,
-        undefined,
+        whyNot(
+          optionsFor({}, { ...AGENT_PLUGIN, marketplaceFiles: [LISTED] }).codex,
+        ),
+        "The registry has no commit recorded for this plugin, so Codex can't be pointed at the approved version.",
       );
     });
 
-    it("is not offered in a feed without marketplaceFiles", () => {
+    it("is unavailable in a feed without marketplaceFiles", () => {
       assert.equal(
-        optionsFor({ commit: COMMIT }, AGENT_PLUGIN).codex,
-        undefined,
+        whyNot(optionsFor({ commit: COMMIT }, AGENT_PLUGIN).codex),
+        "The registry data doesn't record this repository's marketplace files, and Codex installs a plugin through one.",
       );
     });
 
@@ -936,43 +996,52 @@ describe("pluginInstallOptions", () => {
       });
 
       // VS Code stops at the first file it finds, listing or not.
-      it("is not offered when only a file VS Code doesn't reach lists it", () => {
+      it("is unavailable when only a file VS Code doesn't reach lists it", () => {
         assert.equal(
-          optionsFor(SUBFOLDER, {
-            marketplaceFiles: [
-              { path: ".github/plugin/marketplace.json", marketplaceName: "a" },
-              { ...LISTED, path: ".claude-plugin/marketplace.json" },
-            ],
-          }).vsCode,
-          undefined,
+          whyNot(
+            optionsFor(SUBFOLDER, {
+              marketplaceFiles: [
+                {
+                  path: ".github/plugin/marketplace.json",
+                  marketplaceName: "a",
+                },
+                { ...LISTED, path: ".claude-plugin/marketplace.json" },
+              ],
+            }).vsCode,
+          ),
+          "VS Code reads `.github/plugin/marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
         );
       });
 
-      it("is not offered when a listing is only in a file VS Code never reads", () => {
+      it("is unavailable when a listing is only in a file VS Code never reads", () => {
         assert.equal(
-          optionsFor(SUBFOLDER, {
-            marketplaceFiles: [
-              { ...LISTED, path: ".agents/plugins/marketplace.json" },
-            ],
-          }).vsCode,
-          undefined,
+          whyNot(
+            optionsFor(SUBFOLDER, {
+              marketplaceFiles: [
+                { ...LISTED, path: ".agents/plugins/marketplace.json" },
+              ],
+            }).vsCode,
+          ),
+          "This repository has none of the marketplace files VS Code reads, and without one VS Code installs the repository root, while this plugin is in `plugins/looker`.",
         );
       });
 
-      it("is not offered without source.commit", () => {
+      it("is unavailable without source.commit", () => {
         assert.equal(
-          optionsFor({}, { marketplaceFiles: [LISTED] }).vsCode,
-          undefined,
+          whyNot(optionsFor({}, { marketplaceFiles: [LISTED] }).vsCode),
+          "The registry has no commit recorded for this plugin, so VS Code can't be pointed at the approved version.",
         );
       });
 
-      it("is not offered for a source on another host", () => {
+      it("is unavailable for a source on another host", () => {
         assert.equal(
-          optionsFor(
-            { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
-            { marketplaceFiles: [LISTED] },
-          ).vsCode,
-          undefined,
+          whyNot(
+            optionsFor(
+              { url: "https://gitlab.com/acme/plugins.git", commit: COMMIT },
+              { marketplaceFiles: [LISTED] },
+            ).vsCode,
+          ),
+          "Installing in VS Code is only known to work for a repository on github.com, and this plugin's is on another host.",
         );
       });
     });
@@ -1011,45 +1080,56 @@ describe("pluginInstallOptions", () => {
 
       // VS Code would read the repository as that marketplace, not as the
       // plugin.
-      it("is not offered when a file VS Code reads is there but doesn't list it", () => {
+      it("is unavailable when a file VS Code reads is there but doesn't list it", () => {
         assert.equal(
-          optionsFor(
-            { commit: COMMIT },
-            {
-              marketplaceFiles: [
-                { path: "marketplace.json", marketplaceName: "other" },
-              ],
-            },
-          ).vsCode,
-          undefined,
+          whyNot(
+            optionsFor(
+              { commit: COMMIT },
+              {
+                marketplaceFiles: [
+                  { path: "marketplace.json", marketplaceName: "other" },
+                ],
+              },
+            ).vsCode,
+          ),
+          "VS Code reads `marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
         );
       });
 
-      it("is not offered when a file VS Code reads can't be parsed", () => {
+      it("is unavailable when a file VS Code reads can't be parsed", () => {
         assert.equal(
-          optionsFor(
-            { commit: COMMIT },
-            { marketplaceFiles: [{ path: ".plugin/marketplace.json" }] },
-          ).vsCode,
-          undefined,
+          whyNot(
+            optionsFor(
+              { commit: COMMIT },
+              { marketplaceFiles: [{ path: ".plugin/marketplace.json" }] },
+            ).vsCode,
+          ),
+          "VS Code reads `.plugin/marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
         );
       });
 
-      it("is not offered for a plugin in a subfolder", () => {
-        assert.equal(optionsFor(SUBFOLDER).vsCode, undefined);
-      });
-
-      it("is not offered when the approval names a ref", () => {
+      it("is unavailable for a plugin in a subfolder", () => {
         assert.equal(
-          optionsFor({ ref: "main", pinned: false, commit: COMMIT }).vsCode,
-          undefined,
+          whyNot(optionsFor(SUBFOLDER).vsCode),
+          "This repository has none of the marketplace files VS Code reads, and without one VS Code installs the repository root, while this plugin is in `plugins/looker`.",
         );
       });
 
-      it("is not offered for a source on another host", () => {
+      it("is unavailable when the approval names a ref", () => {
         assert.equal(
-          optionsFor({ url: "https://gitlab.com/acme/plugins.git" }).vsCode,
-          undefined,
+          whyNot(
+            optionsFor({ ref: "main", pinned: false, commit: COMMIT }).vsCode,
+          ),
+          "This approval names `main`, and without a marketplace file in the repository VS Code always installs the default branch.",
+        );
+      });
+
+      it("is unavailable for a source on another host", () => {
+        assert.equal(
+          whyNot(
+            optionsFor({ url: "https://gitlab.com/acme/plugins.git" }).vsCode,
+          ),
+          "Installing in VS Code is only known to work for a repository on github.com, and this plugin's is on another host.",
         );
       });
     });

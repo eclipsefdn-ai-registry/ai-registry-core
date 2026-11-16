@@ -27,7 +27,8 @@ export function InstallFromCli({
   note?: React.ReactNode;
   // Overridden to say which tool the command is for rather than leaving the
   // reader to infer it, e.g. "Install in Enclave" for sandbox extensions and
-  // "Install in Kiro" for plugins.
+  // "Install in Kiro" for plugins. Empty where the box needs no title, as for
+  // a tool's only step: `lead` then takes its place beside the Copy button.
   label?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -43,17 +44,23 @@ export function InstallFromCli({
   return (
     <div className={className}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-muted-foreground">
-          {label}
-        </span>
+        {label ? (
+          <span className="text-sm font-medium text-muted-foreground">
+            {label}
+          </span>
+        ) : (
+          <p className="text-xs text-muted-foreground">{lead}</p>
+        )}
         <button
-          className="text-xs px-2 py-0.5 border border-border rounded hover:border-primary hover:text-primary transition-colors text-muted-foreground"
+          className="flex-shrink-0 self-start text-xs px-2 py-0.5 border border-border rounded hover:border-primary hover:text-primary transition-colors text-muted-foreground"
           onClick={handleCopy}
         >
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
-      {lead && <p className="mt-2 text-xs text-muted-foreground">{lead}</p>}
+      {label && lead && (
+        <p className="mt-2 text-xs text-muted-foreground">{lead}</p>
+      )}
       <pre className="mt-2 bg-background border border-border p-3 rounded-md overflow-x-auto text-xs leading-relaxed">
         {command}
       </pre>

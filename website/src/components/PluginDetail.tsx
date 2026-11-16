@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { ArrowLeft, CircleAlert } from "lucide-react";
 import type {
   Plugin,
   Organization,
@@ -109,8 +109,6 @@ export function PluginDetail({
         </div>
       )}
 
-      <AgentPluginIssues plugin={plugin} />
-
       <ContainedComponents
         skills={plugin.containedSkills}
         mcpServers={plugin.containedMcpServers}
@@ -132,6 +130,7 @@ export function PluginDetail({
       </div>
 
       <InstallOptions
+        plugin={plugin}
         options={pluginInstallOptions(
           plugin,
           new URL(import.meta.env.BASE_URL, window.location.origin).href,
@@ -143,22 +142,41 @@ export function PluginDetail({
 
 type InstallTool = PluginInstallOption["tool"];
 
-// Every way to install the plugin, one tab per tool in the order
-// pluginInstallOptions gives, so the page shows one tool's steps at a time
-// rather than all of them stacked. A tool with several options (Claude Code,
-// once per organization marketplace) shows them all in its tab.
-function InstallOptions({ options }: { options: PluginInstallOption[] }) {
-  const tools = [...new Set(options.map((option) => option.tool))];
+// Every tool's way to install the plugin, one tab per tool in the order
+// pluginInstallOptions gives, so the page shows one tool at a time rather than
+// all of them stacked. A tool with several options (Claude Code, once per
+// organization marketplace) shows them all in its tab. A tool that can't
+// install the plugin keeps its tab, marked, with the reason inside; those
+// come last in the order given, so the first tab, the one open, is a tool
+// that can.
+function InstallOptions({
+  plugin,
+  options,
+}: {
+  plugin: Plugin;
+  options: PluginInstallOption[];
+}) {
+  const tabs = [...new Set(options.map((option) => option.tool))].map(
+    (tool) => {
+      const own = options.filter((option) => option.tool === tool);
+      return {
+        key: tool,
+        label: toolName(own[0].label),
+        unavailable: own.every((option) => "unavailable" in option),
+      };
+    },
+  );
   const [selected, setSelected] = useState<InstallTool | undefined>();
-  if (tools.length === 0) return null;
-  const active = selected && tools.includes(selected) ? selected : tools[0];
-  const tabs = tools.map((tool) => ({
-    key: tool,
-    label: toolName(options.find((option) => option.tool === tool)!.label),
-  }));
+  if (tabs.length === 0) return null;
+  const active = (
+    tabs.find((tab) => tab.key === selected) ??
+    tabs.find((tab) => !tab.unavailable) ??
+    tabs[0]
+  ).key;
   return (
     <div className="mt-6">
       <h3 className="text-base font-semibold mb-1">Install</h3>
+      <AgentPluginIssues plugin={plugin} />
       <div className="mb-4 border-b border-border">
         <TabButtons tabs={tabs} active={active} onSelect={setSelected} />
       </div>
@@ -180,19 +198,21 @@ function toolName(label: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-// Why a plugin isn't an Agent Plugin, as consolidation reported it. Shown
-// only for a plugin known not to conform: an older feed without the verdict
-// shows nothing, since there it's unknown.
+// That a plugin isn't an Agent Plugin, and why, as consolidation reported it,
+// above the install tabs, since what it changes is which tools can install the
+// plugin. It says the tools can't, not that the plugin is risky: the plugin is
+// approved either way. Shown only for a plugin known not to conform: an older
+// feed without the verdict shows nothing, since there it's unknown.
 function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
+  if (plugin.isAgentPlugin !== false) return null;
   const issues = plugin.agentPluginIssues ?? [];
-  if (plugin.isAgentPlugin !== false || issues.length === 0) return null;
   return (
-    <div className="mb-6 rounded-lg border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
+    <div className="mt-2 mb-2 rounded-lg border border-warning/20 bg-warning-bg px-4 py-3 text-sm">
       <div className="flex items-center gap-2 font-medium text-warning mb-2">
-        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+        <CircleAlert className="h-4 w-4 flex-shrink-0" aria-hidden />
         Not an Agent Plugin
       </div>
-      <p className="text-card-foreground mb-2">
+      <p className="text-card-foreground">
         This plugin doesn&apos;t conform to the{" "}
         <a
           href="https://agent-plugins.org"
@@ -202,24 +222,25 @@ function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
         >
           Agent Plugins specification
         </a>
-        . It is still approved, but tools that only load Agent Plugins may not
-        install it.
+        , so tools that only load Agent Plugins can&apos;t install it.
       </p>
-      <ul className="list-disc pl-5 space-y-1 text-card-foreground">
-        {issues.map((issue, i) => (
-          <li key={i} className="break-words">
-            {issue}
-          </li>
-        ))}
-      </ul>
+      {issues.length > 0 && (
+        <ul className="mt-2 list-disc pl-5 space-y-1 text-card-foreground">
+          {issues.map((issue, i) => (
+            <li key={i} className="break-words">
+              {issue}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
 // One option's instructions in one card, so its steps read as a sequence and
 // not as separate sections: a numbered copy box per step, with warnings under
-// the last one, or the explanation when the tool can't install the approved
-// revision.
+// the last one, or, marked the way its tab is, the reason the tool can't
+// install the approved revision.
 function InstallOption({ option }: { option: PluginInstallOption }) {
   const warnings =
     option.warnings.length > 0 ? (
@@ -234,8 +255,9 @@ function InstallOption({ option }: { option: PluginInstallOption }) {
   if ("unavailable" in option) {
     return (
       <div className="border border-border rounded-lg p-4">
-        <p className="text-xs text-muted-foreground">
-          {withCode(option.unavailable)}
+        <p className="flex gap-2 text-xs text-muted-foreground">
+          <CircleAlert className="h-4 w-4 flex-shrink-0" aria-hidden />
+          <span>{withCode(option.unavailable)}</span>
         </p>
         {warnings && (
           <p className="mt-2 text-xs text-muted-foreground">{warnings}</p>

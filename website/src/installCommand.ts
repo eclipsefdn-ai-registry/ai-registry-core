@@ -119,7 +119,7 @@ export type InstallStep =
 /**
  * How to install a plugin with one tool: either the steps, several where the
  * tool needs them (such as adding a marketplace before installing from it), or
- * why the tool can't install what was approved, when it's still worth naming.
+ * why the tool can't install what was approved.
  *
  * `unavailable` and `warnings` are prose in which backticks mark code.
  */
@@ -146,21 +146,46 @@ type PluginFacts = Pick<
  * `baseUrl` is the site's full base URL, which the published marketplaces sit
  * under (see marketplaceCommand).
  *
- * A tool that can't install this plugin at all is left out. A missing
- * `isAgentPlugin` (a feed that predates it) is unknown, not false, so it passes
- * every tool's verdict check; their other checks still apply.
+ * The tools that can install the plugin come first, then the ones that can't,
+ * each group in the order Kiro, Claude Code, Codex, VS Code, `npx plugins`.
+ *
+ * Kiro, Claude Code, Codex and VS Code are always listed: one that can't
+ * install the approved plugin comes back `unavailable`, with the first reason
+ * that stops it, rather than being left out, so the reader sees that it was
+ * considered and why it doesn't work. Only `npx plugins` is left out, for an
+ * Agent Plugin. A missing `isAgentPlugin` (a feed that predates it) is unknown,
+ * not false, so it passes every tool's verdict check; their other checks still
+ * apply.
  */
 export function pluginInstallOptions(
   plugin: PluginFacts,
   baseUrl: string,
 ): PluginInstallOption[] {
-  return [
+  const options = [
     kiroOption(plugin),
     ...claudeCodeOptions(plugin, baseUrl),
     codexOption(plugin),
     vsCodeOption(plugin),
     npxPluginsOption(plugin),
   ].filter((option) => option !== undefined);
+  return [
+    ...options.filter((option) => !("unavailable" in option)),
+    ...options.filter((option) => "unavailable" in option),
+  ];
+}
+
+// The reasons more than one tool gives for not installing a plugin. They say
+// that the tool can't do it, never that the plugin is at fault or unsafe.
+function notAgentPlugin(tool: string): string {
+  return `${tool} only loads Agent Plugins, and this plugin isn't one.`;
+}
+
+function noCommit(tool: string): string {
+  return `The registry has no commit recorded for this plugin, so ${tool} can't be pointed at the approved version.`;
+}
+
+function notListed(tool: string, path: string): string {
+  return `${tool} reads \`${path}\` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.`;
 }
 
 /**
@@ -171,9 +196,10 @@ export function pluginInstallOptions(
  * offered whether or not the plugin is an Agent Plugin.
  *
  * Only from `publishedMarketplaces`, which consolidation reads off the files it
- * writes, so the entry named is one that exists. A feed without the listing
- * gets nothing, and so does one without a full 40-character `source.commit`,
- * since then the published entry has no `sha` to pin the install to.
+ * writes, so the entry named is one that exists. Unavailable, once, for a
+ * plugin no marketplace lists, for a feed without the listing, and without a
+ * full 40-character `source.commit`, since then the published entry has no
+ * `sha` to pin the install to.
  *
  * Each option warns when the plugin's MCP servers are in none of the files
  * Claude Code reads them from (see mcpConfigWarnings).
@@ -182,26 +208,45 @@ function claudeCodeOptions(
   plugin: PluginFacts,
   baseUrl: string,
 ): PluginInstallOption[] {
-  if (!FULL_SHA.test(plugin.source.commit ?? "")) return [];
+  const option = {
+    tool: "claude-code" as const,
+    label: "Install in Claude Code",
+  };
+  const unavailable = (reason: string): PluginInstallOption[] => [
+    { ...option, unavailable: reason, warnings: [] },
+  ];
+  const listings = plugin.publishedMarketplaces;
+  if (!listings) {
+    return unavailable(
+      "The registry data doesn't record which published marketplaces list this plugin, and Claude Code installs an approved plugin through one.",
+    );
+  }
+  if (listings.length === 0) {
+    return unavailable(
+      "No organization's published marketplace lists this plugin, and Claude Code installs an approved plugin through one.",
+    );
+  }
+  if (!FULL_SHA.test(plugin.source.commit ?? "")) {
+    return unavailable(
+      "The registry has no full commit SHA recorded for this plugin, so a published marketplace entry can't pin Claude Code to the approved version.",
+    );
+  }
   const warnings = mcpConfigWarnings(plugin);
-  return (plugin.publishedMarketplaces ?? []).map(
-    ({ orgId, marketplaceName, entryName }) => ({
-      tool: "claude-code",
-      label: "Install in Claude Code",
-      steps: [
-        {
-          kind: "command",
-          lead: `Add the marketplace of plugins ${orgId} approved:`,
-          command: marketplaceCommand(baseUrl, orgId),
-        },
-        {
-          kind: "command",
-          command: `claude plugin install ${entryName}@${marketplaceName}`,
-        },
-      ],
-      warnings,
-    }),
-  );
+  return listings.map(({ orgId, marketplaceName, entryName }) => ({
+    ...option,
+    steps: [
+      {
+        kind: "command",
+        lead: `Add the marketplace of plugins ${orgId} approved:`,
+        command: marketplaceCommand(baseUrl, orgId),
+      },
+      {
+        kind: "command",
+        command: `claude plugin install ${entryName}@${marketplaceName}`,
+      },
+    ],
+    warnings,
+  }));
 }
 
 // The warning, if any, that Claude Code won't load the plugin's MCP servers,
@@ -247,22 +292,41 @@ const CODEX_MARKETPLACE_FILES = [
  * against Codex 0.167.0), so this installs the approved commit whatever ref
  * the approval names.
  *
- * Offered only for an Agent Plugin with a `source.commit` whose first-found
- * Codex marketplace file has an entry for it. Consolidation sets `entryName`
+ * Available only for an Agent Plugin with a `source.commit` whose first-found
+ * Codex marketplace file has an entry for it, and unavailable otherwise. Consolidation sets `entryName`
  * only for a repository-relative entry, so a git-URL entry, which Codex would
  * fetch on its own and only pin by its own `sha`, never qualifies. Any git
  * host: github.com goes as `owner/repo`, any other as its git URL.
  */
-function codexOption(plugin: PluginFacts): PluginInstallOption | undefined {
-  if (plugin.isAgentPlugin === false) return undefined;
+function codexOption(plugin: PluginFacts): PluginInstallOption {
+  const option = { tool: "codex" as const, label: "Install in Codex" };
+  const unavailable = (reason: string): PluginInstallOption => ({
+    ...option,
+    unavailable: reason,
+    warnings: [],
+  });
+  if (plugin.isAgentPlugin === false) {
+    return unavailable(notAgentPlugin("Codex"));
+  }
   const { commit, url } = plugin.source;
-  if (!commit) return undefined;
+  if (!commit) return unavailable(noCommit("Codex"));
+  if (!plugin.marketplaceFiles) {
+    return unavailable(
+      "The registry data doesn't record this repository's marketplace files, and Codex installs a plugin through one.",
+    );
+  }
   const file = firstFound(plugin.marketplaceFiles, CODEX_MARKETPLACE_FILES);
-  if (!file?.entryName || !file.marketplaceName) return undefined;
+  if (!file) {
+    return unavailable(
+      "Codex installs a plugin through a marketplace file in its repository, and this repository has none of the ones Codex reads.",
+    );
+  }
+  if (!file.entryName || !file.marketplaceName) {
+    return unavailable(notListed("Codex", file.path));
+  }
   const source = isGitHubUrl(url) ? cliSource(url) : url;
   return {
-    tool: "codex",
-    label: "Install in Codex",
+    ...option,
     steps: [
       {
         kind: "command",
@@ -321,19 +385,31 @@ const VS_CODE_MARKETPLACE_FILES = [
  *
  * Not gated on `isAgentPlugin`: VS Code also reads a Claude-format plugin. Both
  * forms warn when a contained MCP server uses `${PLUGIN_DATA}`, which VS Code
- * leaves unexpanded.
+ * leaves unexpanded. Whatever fits neither form is unavailable.
  */
-function vsCodeOption(plugin: PluginFacts): PluginInstallOption | undefined {
+function vsCodeOption(plugin: PluginFacts): PluginInstallOption {
   const { url, path, ref, commit } = plugin.source;
-  if (!isGitHubUrl(url)) return undefined;
+  const label = "Install in VS Code (GitHub Copilot)";
+  const unavailable = (reason: string): PluginInstallOption => ({
+    tool: "vscode",
+    label,
+    unavailable: reason,
+    warnings: [],
+  });
+  if (!isGitHubUrl(url)) {
+    return unavailable(
+      "Installing in VS Code is only known to work for a repository on github.com, and this plugin's is on another host.",
+    );
+  }
   const option = {
     tool: "vscode" as const,
-    label: "Install in VS Code (GitHub Copilot)",
+    label,
     warnings: pluginDataWarnings(plugin),
   };
   const file = firstFound(plugin.marketplaceFiles, VS_CODE_MARKETPLACE_FILES);
   if (file) {
-    if (!file.entryName || !commit) return undefined;
+    if (!file.entryName) return unavailable(notListed("VS Code", file.path));
+    if (!commit) return unavailable(noCommit("VS Code"));
     return {
       ...option,
       steps: [
@@ -347,7 +423,16 @@ function vsCodeOption(plugin: PluginFacts): PluginInstallOption | undefined {
       ],
     };
   }
-  if (path || ref) return undefined;
+  if (path) {
+    return unavailable(
+      `This repository has none of the marketplace files VS Code reads, and without one VS Code installs the repository root, while this plugin is in \`${path}\`.`,
+    );
+  }
+  if (ref) {
+    return unavailable(
+      `This approval names \`${ref}\`, and without a marketplace file in the repository VS Code always installs the default branch.`,
+    );
+  }
   return {
     ...option,
     steps: [
@@ -386,17 +471,28 @@ function pluginDataWarnings(plugin: PluginFacts): string[] {
  * sourceTreeUrl does. The path is required for a plugin in a subfolder: Kiro
  * ignores marketplace files, so the repository root alone doesn't find it.
  *
- * Offered only for an Agent Plugin on github.com with a `source.commit`: Kiro
+ * Available only for an Agent Plugin on github.com with a `source.commit`: Kiro
  * rejects a non-GitHub URL and won't load a plugin.json without `$schema`, and
  * without the commit the link could only name a ref or HEAD.
  */
-function kiroOption(plugin: PluginFacts): PluginInstallOption | undefined {
-  if (plugin.isAgentPlugin === false) return undefined;
-  if (!isGitHubUrl(plugin.source.url)) return undefined;
-  if (!plugin.source.commit) return undefined;
+function kiroOption(plugin: PluginFacts): PluginInstallOption {
+  const option = { tool: "kiro" as const, label: "Install in Kiro" };
+  const unavailable = (reason: string): PluginInstallOption => ({
+    ...option,
+    unavailable: reason,
+    warnings: [],
+  });
+  if (plugin.isAgentPlugin === false) {
+    return unavailable(notAgentPlugin("Kiro"));
+  }
+  if (!isGitHubUrl(plugin.source.url)) {
+    return unavailable(
+      "Kiro imports a power only from github.com, and this plugin's repository is on another host.",
+    );
+  }
+  if (!plugin.source.commit) return unavailable(noCommit("Kiro"));
   return {
-    tool: "kiro",
-    label: "Install in Kiro",
+    ...option,
     steps: [
       {
         kind: "paste",
