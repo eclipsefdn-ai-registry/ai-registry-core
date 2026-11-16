@@ -69,16 +69,16 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      - Marketplace format is currently limited to `"codex"` (`.agents/plugins/marketplace.json`) —
        see `schemas/marketplace-approval.schema.json`'s `format` enum. A plugin index in some other
        shape isn't approvable yet; note it in the report rather than forcing it into this schema.
-     - A vendor hosted outside github.com (e.g. gitlab.com) can still get **direct** `plugins/*.json`
+     - A vendor hosted outside github.com (e.g. gitlab.com) can get **direct** `plugins/*.json`
        approvals — `plugin-source.ts`'s enrichment is a plain `git clone`, host-agnostic. Mint the
-       `pluginId` by reversing the _code host's_ domain, same pattern as `io.github.<owner>/<name>`
-       for GitHub (e.g. `com.gitlab.<group>/<name>` for a gitlab.com repo — proven working against
-       `gitlab.com/gitlab-org/ai/gitlab-duo-plugins` on 2026-09-11). A **marketplace** approval for
-       a non-GitHub host is not currently viable, though: `marketplace-source.ts`'s
-       `derivePluginIdFromSource` calls `deriveGithubOwnerRepo`, which only parses `github.com`
-       URLs and throws for anything else — so even a genuine, well-formed non-GitHub marketplace
-       file can only be exploited by approving its individual plugins directly, one by one, not by
-       approving the marketplace itself.
+       `pluginId` by reversing the _code host's_ domain and appending the top-level group, same
+       pattern as `io.github.<owner>/<name>` for GitHub (e.g. `com.gitlab.<group>/<name>` for a
+       gitlab.com repo, nested subgroups left out — proven working against
+       `gitlab.com/gitlab-org/ai/gitlab-duo-plugins` on 2026-09-11). A **marketplace** approval
+       works for such a host too: `derivePluginIdFromSource` in `marketplace-source.ts` mints
+       fanned-out IDs by that same rule, so a marketplace entry and a direct approval of the same
+       plugin get the same ID. A codex-shaped file outside `.agents/plugins/` needs the
+       approval's `source.path`.
    - **Drop anything already approved or already fanned out.** "Already covered" means: a
      `plugins/*.json` approval with a matching `source.url`+`path`, **or** an entry inside an
      already-approved `marketplaces/*.json` file's own fan-out list — fetch that marketplace file
