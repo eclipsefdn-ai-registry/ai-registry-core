@@ -590,6 +590,25 @@ describe("fetchPluginManifest Agent Plugin conformance", () => {
     }
   });
 
+  it("calls a plugin with an unknown top-level manifest field an Agent Plugin, and notes the field", () => {
+    const sourceDir = initRepo();
+    try {
+      writePlugin(sourceDir, {
+        plugin: { $schema: PLUGIN_SCHEMA, name: "demo", displayName: "Demo" },
+      });
+      commitAll(sourceDir, "unknown-field");
+
+      const metadata = fetchFrom(sourceDir);
+      assert.equal(metadata.isAgentPlugin, true);
+      assert.deepEqual(metadata.agentPluginIssues, []);
+      assert.deepEqual(metadata.agentPluginNotices, [
+        'plugin.json has unknown field "displayName", which Agent Plugins clients ignore',
+      ]);
+    } finally {
+      rmSync(sourceDir, { recursive: true, force: true });
+    }
+  });
+
   it("reports a non-conforming plugin's issues, paths relative to the plugin", () => {
     const sourceDir = initRepo();
     try {
@@ -964,6 +983,38 @@ describe("readMarketplaceFile", () => {
       "plugins/demo",
     );
     assert.equal(record.entryName, "first");
+  });
+
+  // What a tool makes of pluginRoot is the tool's business: the file's value
+  // is recorded, and the entry is still matched without it.
+  it("records metadata.pluginRoot, and matches entries without it", () => {
+    const content = JSON.stringify({
+      name: "acme",
+      metadata: { pluginRoot: "./plugins" },
+      plugins: [{ name: "demo", source: "demo" }],
+    });
+    assert.deepEqual(readMarketplaceFile(PATH, content, "demo").record, {
+      path: PATH,
+      marketplaceName: "acme",
+      pluginRoot: "./plugins",
+      entryName: "demo",
+    });
+    assert.deepEqual(
+      readMarketplaceFile(PATH, content, "plugins/demo").record,
+      { path: PATH, marketplaceName: "acme", pluginRoot: "./plugins" },
+    );
+  });
+
+  it("records no pluginRoot that isn't a string", () => {
+    const content = JSON.stringify({
+      name: "acme",
+      metadata: { pluginRoot: 3 },
+      plugins: [],
+    });
+    assert.deepEqual(readMarketplaceFile(PATH, content, undefined).record, {
+      path: PATH,
+      marketplaceName: "acme",
+    });
   });
 
   it("calls a file with an empty name malformed", () => {

@@ -341,7 +341,7 @@ export interface PublishedMarketplace {
 export function buildOrgMarketplaces(
   plugins: PluginEntry[],
   orgs: readonly MarketplaceOrg[],
-  sourceMismatches: ReadonlySet<string> = new Set(),
+  sourceMismatches: ReadonlySet<string>,
 ): {
   files: Map<string, MarketplaceFile>;
   listings: Map<string, PublishedMarketplace[]>;

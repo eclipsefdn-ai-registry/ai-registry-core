@@ -22,7 +22,10 @@ import {
   sourcePinned,
   type RemoteBranchesLookup,
 } from "./git-source.js";
-import { agentPluginIssues } from "./agent-plugin-conformance.js";
+import {
+  agentPluginIssues,
+  ignoredPluginJsonFields,
+} from "./agent-plugin-conformance.js";
 import type { PluginEntry } from "./consolidate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,12 +58,18 @@ export interface ContainedMcpServer {
 
 /**
  * A marketplace file in the Plugin's repository at the approved commit: its
- * own `name`, and the name of the entry that points at this Plugin, if one
- * does. Both are absent when the file can't be parsed.
+ * own `name`, its `metadata.pluginRoot` when it sets one, and the name of the
+ * entry that points at this Plugin, if one does. All are absent when the file
+ * can't be parsed.
+ *
+ * `pluginRoot` is the file's value as written. Tools disagree on which entry
+ * sources it applies to, and some don't read it, so `entryName` is matched
+ * without it and what it changes for a tool is left to the website.
  */
 export interface RepositoryMarketplaceFile {
   path: string;
   marketplaceName?: string;
+  pluginRoot?: string;
   entryName?: string;
 }
 
@@ -73,6 +82,10 @@ export interface PluginMetadata extends PluginManifestFields {
   // why: one readable message per failed check, empty when it is one.
   isAgentPlugin: boolean;
   agentPluginIssues: string[];
+  // What a client ignores without the verdict changing: one readable message
+  // per unknown top-level plugin.json field. For the vendor, so printed as
+  // warnings and never published.
+  agentPluginNotices: string[];
   // Which of MCP_CONFIG_FILE_PATHS the plugin directory has, in that order
   // (see presentMcpConfigFiles).
   mcpConfigFiles: string[];
@@ -251,7 +264,8 @@ function repositoryRelativePath(source: unknown): string | undefined {
  * Reads one marketplace file: its `name`, and the first entry whose source is
  * a repository-relative path resolving to `pluginPath` (undefined or "" for a
  * plugin at the root). Paths resolve against the repository root, which is the
- * marketplace root for every file in the scan list.
+ * marketplace root for every file in the scan list, and never against the
+ * file's `metadata.pluginRoot`, which is recorded as it is.
  *
  * A file that isn't JSON, or has no string `name` or no `plugins` array, gets
  * a record with neither name and a warning: present, but of no use to a tool.
@@ -274,7 +288,11 @@ export function readMarketplaceFile(
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     return { record: { path }, warning: `${path}: not a JSON object` };
   }
-  const { name, plugins } = data as { name?: unknown; plugins?: unknown };
+  const { name, plugins, metadata } = data as {
+    name?: unknown;
+    plugins?: unknown;
+    metadata?: unknown;
+  };
   if (typeof name !== "string" || name === "") {
     return { record: { path }, warning: `${path}: has no "name"` };
   }
@@ -290,6 +308,11 @@ export function readMarketplaceFile(
       repositoryRelativePath((p as { source?: unknown }).source) === target,
   );
   const record: RepositoryMarketplaceFile = { path, marketplaceName: name };
+  const pluginRoot =
+    typeof metadata === "object" && metadata !== null
+      ? (metadata as { pluginRoot?: unknown }).pluginRoot
+      : undefined;
+  if (typeof pluginRoot === "string") record.pluginRoot = pluginRoot;
   if (entry) record.entryName = entry.name;
   return { record };
 }
@@ -507,6 +530,10 @@ export function fetchPluginManifest(
     commit,
     isAgentPlugin: conformanceIssues.length === 0,
     agentPluginIssues: conformanceIssues,
+    agentPluginNotices: ignoredPluginJsonFields(pluginJson).map(
+      (field) =>
+        `plugin.json has unknown field "${field}", which Agent Plugins clients ignore`,
+    ),
     mcpConfigFiles: presentMcpConfigFiles(pluginDir),
   };
   if (options.readMarketplaceFiles) {
@@ -580,6 +607,10 @@ export function enrichPluginMetadata(
         // Kept, but not an Agent Plugin: say why, so the vendor can fix it.
         for (const issue of metadata.agentPluginIssues) {
           console.warn(`    WARNING: not an Agent Plugin: ${issue}`);
+        }
+        // Nothing the verdict turns on, but nothing a client reads either.
+        for (const notice of metadata.agentPluginNotices) {
+          console.warn(`    WARNING: ${notice}`);
         }
         if (remote) {
           const pinned = sourcePinned(entry.source, remote);

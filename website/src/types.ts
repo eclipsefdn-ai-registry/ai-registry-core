@@ -176,9 +176,12 @@ export interface Plugin {
 }
 
 // A marketplace file in a plugin's repository, as consolidation read it.
+// `pluginRoot` is the file's `metadata.pluginRoot` as written, when it sets
+// one; `entryName` was matched without it.
 export interface RepositoryMarketplaceFile {
   path: string;
   marketplaceName?: string;
+  pluginRoot?: string;
   entryName?: string;
 }
 

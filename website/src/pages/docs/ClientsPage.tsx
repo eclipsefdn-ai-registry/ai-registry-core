@@ -531,7 +531,11 @@ export function ClientsPage() {
             unknown version is not conformant.
           </li>
           <li className="leading-relaxed">
-            Both files match that version&apos;s schema.
+            Both files match that version&apos;s schema. One violation
+            doesn&apos;t count: an unknown top-level field in{" "}
+            <InlineCode>plugin.json</InlineCode>, which the specification has
+            clients report and ignore while still loading the plugin. An unknown
+            field anywhere else does count.
           </li>
           <li className="leading-relaxed">
             Every MCP server declares an explicit <InlineCode>type</InlineCode>.
@@ -644,6 +648,10 @@ export function ClientsPage() {
             <InlineCode>owner/repo</InlineCode>. If the first file is there but
             has no <InlineCode>entryName</InlineCode>, offer neither form: VS
             Code reads the repository as that marketplace, not as this plugin.
+            Offer neither form either when that first file has a non-empty{" "}
+            <InlineCode>pluginRoot</InlineCode>: VS Code resolves every
+            entry&apos;s path under it, and <InlineCode>entryName</InlineCode>{" "}
+            was matched without it, so the entry could be another plugin&apos;s.
             Never append <InlineCode>{"#<sha>"}</InlineCode> there: VS Code
             ignores it, installs the default branch, and still displays the{" "}
             <InlineCode>{"#<sha>"}</InlineCode>. In both forms, warn when a{" "}
@@ -692,23 +700,31 @@ export function ClientsPage() {
           <InlineCode>marketplaceFiles</InlineCode> lists the known marketplace
           files present in the plugin&apos;s repository at{" "}
           <InlineCode>source.commit</InlineCode>, one{" "}
-          <InlineCode>{"{ path, marketplaceName, entryName }"}</InlineCode>{" "}
+          <InlineCode>
+            {"{ path, marketplaceName, pluginRoot, entryName }"}
+          </InlineCode>{" "}
           each, in no tool&apos;s order. The paths scanned are the four above
           plus <InlineCode>marketplace.json</InlineCode>,{" "}
           <InlineCode>.plugin/marketplace.json</InlineCode> and{" "}
           <InlineCode>.github/plugin/marketplace.json</InlineCode>; a file that
           isn&apos;t there has no record.{" "}
           <InlineCode>marketplaceName</InlineCode> is the file&apos;s own{" "}
-          <InlineCode>name</InlineCode>. <InlineCode>entryName</InlineCode> is
-          set only when the file has an entry whose source is a path in the
-          repository (a bare string or a <InlineCode>local</InlineCode> source)
-          resolving to the plugin&apos;s <InlineCode>source.path</InlineCode>;
-          an entry sourced from a git URL doesn&apos;t count, since it says
-          nothing about <InlineCode>source.commit</InlineCode>. A file that
-          can&apos;t be parsed has a record with neither name. These are facts
-          about files, not tools: which tool reads which file, and which one
-          first, is yours to apply. A missing{" "}
-          <InlineCode>marketplaceFiles</InlineCode> means unknown.
+          <InlineCode>name</InlineCode>. <InlineCode>pluginRoot</InlineCode> is
+          the file&apos;s <InlineCode>metadata.pluginRoot</InlineCode> as
+          written, present only when the file sets one; tools disagree about it,
+          since Claude Code prepends it to a bare name, VS Code to every string
+          source, and Codex doesn&apos;t read it.{" "}
+          <InlineCode>entryName</InlineCode> is set only when the file has an
+          entry whose source is a path in the repository (a bare string or a{" "}
+          <InlineCode>local</InlineCode> source) resolving to the plugin&apos;s{" "}
+          <InlineCode>source.path</InlineCode>, against the repository root and
+          never against <InlineCode>pluginRoot</InlineCode>; an entry sourced
+          from a git URL doesn&apos;t count, since it says nothing about{" "}
+          <InlineCode>source.commit</InlineCode>. A file that can&apos;t be
+          parsed has a record with neither name. These are facts about files,
+          not tools: which tool reads which file, and which one first, is yours
+          to apply. A missing <InlineCode>marketplaceFiles</InlineCode> means
+          unknown.
         </p>
         <p className="mt-3 mb-3 leading-relaxed">
           <InlineCode>mcpConfigFiles</InlineCode> lists which of{" "}

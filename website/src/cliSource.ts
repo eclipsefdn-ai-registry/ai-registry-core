@@ -26,7 +26,7 @@ const GITHUB_COM = /^https:\/\/github\.com\//;
 
 /** Whether a `source.url` is on github.com, in the form cliSource shortens. */
 export function isGitHubUrl(url: string): boolean {
-  return GITHUB_COM.test(normalizeRepoUrl(url));
+  return GITHUB_COM.test(url);
 }
 
 /**

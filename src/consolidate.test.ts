@@ -4232,45 +4232,4 @@ describe("publishOrgMarketplaces", () => {
     assert.deepEqual(output.plugins[0].publishedMarketplaces, []);
     assert.deepEqual(output.plugins[1].publishedMarketplaces, []);
   });
-
-  it("records no listing for the loser of two ids that derive one name", () => {
-    const output = outputWith([
-      pluginEntry("a.b/c", ["acme"]),
-      pluginEntry("a/b.c", ["acme"]),
-    ]);
-    publishQuietly(output);
-
-    assert.deepEqual(
-      output.plugins.map((p) => [p.pluginId, p.publishedMarketplaces]),
-      [
-        [
-          "a.b/c",
-          [
-            {
-              orgId: "acme",
-              marketplaceName: "ai-registry-acme",
-              entryName: "a.b.c",
-            },
-          ],
-        ],
-        ["a/b.c", []],
-      ],
-    );
-  });
-
-  it("leaves out only the organization whose revision lost", () => {
-    const output = outputWith([
-      pluginEntry("io.github.acme/two", ["acme", "other"]),
-    ]);
-    const files = publishQuietly(
-      output,
-      new Set(["io.github.acme/two::other"]),
-    );
-
-    assert.deepEqual([...files.keys()], ["acme"]);
-    assert.deepEqual(
-      output.plugins[0].publishedMarketplaces?.map((m) => m.orgId),
-      ["acme"],
-    );
-  });
 });

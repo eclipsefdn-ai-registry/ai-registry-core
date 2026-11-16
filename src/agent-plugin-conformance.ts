@@ -141,12 +141,48 @@ function parseObject(text: string): Record<string, unknown> | undefined {
 
 // --- plugin.json ---
 
-function pluginJsonIssues(data: Record<string, unknown>): string[] {
+// An unknown top-level field is the one plugin.json schema violation that
+// doesn't count against the verdict: the schema is closed, but the spec text,
+// which it says is authoritative over the schema, has clients report and
+// ignore such a field and still load the plugin (1.0.0 §5.2). An unknown
+// field anywhere deeper is fatal there, and stays an issue here.
+function isIgnoredField(error: ErrorObject): boolean {
+  return error.keyword === "additionalProperties" && error.instancePath === "";
+}
+
+function pluginJsonErrors(data: Record<string, unknown>): {
+  spec: SpecVersion | undefined;
+  errors: ErrorObject[];
+} {
   const spec = SPEC_VERSIONS.byPluginId.get(data.$schema as string);
+  if (!spec || spec.validatePlugin(data)) return { spec, errors: [] };
+  return { spec, errors: spec.validatePlugin.errors ?? [] };
+}
+
+function pluginJsonIssues(data: Record<string, unknown>): string[] {
+  const { spec, errors } = pluginJsonErrors(data);
   if (!spec) return [schemaFieldIssue("plugin.json", data.$schema)];
-  return spec.validatePlugin(data)
-    ? []
-    : schemaIssues("plugin.json", spec, spec.validatePlugin.errors);
+  return schemaIssues(
+    "plugin.json",
+    spec,
+    errors.filter((e) => !isIgnoredField(e)),
+  );
+}
+
+/**
+ * The unknown top-level fields of a plugin.json, which a client ignores and
+ * which agentPluginIssues therefore leaves out. Worth telling the vendor, not
+ * a reason the Plugin isn't an Agent Plugin. Empty when the file can't be
+ * checked at all: not JSON, or naming no known version.
+ */
+export function ignoredPluginJsonFields(pluginJson: string): string[] {
+  const plugin = parseObject(pluginJson);
+  if (!plugin) return [];
+  return pluginJsonErrors(plugin)
+    .errors.filter(isIgnoredField)
+    .map((e) =>
+      String((e.params as Record<string, unknown>).additionalProperty),
+    );
 }
 
 // --- mcp.json ---
@@ -189,9 +225,11 @@ function serverRuleIssues(server: Record<string, unknown>): string[] {
 
   if (typeof server.cwd === "string") {
     // The schema has already checked cwd starts with one of the three
-    // allowed roots; what's left is whether it stays inside that root.
-    const rest = server.cwd.replace(/^(\.\/|\$\{PLUGIN_(ROOT|DATA)\}\/?)/, "");
-    if (!staysInside(rest || ".")) {
+    // allowed roots; what's left is whether it stays inside that root. The
+    // variable becomes ".", not nothing: stripping it would leave a leading
+    // "/" behind a doubled slash, and an absolute path swallows its "..".
+    const relative = server.cwd.replace(/^\$\{PLUGIN_(ROOT|DATA)\}/, ".");
+    if (!staysInside(relative)) {
       issues.push(
         `"cwd" leaves the directory it is rooted in: ${JSON.stringify(server.cwd)}`,
       );

@@ -17,7 +17,6 @@ import {
   validateSandboxExtensionApproval,
   readApprovalDir,
   validateSimpleApprovals,
-  agentPluginWarnings,
   validateVendorRepo,
   type SkillApprovalEntry,
   type PluginApprovalEntry,
@@ -2086,25 +2085,6 @@ describe("validateVendorData — server key collisions", () => {
     ] as never);
 
     assert.deepEqual(result.errors, []);
-  });
-});
-
-describe("agentPluginWarnings", () => {
-  it("turns each conformance issue into a warning naming the approval", () => {
-    assert.deepEqual(
-      agentPluginWarnings("plugins/io.example--demo.json", [
-        'plugin.json has no "$schema", so it names no Agent Plugins version',
-        'skill "skills/beta": SKILL.md frontmatter has no "description"',
-      ]),
-      [
-        'plugins/io.example--demo.json — not an Agent Plugin: plugin.json has no "$schema", so it names no Agent Plugins version',
-        'plugins/io.example--demo.json — not an Agent Plugin: skill "skills/beta": SKILL.md frontmatter has no "description"',
-      ],
-    );
-  });
-
-  it("warns about nothing for an Agent Plugin", () => {
-    assert.deepEqual(agentPluginWarnings("plugins/x.json", []), []);
   });
 });
 

@@ -270,6 +270,14 @@ describe("skillsCommand", () => {
   });
 });
 
+// The organizations' names, as the page looks them up. One it doesn't know
+// stays an id.
+const ORG_NAMES: Record<string, string> = {
+  google: "Google",
+  "eclipse-theia": "Eclipse Theia",
+};
+const orgName = (orgId: string) => ORG_NAMES[orgId] ?? orgId;
+
 // The options for a plugin, keyed by tool, so each rule is asserted on its own.
 function optionsFor(
   source: Partial<Plugin["source"]> = {},
@@ -284,10 +292,18 @@ function optionsFor(
     >
   > = {},
 ) {
-  const options = pluginInstallOptions(plugin(source, verdict), BASE_URL);
+  const options = pluginInstallOptions(
+    plugin(source, verdict),
+    BASE_URL,
+    orgName,
+  );
+  const claudeCode = options.filter((option) => option.tool === "claude-code");
   return {
     tools: options.map((option) => option.tool),
-    claudeCode: options.filter((option) => option.tool === "claude-code"),
+    claudeCode,
+    claudeCodeWarnings: claudeCode.map((option) =>
+      "warnings" in option ? option.warnings : undefined,
+    ),
     codex: options.find((option) => option.tool === "codex"),
     vsCode: options.find((option) => option.tool === "vscode"),
     kiro: options.find((option) => option.tool === "kiro"),
@@ -306,7 +322,7 @@ function whyNot(
 function kiroFor(link: string) {
   return {
     tool: "kiro",
-    label: "Install in Kiro",
+    label: "Kiro",
     steps: [
       {
         kind: "paste",
@@ -322,9 +338,8 @@ function kiroFor(link: string) {
 function npxPluginsUnavailable(ref: string) {
   return {
     tool: "npx-plugins",
-    label: "Install in other agents",
+    label: "Other agents",
     unavailable: `Installing the approved version isn't currently possible with \`npx plugins add\`. This approval names \`${ref}\`, and the plugins CLI always installs from the repository's default branch.`,
-    warnings: [],
   };
 }
 
@@ -347,16 +362,16 @@ function claudeCodeFor(
 ) {
   return {
     tool: "claude-code",
-    label: "Install in Claude Code",
+    label: "Claude Code",
     steps: [
       {
         kind: "command",
-        lead: `Add the marketplace of plugins ${orgId} approved:`,
-        command: `claude plugin marketplace add https://ai.open-vsx.org/api/v1/orgs/${orgId}/marketplace.json`,
+        lead: `Add the published marketplace of plugins ${orgName(orgId)} approved:`,
+        value: `claude plugin marketplace add https://ai.open-vsx.org/api/v1/orgs/${orgId}/marketplace.json`,
       },
       {
         kind: "command",
-        command: `claude plugin install ${listing.entryName}@${listing.marketplaceName}`,
+        value: `claude plugin install ${listing.entryName}@${listing.marketplaceName}`,
       },
     ],
     warnings,
@@ -395,6 +410,7 @@ describe("pluginInstallOptions", () => {
     const options = pluginInstallOptions(
       plugin({ url: "https://gitlab.com/acme/plugins.git" }, NOT_AGENT_PLUGIN),
       BASE_URL,
+      orgName,
     );
     assert.deepEqual(
       options.map((option) => [option.tool, "unavailable" in option]),
@@ -408,12 +424,11 @@ describe("pluginInstallOptions", () => {
     );
   });
 
-  it("gives an unavailable tool its label and no warnings", () => {
+  it("gives an unavailable tool its label and reason, and nothing else", () => {
     assert.deepEqual(optionsFor({ commit: COMMIT }, NOT_AGENT_PLUGIN).kiro, {
       tool: "kiro",
-      label: "Install in Kiro",
+      label: "Kiro",
       unavailable: "Kiro only loads Agent Plugins, and this plugin isn't one.",
-      warnings: [],
     });
   });
 
@@ -525,7 +540,7 @@ describe("pluginInstallOptions", () => {
           publishedMarketplaces: [GOOGLE],
           containedMcpServers: [github, actions],
           mcpConfigFiles: [],
-        }).claudeCode[0].warnings,
+        }).claudeCodeWarnings[0],
         [
           "Claude Code reads a plugin's MCP servers only from `.mcp.json` or `mcpServers` in `.claude-plugin/plugin.json`, and this plugin has neither, so the MCP servers `github` and `actions` won't be available there.",
         ],
@@ -556,7 +571,7 @@ describe("pluginInstallOptions", () => {
             publishedMarketplaces: [GOOGLE],
             containedMcpServers: [github],
             mcpConfigFiles: [file],
-          }).claudeCode[0].warnings,
+          }).claudeCodeWarnings[0],
           [],
         );
       });
@@ -567,7 +582,7 @@ describe("pluginInstallOptions", () => {
         optionsFor(listed, {
           publishedMarketplaces: [GOOGLE],
           mcpConfigFiles: [],
-        }).claudeCode[0].warnings,
+        }).claudeCodeWarnings[0],
         [],
       );
     });
@@ -579,7 +594,7 @@ describe("pluginInstallOptions", () => {
         optionsFor(listed, {
           publishedMarketplaces: [GOOGLE],
           containedMcpServers: [github],
-        }).claudeCode[0].warnings,
+        }).claudeCodeWarnings[0],
         [],
       );
     });
@@ -588,12 +603,12 @@ describe("pluginInstallOptions", () => {
   describe("npx plugins", () => {
     const command = {
       tool: "npx-plugins",
-      label: "Install in other agents",
+      label: "Other agents",
       steps: [
         {
           kind: "command",
           lead: "For other agents, this plugin might be installable with:",
-          command: "npx plugins add gemini-cli-extensions/looker",
+          value: "npx plugins add gemini-cli-extensions/looker",
         },
       ],
       warnings: [EVERY_PLUGIN],
@@ -659,6 +674,7 @@ describe("pluginInstallOptions", () => {
           ...AGENT_PLUGIN,
         },
         BASE_URL,
+        orgName,
       );
       assert.deepEqual(
         kiro,
@@ -766,16 +782,16 @@ describe("pluginInstallOptions", () => {
     function codexFor(source: string) {
       return {
         tool: "codex",
-        label: "Install in Codex",
+        label: "Codex",
         steps: [
           {
             kind: "command",
             lead: "Add the repository's marketplace at the approved commit:",
-            command: `codex plugin marketplace add ${source} --ref ${COMMIT}`,
+            value: `codex plugin marketplace add ${source} --ref ${COMMIT}`,
           },
           {
             kind: "command",
-            command: "codex plugin add looker@looker-plugins",
+            value: "codex plugin add looker@looker-plugins",
           },
         ],
         warnings: [],
@@ -845,7 +861,7 @@ describe("pluginInstallOptions", () => {
             },
           ).codex,
         ),
-        "Codex reads `.agents/plugins/marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
+        "Codex reads `.agents/plugins/marketplace.json` as this repository's marketplace file, and it doesn't list this plugin from a path in the repository.",
       );
     });
 
@@ -912,7 +928,7 @@ describe("pluginInstallOptions", () => {
     function pinnedFor(warnings: string[] = []) {
       return {
         tool: "vscode",
-        label: "Install in VS Code (GitHub Copilot)",
+        label: "VS Code (GitHub Copilot)",
         steps: [
           {
             kind: "paste",
@@ -920,7 +936,7 @@ describe("pluginInstallOptions", () => {
             action: "Command Palette → Chat: Add Marketplace",
             value: `gemini-cli-extensions/looker#${COMMIT}`,
           },
-          { kind: "install", app: "VS Code", plugin: "looker" },
+          { kind: "install", app: "VS Code", value: "looker" },
         ],
         warnings,
       };
@@ -929,7 +945,7 @@ describe("pluginInstallOptions", () => {
     function directFor(warnings: string[] = []) {
       return {
         tool: "vscode",
-        label: "Install in VS Code (GitHub Copilot)",
+        label: "VS Code (GitHub Copilot)",
         steps: [
           {
             kind: "paste",
@@ -995,6 +1011,50 @@ describe("pluginInstallOptions", () => {
         );
       });
 
+      // VS Code resolves entries under pluginRoot, the registry matched them
+      // without it, so the entry named might be another plugin's.
+      it("is unavailable when the file VS Code reads sets pluginRoot", () => {
+        assert.equal(
+          whyNot(
+            optionsFor(
+              { commit: COMMIT },
+              { marketplaceFiles: [{ ...LISTED, pluginRoot: "./plugins" }] },
+            ).vsCode,
+          ),
+          "VS Code reads `marketplace.json` as this repository's marketplace file, and it sets `pluginRoot`, which moves where VS Code looks for each plugin, so the registry can't tell which entry is this plugin.",
+        );
+      });
+
+      // VS Code takes an empty pluginRoot for none, so the entry stands.
+      it("is offered when the file VS Code reads sets an empty pluginRoot", () => {
+        assert.deepEqual(
+          optionsFor(
+            { commit: COMMIT },
+            { marketplaceFiles: [{ ...LISTED, pluginRoot: "" }] },
+          ).vsCode,
+          pinnedFor(),
+        );
+      });
+
+      it("ignores pluginRoot in a file VS Code doesn't reach", () => {
+        assert.deepEqual(
+          optionsFor(
+            { commit: COMMIT },
+            {
+              marketplaceFiles: [
+                LISTED,
+                {
+                  path: ".claude-plugin/marketplace.json",
+                  marketplaceName: "a",
+                  pluginRoot: "./plugins",
+                },
+              ],
+            },
+          ).vsCode,
+          pinnedFor(),
+        );
+      });
+
       // VS Code stops at the first file it finds, listing or not.
       it("is unavailable when only a file VS Code doesn't reach lists it", () => {
         assert.equal(
@@ -1009,7 +1069,7 @@ describe("pluginInstallOptions", () => {
               ],
             }).vsCode,
           ),
-          "VS Code reads `.github/plugin/marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
+          "VS Code reads `.github/plugin/marketplace.json` as this repository's marketplace file, and it doesn't list this plugin from a path in the repository.",
         );
       });
 
@@ -1092,7 +1152,7 @@ describe("pluginInstallOptions", () => {
               },
             ).vsCode,
           ),
-          "VS Code reads `marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
+          "VS Code reads `marketplace.json` as this repository's marketplace file, and it doesn't list this plugin from a path in the repository.",
         );
       });
 
@@ -1104,7 +1164,7 @@ describe("pluginInstallOptions", () => {
               { marketplaceFiles: [{ path: ".plugin/marketplace.json" }] },
             ).vsCode,
           ),
-          "VS Code reads `.plugin/marketplace.json` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.",
+          "VS Code reads `.plugin/marketplace.json` as this repository's marketplace file, and it doesn't list this plugin from a path in the repository.",
         );
       });
 

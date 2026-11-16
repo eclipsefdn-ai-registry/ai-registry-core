@@ -298,7 +298,9 @@ export interface PluginEntry {
   // (KNOWN_MARKETPLACE_FILE_PATHS) present in the repository at
   // source.commit. entryName is set only when the file has a local or
   // relative-path entry resolving to this plugin's path, and marketplaceName
-  // is absent when the file can't be parsed. Raw facts about files, not about
+  // is absent when the file can't be parsed. pluginRoot is the file's
+  // metadata.pluginRoot as written, when it sets one, and plays no part in
+  // entryName: what it changes differs by tool. Raw facts about files, not about
   // tools, so a tool's rules can change on the website alone. Absent in feeds
   // that predate it, which reads as unknown.
   marketplaceFiles?: RepositoryMarketplaceFile[];

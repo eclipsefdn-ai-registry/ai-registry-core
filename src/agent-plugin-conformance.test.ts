@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   agentPluginIssues,
+  ignoredPluginJsonFields,
   type PluginFiles,
 } from "./agent-plugin-conformance.js";
 
@@ -118,12 +119,39 @@ describe("agentPluginIssues", () => {
 
     it("reports each schema violation in plugin.json", () => {
       const issues = issuesFor({
-        pluginJson: pluginJson({ name: "Not Valid", mcpServers: {} }),
+        pluginJson: pluginJson({ name: "Not Valid", version: 1 }),
       });
       assert.equal(issues.length, 2);
       assert.ok(issues.every((i) => i.startsWith("plugin.json ")));
       assert.ok(issues.some((i) => i.includes('"name"')));
-      assert.ok(issues.some((i) => i.includes('"mcpServers"')));
+      assert.ok(issues.some((i) => i.includes('"version"')));
+    });
+
+    // Spec 1.0.0 §5.2: a client reports and ignores an unknown top-level
+    // field and still loads the plugin.
+    it("reports nothing for an unknown top-level field in plugin.json", () => {
+      assert.deepEqual(
+        issuesFor({
+          pluginJson: pluginJson({ displayName: "Demo", logo: "logo.png" }),
+        }),
+        [],
+      );
+    });
+
+    it("still reports the other violations next to an unknown top-level field", () => {
+      const issues = issuesFor({
+        pluginJson: pluginJson({ name: "Not Valid", displayName: "Demo" }),
+      });
+      assert.equal(issues.length, 1);
+      assert.match(issues[0], /^plugin\.json .*"name"/);
+    });
+
+    it("reports an unknown field inside author", () => {
+      const issues = issuesFor({
+        pluginJson: pluginJson({ author: { name: "Ada", twitter: "@ada" } }),
+      });
+      assert.equal(issues.length, 1);
+      assert.match(issues[0], /^plugin\.json .*"author".*"twitter"/);
     });
 
     it("reports a missing required name", () => {
@@ -226,6 +254,10 @@ describe("agentPluginIssues", () => {
       assert.equal(cwd("./../outside").length, 1);
       assert.equal(cwd("${PLUGIN_ROOT}/a/../../outside").length, 1);
       assert.equal(cwd("${PLUGIN_DATA}/../outside").length, 1);
+      assert.equal(cwd("${PLUGIN_ROOT}//../../etc").length, 1);
+      assert.equal(cwd("${PLUGIN_DATA}//..").length, 1);
+      assert.equal(cwd(".//..").length, 1);
+      assert.deepEqual(cwd("${PLUGIN_ROOT}//a"), []);
       assert.deepEqual(cwd("./a/../b"), []);
       assert.deepEqual(cwd("${PLUGIN_DATA}"), []);
     });
@@ -303,5 +335,37 @@ describe("agentPluginIssues", () => {
       skills: [skill("skills/beta", "name: beta")],
     });
     assert.equal(issues.length, 3);
+  });
+});
+
+describe("ignoredPluginJsonFields", () => {
+  it("names each unknown top-level field in plugin.json", () => {
+    assert.deepEqual(
+      ignoredPluginJsonFields(
+        pluginJson({ displayName: "Demo", logo: "logo.png" }),
+      ),
+      ["displayName", "logo"],
+    );
+  });
+
+  it("names none for a plugin.json with only permitted fields", () => {
+    assert.deepEqual(ignoredPluginJsonFields(CONFORMING.pluginJson), []);
+  });
+
+  it("leaves an unknown field inside author to the issues", () => {
+    assert.deepEqual(
+      ignoredPluginJsonFields(
+        pluginJson({ author: { name: "Ada", twitter: "@ada" } }),
+      ),
+      [],
+    );
+  });
+
+  it("names none when the version is unknown or the file isn't JSON", () => {
+    assert.deepEqual(
+      ignoredPluginJsonFields(JSON.stringify({ name: "demo", extra: 1 })),
+      [],
+    );
+    assert.deepEqual(ignoredPluginJsonFields("{ nope"), []);
   });
 });

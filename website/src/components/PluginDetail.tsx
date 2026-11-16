@@ -134,6 +134,7 @@ export function PluginDetail({
         options={pluginInstallOptions(
           plugin,
           new URL(import.meta.env.BASE_URL, window.location.origin).href,
+          (orgId) => getOrg(orgId)?.name ?? orgId,
         )}
       />
     </div>
@@ -161,7 +162,7 @@ function InstallOptions({
       const own = options.filter((option) => option.tool === tool);
       return {
         key: tool,
-        label: toolName(own[0].label),
+        label: own[0].label,
         unavailable: own.every((option) => "unavailable" in option),
       };
     },
@@ -189,13 +190,6 @@ function InstallOptions({
       </div>
     </div>
   );
-}
-
-// "Install in VS Code (GitHub Copilot)" → "VS Code (GitHub Copilot)",
-// "Install in other agents" → "Other agents".
-function toolName(label: string): string {
-  const name = label.replace(/^Install in /, "");
-  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 // That a plugin isn't an Agent Plugin, and why, as consolidation reported it,
@@ -242,6 +236,16 @@ function AgentPluginIssues({ plugin }: { plugin: Plugin }) {
 // the last one, or, marked the way its tab is, the reason the tool can't
 // install the approved revision.
 function InstallOption({ option }: { option: PluginInstallOption }) {
+  if ("unavailable" in option) {
+    return (
+      <div className="border border-border rounded-lg p-4">
+        <p className="flex gap-2 text-xs text-muted-foreground">
+          <CircleAlert className="h-4 w-4 flex-shrink-0" aria-hidden />
+          <span>{withCode(option.unavailable)}</span>
+        </p>
+      </div>
+    );
+  }
   const warnings =
     option.warnings.length > 0 ? (
       <>
@@ -252,19 +256,6 @@ function InstallOption({ option }: { option: PluginInstallOption }) {
         ))}
       </>
     ) : undefined;
-  if ("unavailable" in option) {
-    return (
-      <div className="border border-border rounded-lg p-4">
-        <p className="flex gap-2 text-xs text-muted-foreground">
-          <CircleAlert className="h-4 w-4 flex-shrink-0" aria-hidden />
-          <span>{withCode(option.unavailable)}</span>
-        </p>
-        {warnings && (
-          <p className="mt-2 text-xs text-muted-foreground">{warnings}</p>
-        )}
-      </div>
-    );
-  }
   const numbered = option.steps.length > 1;
   return (
     <div className="border border-border rounded-lg p-4 space-y-4">
@@ -274,7 +265,7 @@ function InstallOption({ option }: { option: PluginInstallOption }) {
           className=""
           label={numbered ? `Step ${i + 1}` : ""}
           lead={stepLead(step)}
-          command={stepValue(step)}
+          command={step.value}
           note={i === option.steps.length - 1 ? warnings : undefined}
         />
       ))}
@@ -292,12 +283,6 @@ function stepLead(step: InstallStep): React.ReactNode {
       In {step.app}, open <strong>{step.action}</strong> and paste:
     </>
   );
-}
-
-function stepValue(step: InstallStep): string {
-  if (step.kind === "command") return step.command;
-  if (step.kind === "install") return step.plugin;
-  return step.value;
 }
 
 // Renders the backtick-marked spans of an option's prose as code.

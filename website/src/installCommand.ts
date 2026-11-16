@@ -108,26 +108,27 @@ function sourceArgument(
 /** One thing to do in a tool, in the order a plugin's option lists them. */
 export type InstallStep =
   // A shell command to copy and run. `lead` says what it's for.
-  | { kind: "command"; lead?: string; command: string }
+  | { kind: "command"; lead?: string; value: string }
   // A value to paste where `action` (a menu path or command palette entry)
   // asks for it, inside `app`.
   | { kind: "paste"; app: string; action: string; value: string }
-  // Install the entry named `plugin` from the marketplace the step before
+  // Install the entry named `value` from the marketplace the step before
   // added, inside `app`.
-  | { kind: "install"; app: string; plugin: string };
+  | { kind: "install"; app: string; value: string };
 
 /**
  * How to install a plugin with one tool: either the steps, several where the
  * tool needs them (such as adding a marketplace before installing from it), or
  * why the tool can't install what was approved.
  *
- * `unavailable` and `warnings` are prose in which backticks mark code.
+ * `label` is the tool's name as its tab shows it. `unavailable` and `warnings`
+ * are prose in which backticks mark code; only an option with steps has
+ * warnings, since they are about what following the steps gets you.
  */
 export type PluginInstallOption = {
   tool: "claude-code" | "codex" | "vscode" | "kiro" | "npx-plugins";
   label: string;
-  warnings: string[];
-} & ({ steps: InstallStep[] } | { unavailable: string });
+} & ({ steps: InstallStep[]; warnings: string[] } | { unavailable: string });
 
 type PluginFacts = Pick<
   Plugin,
@@ -144,7 +145,8 @@ type PluginFacts = Pick<
  * them. The one place a rule about which tool can install which plugin lives.
  *
  * `baseUrl` is the site's full base URL, which the published marketplaces sit
- * under (see marketplaceCommand).
+ * under (see marketplaceCommand). `orgName` gives an organization's name for
+ * its id, as the instructions show it.
  *
  * The tools that can install the plugin come first, then the ones that can't,
  * each group in the order Kiro, Claude Code, Codex, VS Code, `npx plugins`.
@@ -160,10 +162,11 @@ type PluginFacts = Pick<
 export function pluginInstallOptions(
   plugin: PluginFacts,
   baseUrl: string,
+  orgName: (orgId: string) => string,
 ): PluginInstallOption[] {
   const options = [
     kiroOption(plugin),
-    ...claudeCodeOptions(plugin, baseUrl),
+    ...claudeCodeOptions(plugin, baseUrl, orgName),
     codexOption(plugin),
     vsCodeOption(plugin),
     npxPluginsOption(plugin),
@@ -185,7 +188,7 @@ function noCommit(tool: string): string {
 }
 
 function notListed(tool: string, path: string): string {
-  return `${tool} reads \`${path}\` as this repository's marketplace, and that file doesn't list this plugin from a path in the repository.`;
+  return `${tool} reads \`${path}\` as this repository's marketplace file, and it doesn't list this plugin from a path in the repository.`;
 }
 
 /**
@@ -197,7 +200,7 @@ function notListed(tool: string, path: string): string {
  *
  * Only from `publishedMarketplaces`, which consolidation reads off the files it
  * writes, so the entry named is one that exists. Unavailable, once, for a
- * plugin no marketplace lists, for a feed without the listing, and without a
+ * plugin no published marketplace lists, for a feed without the listing, and without a
  * full 40-character `source.commit`, since then the published entry has no
  * `sha` to pin the install to.
  *
@@ -207,13 +210,14 @@ function notListed(tool: string, path: string): string {
 function claudeCodeOptions(
   plugin: PluginFacts,
   baseUrl: string,
+  orgName: (orgId: string) => string,
 ): PluginInstallOption[] {
   const option = {
     tool: "claude-code" as const,
-    label: "Install in Claude Code",
+    label: "Claude Code",
   };
   const unavailable = (reason: string): PluginInstallOption[] => [
-    { ...option, unavailable: reason, warnings: [] },
+    { ...option, unavailable: reason },
   ];
   const listings = plugin.publishedMarketplaces;
   if (!listings) {
@@ -237,12 +241,12 @@ function claudeCodeOptions(
     steps: [
       {
         kind: "command",
-        lead: `Add the marketplace of plugins ${orgId} approved:`,
-        command: marketplaceCommand(baseUrl, orgId),
+        lead: `Add the published marketplace of plugins ${orgName(orgId)} approved:`,
+        value: marketplaceCommand(baseUrl, orgId),
       },
       {
         kind: "command",
-        command: `claude plugin install ${entryName}@${marketplaceName}`,
+        value: `claude plugin install ${entryName}@${marketplaceName}`,
       },
     ],
     warnings,
@@ -299,11 +303,10 @@ const CODEX_MARKETPLACE_FILES = [
  * host: github.com goes as `owner/repo`, any other as its git URL.
  */
 function codexOption(plugin: PluginFacts): PluginInstallOption {
-  const option = { tool: "codex" as const, label: "Install in Codex" };
+  const option = { tool: "codex" as const, label: "Codex" };
   const unavailable = (reason: string): PluginInstallOption => ({
     ...option,
     unavailable: reason,
-    warnings: [],
   });
   if (plugin.isAgentPlugin === false) {
     return unavailable(notAgentPlugin("Codex"));
@@ -331,11 +334,11 @@ function codexOption(plugin: PluginFacts): PluginInstallOption {
       {
         kind: "command",
         lead: "Add the repository's marketplace at the approved commit:",
-        command: `codex plugin marketplace add ${source} --ref ${commit}`,
+        value: `codex plugin marketplace add ${source} --ref ${commit}`,
       },
       {
         kind: "command",
-        command: `codex plugin add ${file.entryName}@${file.marketplaceName}`,
+        value: `codex plugin add ${file.entryName}@${file.marketplaceName}`,
       },
     ],
     warnings: [],
@@ -380,8 +383,11 @@ const VS_CODE_MARKETPLACE_FILES = [
  * installs the default branch, yet still displays the `#<sha>` (tested
  * against VS Code 1.145.2), so the commit is never appended. A file that is there
  * but doesn't list the plugin, or can't be parsed, gets neither form: VS Code
- * would read the repository as that marketplace. A feed without
- * `marketplaceFiles` is unknown, and passes.
+ * would read the repository as that marketplace. Nor does a file that sets a
+ * non-empty `metadata.pluginRoot` (VS Code takes an empty one for none): VS Code resolves every string source under it
+ * (`parsePluginSource` in pluginMarketplaceService.ts), while `entryName` was
+ * matched without it, so the entry could be missing or another plugin's. A
+ * feed without `marketplaceFiles` is unknown, and passes.
  *
  * Not gated on `isAgentPlugin`: VS Code also reads a Claude-format plugin. Both
  * forms warn when a contained MCP server uses `${PLUGIN_DATA}`, which VS Code
@@ -389,12 +395,11 @@ const VS_CODE_MARKETPLACE_FILES = [
  */
 function vsCodeOption(plugin: PluginFacts): PluginInstallOption {
   const { url, path, ref, commit } = plugin.source;
-  const label = "Install in VS Code (GitHub Copilot)";
+  const label = "VS Code (GitHub Copilot)";
   const unavailable = (reason: string): PluginInstallOption => ({
     tool: "vscode",
     label,
     unavailable: reason,
-    warnings: [],
   });
   if (!isGitHubUrl(url)) {
     return unavailable(
@@ -408,6 +413,11 @@ function vsCodeOption(plugin: PluginFacts): PluginInstallOption {
   };
   const file = firstFound(plugin.marketplaceFiles, VS_CODE_MARKETPLACE_FILES);
   if (file) {
+    if (file.pluginRoot) {
+      return unavailable(
+        `VS Code reads \`${file.path}\` as this repository's marketplace file, and it sets \`pluginRoot\`, which moves where VS Code looks for each plugin, so the registry can't tell which entry is this plugin.`,
+      );
+    }
     if (!file.entryName) return unavailable(notListed("VS Code", file.path));
     if (!commit) return unavailable(noCommit("VS Code"));
     return {
@@ -419,7 +429,7 @@ function vsCodeOption(plugin: PluginFacts): PluginInstallOption {
           action: "Command Palette → Chat: Add Marketplace",
           value: `${cliSource(url)}#${commit}`,
         },
-        { kind: "install", app: "VS Code", plugin: file.entryName },
+        { kind: "install", app: "VS Code", value: file.entryName },
       ],
     };
   }
@@ -476,11 +486,10 @@ function pluginDataWarnings(plugin: PluginFacts): string[] {
  * without the commit the link could only name a ref or HEAD.
  */
 function kiroOption(plugin: PluginFacts): PluginInstallOption {
-  const option = { tool: "kiro" as const, label: "Install in Kiro" };
+  const option = { tool: "kiro" as const, label: "Kiro" };
   const unavailable = (reason: string): PluginInstallOption => ({
     ...option,
     unavailable: reason,
-    warnings: [],
   });
   if (plugin.isAgentPlugin === false) {
     return unavailable(notAgentPlugin("Kiro"));
@@ -523,8 +532,7 @@ function npxPluginsOption(
   if (plugin.isAgentPlugin === true) return undefined;
   const option = {
     tool: "npx-plugins" as const,
-    label: "Install in other agents",
-    warnings: [],
+    label: "Other agents",
   };
   const { ref, url } = plugin.source;
   if (ref) {
@@ -539,7 +547,7 @@ function npxPluginsOption(
       {
         kind: "command",
         lead: "For other agents, this plugin might be installable with:",
-        command: `npx plugins add ${cliSource(url)}`,
+        value: `npx plugins add ${cliSource(url)}`,
       },
     ],
     warnings: [
