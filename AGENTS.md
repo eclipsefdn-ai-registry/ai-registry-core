@@ -72,6 +72,7 @@ src/
   check-updates.ts          Approvals behind their source, read from a consolidated feed
   cli-check-updates.ts      CLI entry: report approvals behind their source
 website/                    React + Vite static website
+cli/                        `ai-registry` CLI: installs approved artifacts through their own installers
 skills/                     Claude Code skills for generating approvals
 vendors.json                Registered vendor repos
 ```
@@ -105,6 +106,7 @@ Tests use Node.js built-in `node:test` with `assert/strict`. Pure function tests
 - The skill, plugin, and sandbox extension steps record latest only when given a `RemoteBranchesLookup` (`src/git-source.ts`). Consolidation passes one shared lookup. Vendor validation passes none, so it does no extra network work.
 - The second fetch that computes `latestHash` must go through the same function that produced `contentHash`, or the two stop being comparable.
 - Website types in `website/src/types.ts` mirror but don't import from `src/consolidate.ts` — keep them in sync manually.
+- `cli/` is a client of the published feed only: it imports nothing from `src/` or `website/`. Its types, `approvedTarget`, `cliSource` and skills command rules (`cli/src/skillsAdd.ts`) mirror the website's by hand, so a change to `website/src/types.ts`, `installCommand.ts`, `approvedTarget.ts` or `cliSource.ts` needs the CLI edited too. Each website file names its mirror.
 - Guidance for implementing clients exists twice on purpose: `skills/implement-registry-client/` for agents, `/docs/clients` (`website/src/pages/docs/ClientsPage.tsx`) for people. Each is complete and neither links to the other, so a rule that changes needs both edited. Drift here is accepted, not a bug to fix by merging them.
 - `src/marketplace-output.ts` is the one tool-specific rendering outside the website, deliberately: `installCommand.ts` and `enclaveCommand.ts` produce a string for a human to copy, while a marketplace file has to exist at a URL in the API surface. The command that adds one is still website-only, in `website/src/marketplaceCommand.ts`.
 - The sandbox extension install command (`enclave tools|features add ...`) lives only in `website/src/enclaveCommand.ts` and is never written into the consolidated JSON, matching how the skill and plugin commands live only in `website/src/installCommand.ts`. It returns undefined for non-GitHub sources, since Enclave's `owner/repo` shorthand assumes github.com. The skill and Enclave commands carry `source.ref` (as `#<ref>` and `--ref <ref>`), or `source.commit` in its place when `approvedTarget` says pinned, since a tag can be moved and the commit is what was hashed. The plugin command is omitted whenever the approval names a ref, branch included, because the plugins CLI can't target one; that suppression goes away once it can. Plugins also get a Kiro entry, `kiroPowerUrl`: the `sourceTreeUrl` that Kiro's "Import power from GitHub" takes, shown for every plugin with no checks, ref or not.

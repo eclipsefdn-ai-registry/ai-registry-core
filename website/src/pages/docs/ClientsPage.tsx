@@ -447,10 +447,28 @@ export function ClientsPage() {
           <InlineCode>source.commit</InlineCode> rather than the tag, since a
           tag can be moved after it was hashed and a commit can't. A branch goes
           over by name, so the tool's own updates keep following it. As of this
-          writing, the <InlineCode>skills</InlineCode> CLI (1.7.0) takes a ref,
-          a full commit SHA included, as{" "}
-          <InlineCode>owner/repo#&lt;ref&gt;</InlineCode>, and the{" "}
-          <InlineCode>plugins</InlineCode> CLI (1.3.4) takes none.
+          writing, the <InlineCode>skills</InlineCode> CLI (1.7.4) takes the
+          path and a ref, a full commit SHA included, as{" "}
+          <InlineCode>owner/repo/&lt;path&gt;#&lt;ref&gt;</InlineCode> for
+          GitHub, as{" "}
+          <InlineCode>
+            https://gitlab.com/&lt;repo&gt;/-/tree/&lt;ref&gt;/&lt;path&gt;
+          </InlineCode>{" "}
+          for gitlab.com (a path needs a ref there, and one without a{" "}
+          <InlineCode>/</InlineCode>), and only a ref, as{" "}
+          <InlineCode>
+            https://&lt;host&gt;/&lt;repo&gt;.git#&lt;ref&gt;
+          </InlineCode>
+          , for any other host. Pass the path: with{" "}
+          <InlineCode>--skill &lt;name&gt;</InlineCode> alone it installs the
+          first skill of that name anywhere in the repository. Pass{" "}
+          <InlineCode>--full-depth</InlineCode> too, or it fetches some owners'
+          files from skills.sh instead of cloning the source. It reads{" "}
+          <InlineCode>github.com/</InlineCode> or{" "}
+          <InlineCode>gitlab.com/</InlineCode> anywhere in its argument as the
+          repository to install from, so offer nothing for a path or URL holding
+          one past the host. The <InlineCode>plugins</InlineCode> CLI (1.3.4)
+          takes no ref.
         </p>
         <p className="mb-3 leading-relaxed">
           On a mismatch you can't explain that way, tell the user the source has

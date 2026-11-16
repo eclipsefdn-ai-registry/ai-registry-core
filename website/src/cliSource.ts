@@ -1,3 +1,5 @@
+// cli/src/cliSource.ts mirrors this file by hand: change both.
+
 /**
  * Strips the parts of a `source.url` that are noise in both a CLI argument and
  * a browser link: a trailing slash, then a trailing `.git`. Both are valid in

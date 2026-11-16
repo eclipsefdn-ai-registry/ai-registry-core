@@ -2,20 +2,24 @@ import type { Plugin, Skill } from "./types";
 import { approvedTarget } from "./approvedTarget";
 import { cliSource, sourceTreeUrl } from "./cliSource";
 
-// The two source forms the skills CLI reads a `#ref` fragment from, given what
-// cliSource produces: the GitHub `owner/repo` shorthand, and a gitlab.com URL,
-// nested groups included. It also reads one after an `https://….git` URL, but
-// cliSource strips the `.git`, so a ref on any other host would stay glued to
-// the URL. HTTP drops a URL's fragment, so that command would quietly clone the
-// default branch instead of failing.
+// The two source forms the skills CLI reads a path from, given what cliSource
+// produces: the GitHub `owner/repo` shorthand, and a gitlab.com URL, nested
+// groups included. Any other host goes over as an `https://….git` URL, which
+// takes a `#ref` but no path.
 const OWNER_REPO = /^[^/:]+\/[^/:]+$/;
 const GITLAB_COM = /^https:\/\/gitlab\.com\/[^/]+\/.+$/;
+// skills 1.7.4 looks for these anywhere in its argument, before the shorthand
+// and before any other host, so one in a path or a URL would install from a
+// repository that wasn't approved.
+const MISROUTING_HOST = /github\.com\/|gitlab\.com\//;
+
+// cli/src/skillsAdd.ts mirrors skillsCommand's rules by hand: change both.
 
 /**
- * Builds the `npx skills add` command that installs one skill at the revision
- * its approval names.
+ * Builds the `npx skills add` command that installs one skill at the path and
+ * revision its approval names.
  *
- * `owner/repo#<ref>` checked against skills 1.7.0, where the fragment is parsed
+ * `<source>#<ref>` checked against skills 1.7.4, where the fragment is parsed
  * and implemented but not in the README: the CLI clones with `--branch <ref>`,
  * falls back to fetching a full commit SHA directly, and records the ref in its
  * lock file so `skills update` keeps following it.
@@ -27,27 +31,73 @@ const GITLAB_COM = /^https:\/\/gitlab\.com\/[^/]+\/.+$/;
  * approvedTarget can tell a tag from a branch only once the tag's hash has
  * changed, so until then an unchanged tag goes over as given too.
  *
- * Returns undefined when the approval names a ref the command can't carry. A
- * command that installs something other than what was approved is worse than
- * none.
+ * --skill picks the skill by its SKILL.md frontmatter name, which is what
+ * `name` is, among those under the path. --full-depth keeps skills 1.7.4 from
+ * fetching some GitHub owners' files from skills.sh instead of cloning; it also
+ * searches below a SKILL.md at the path, which is why --skill goes on every
+ * command, a skill at the repository root included.
+ *
+ * Returns undefined when the command can't be pointed at the approved path and
+ * revision. A command that installs something other than what was approved is
+ * worse than none.
  */
 export function skillsCommand(
   skill: Pick<Skill, "name" | "source" | "contentHash" | "latestHash">,
 ): string | undefined {
-  const source = cliSource(skill.source.url);
   const { ref, commit } = skill.source;
-  if (ref && !OWNER_REPO.test(source) && !GITLAB_COM.test(source)) {
-    return undefined;
-  }
   // Falls back to the ref for a feed that predates source.commit.
   const revision =
     approvedTarget(skill).kind === "pinned" ? (commit ?? ref) : ref;
-  // A repository holding several skills needs --skill to pick this one; when
-  // the skill is the repository root there is nothing to disambiguate. The
-  // flag matches on the SKILL.md frontmatter name, which is what `name` is.
-  return `npx skills add ${source}${revision ? `#${revision}` : ""}${
-    skill.source.path ? ` --skill ${skill.name}` : ""
-  }`;
+  const source = skillsSource(
+    cliSource(skill.source.url),
+    skill.source.path,
+    revision,
+  );
+  if (!source) return undefined;
+  return `npx skills add ${source} --skill ${skill.name} --full-depth`;
+}
+
+/**
+ * The source argument that makes skills look only at `path`, at `revision`.
+ * Without the path, skills installs the first SKILL.md anywhere in the
+ * repository with the name --skill gives.
+ *
+ * The GitHub shorthand takes both as `owner/repo/<path>#<revision>`. gitlab.com
+ * takes a path only in a `/-/tree/<revision>/<path>` URL, which needs a
+ * revision without a slash, since the URL's revision ends at the first one.
+ * Any other host takes a revision but no path, and only as a `.git` URL:
+ * without one skills reads the URL as a well-known endpoint and never clones.
+ * skills reads everything after a `#` as the revision, and splits a skill
+ * filter off it at an `@`, so a path can't hold a `#` and a revision can't
+ * hold an `@`.
+ */
+function skillsSource(
+  source: string,
+  path: string | undefined,
+  revision: string | undefined,
+): string | undefined {
+  if (path?.includes("#") || revision?.includes("@")) return undefined;
+  const argument = sourceArgument(source, path, revision);
+  if (!argument) return undefined;
+  const afterHost = argument.replace(/^https:\/\/gitlab\.com\//, "");
+  return MISROUTING_HOST.test(afterHost) ? undefined : argument;
+}
+
+function sourceArgument(
+  source: string,
+  path: string | undefined,
+  revision: string | undefined,
+): string | undefined {
+  const fragment = revision ? `#${revision}` : "";
+  if (OWNER_REPO.test(source)) {
+    return `${source}${path ? `/${path}` : ""}${fragment}`;
+  }
+  if (GITLAB_COM.test(source)) {
+    if (!path) return `${source}${fragment}`;
+    if (!revision || revision.includes("/")) return undefined;
+    return `${source}/-/tree/${revision}/${path}`;
+  }
+  return path ? undefined : `${source}.git${fragment}`;
 }
 
 /**
