@@ -83,9 +83,9 @@ describe("skillsAddArgs", () => {
     );
   });
 
-  // HTTP drops a URL's fragment, so the installer would quietly clone the
-  // default branch: something other than what was approved.
-  it("refuses a ref on a host the installer can't carry one for", () => {
+  // skills reads a fragment only after a URL it recognises as git, and without
+  // the .git it takes the URL for a well-known endpoint and never clones.
+  it("carries a ref on any other host in a .git URL", () => {
     assert.equal(
       skillsAddArgs(
         skill({
@@ -94,8 +94,8 @@ describe("skillsAddArgs", () => {
           ref: "v1.0.0",
         }),
         {},
-      ),
-      undefined,
+      )?.[1],
+      "https://git.example.org/team/kit.git#v1.0.0",
     );
   });
 
@@ -106,19 +106,63 @@ describe("skillsAddArgs", () => {
     );
   });
 
-  it("installs from any host when the approval names no path or ref", () => {
+  it("installs from any other host as a .git URL", () => {
     assert.deepEqual(
       skillsAddArgs(
-        skill({ url: "https://git.example.org/team/kit.git", path: undefined }),
+        skill({ url: "https://git.example.org/team/kit", path: undefined }),
         {},
       ),
       [
         "add",
-        "https://git.example.org/team/kit",
+        "https://git.example.org/team/kit.git",
         "--skill",
         "code-review",
         "--full-depth",
       ],
+    );
+  });
+
+  // skills matches github.com/<owner>/<repo> anywhere in its argument before
+  // anything else, and gitlab.com/<path> before the shorthand, so a vendored
+  // path like this one would install from someorg/tool.
+  it("refuses a path holding github.com/", () => {
+    assert.equal(
+      skillsAddArgs(skill({ path: "third_party/github.com/someorg/tool" }), {}),
+      undefined,
+    );
+  });
+
+  it("refuses a path holding gitlab.com/", () => {
+    assert.equal(
+      skillsAddArgs(skill({ path: "vendor/gitlab.com/group/tool" }), {}),
+      undefined,
+    );
+  });
+
+  it("refuses a gitlab.com path holding github.com/", () => {
+    assert.equal(
+      skillsAddArgs(
+        skill({
+          url: "https://gitlab.com/group/kit",
+          path: "vendor/github.com/someorg/tool",
+          ref: "release",
+        }),
+        {},
+      ),
+      undefined,
+    );
+  });
+
+  it("refuses another host's URL holding github.com/", () => {
+    assert.equal(
+      skillsAddArgs(
+        skill({
+          url: "https://git.example.org/mirrors/github.com/someorg/tool.git",
+          path: undefined,
+        }),
+        {},
+      ),
+      undefined,
     );
   });
 

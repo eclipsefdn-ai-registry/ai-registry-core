@@ -166,10 +166,10 @@ describe("skillsCommand", () => {
     );
   });
 
-  // The CLI reads the fragment only after a URL it recognises as git, and the
-  // .git that would make it recognisable here is stripped. Git over HTTP drops
-  // the fragment, so the command would install the default branch.
-  it("offers no command for a ref on a host the CLI can't target", () => {
+  // The CLI reads a fragment only after a URL it recognises as git, and
+  // without the .git it takes the URL for a well-known endpoint and never
+  // clones.
+  it("targets a ref on any other host in a .git URL", () => {
     assert.equal(
       skillsCommand(
         skill({
@@ -178,7 +178,7 @@ describe("skillsCommand", () => {
           ref: "v1.2.0",
         }),
       ),
-      undefined,
+      "npx skills add https://git.example.com/acme/kits.git#v1.2.0 --skill code-review --full-depth",
     );
   });
 
@@ -189,15 +189,57 @@ describe("skillsCommand", () => {
     );
   });
 
-  it("still offers a command on that host with no path or ref", () => {
+  it("offers a .git URL on any other host with no path or ref", () => {
     assert.equal(
       skillsCommand(
         skill({
-          url: "https://git.example.com/acme/kits.git",
+          url: "https://git.example.com/acme/kits",
           path: undefined,
         }),
       ),
-      "npx skills add https://git.example.com/acme/kits --skill code-review --full-depth",
+      "npx skills add https://git.example.com/acme/kits.git --skill code-review --full-depth",
+    );
+  });
+
+  // The CLI matches github.com/<owner>/<repo> anywhere in its argument before
+  // anything else, and gitlab.com/<path> before the shorthand, so a vendored
+  // path like this one would install from someorg/tool.
+  it("offers no command for a path holding github.com/", () => {
+    assert.equal(
+      skillsCommand(skill({ path: "third_party/github.com/someorg/tool" })),
+      undefined,
+    );
+  });
+
+  it("offers no command for a path holding gitlab.com/", () => {
+    assert.equal(
+      skillsCommand(skill({ path: "vendor/gitlab.com/group/tool" })),
+      undefined,
+    );
+  });
+
+  it("offers no command for a gitlab.com path holding github.com/", () => {
+    assert.equal(
+      skillsCommand(
+        skill({
+          url: "https://gitlab.com/group/kit",
+          path: "vendor/github.com/someorg/tool",
+          ref: "release",
+        }),
+      ),
+      undefined,
+    );
+  });
+
+  it("offers no command for another host's URL holding github.com/", () => {
+    assert.equal(
+      skillsCommand(
+        skill({
+          url: "https://git.example.com/mirrors/github.com/someorg/tool.git",
+          path: undefined,
+        }),
+      ),
+      undefined,
     );
   });
 
