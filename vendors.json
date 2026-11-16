@@ -58,5 +58,9 @@
   {
     "id": "typefox",
     "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-typefox.git"
+  },
+  {
+    "id": "opcoach",
+    "repo": "https://github.com/eclipsefdn-ai-registry/ai-registry-opcoach.git"
   }
 ]
