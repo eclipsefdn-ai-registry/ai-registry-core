@@ -49,10 +49,12 @@ export function TabButtons<K extends string>({
           {t.label}
           {t.count !== undefined && ` (${t.count})`}
           {t.unavailable && (
-            <CircleAlert
-              className="inline h-3.5 w-3.5 ml-1 -mt-0.5 opacity-70"
-              aria-label="not available"
-            />
+            <span title="Can't install this plugin">
+              <CircleAlert
+                className="inline h-3.5 w-3.5 ml-1 -mt-0.5 opacity-70"
+                aria-label="Can't install this plugin"
+              />
+            </span>
           )}
         </button>
       ))}

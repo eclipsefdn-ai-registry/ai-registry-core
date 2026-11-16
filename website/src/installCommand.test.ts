@@ -1180,7 +1180,7 @@ describe("pluginInstallOptions", () => {
           whyNot(
             optionsFor({ ref: "main", pinned: false, commit: COMMIT }).vsCode,
           ),
-          "This approval names `main`, and without a marketplace file in the repository VS Code always installs the default branch.",
+          "Without a marketplace file in the repository, VS Code can only install this plugin from its default branch, not the approved `main`.",
         );
       });
 

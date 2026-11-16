@@ -168,12 +168,7 @@ function InstallOptions({
     },
   );
   const [selected, setSelected] = useState<InstallTool | undefined>();
-  if (tabs.length === 0) return null;
-  const active = (
-    tabs.find((tab) => tab.key === selected) ??
-    tabs.find((tab) => !tab.unavailable) ??
-    tabs[0]
-  ).key;
+  const active = (tabs.find((tab) => tab.key === selected) ?? tabs[0]).key;
   return (
     <div className="mt-6">
       <h3 className="text-base font-semibold mb-1">Install</h3>

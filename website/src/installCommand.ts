@@ -171,10 +171,10 @@ export function pluginInstallOptions(
     vsCodeOption(plugin),
     npxPluginsOption(plugin),
   ].filter((option) => option !== undefined);
-  return [
-    ...options.filter((option) => !("unavailable" in option)),
-    ...options.filter((option) => "unavailable" in option),
-  ];
+  // Stable, so each group keeps the order above.
+  return options.sort(
+    (a, b) => Number("unavailable" in a) - Number("unavailable" in b),
+  );
 }
 
 // The reasons more than one tool gives for not installing a plugin. They say
@@ -440,7 +440,7 @@ function vsCodeOption(plugin: PluginFacts): PluginInstallOption {
   }
   if (ref) {
     return unavailable(
-      `This approval names \`${ref}\`, and without a marketplace file in the repository VS Code always installs the default branch.`,
+      `Without a marketplace file in the repository, VS Code can only install this plugin from its default branch, not the approved \`${ref}\`.`,
     );
   }
   return {
