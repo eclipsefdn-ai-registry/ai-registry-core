@@ -6,7 +6,7 @@ import { join } from "node:path";
 import {
   parseCodexMarketplace,
   resolveCodexEntry,
-  deriveGithubOwnerRepo,
+  deriveRepoNamespace,
   derivePluginIdFromSource,
   fetchMarketplaceEntries,
   normalizeGithubShorthand,
@@ -83,34 +83,65 @@ describe("normalizeGithubShorthand", () => {
   });
 });
 
-// --- deriveGithubOwnerRepo ---
+// --- deriveRepoNamespace ---
 
-describe("deriveGithubOwnerRepo", () => {
+describe("deriveRepoNamespace", () => {
   it("extracts owner and repo from a .git URL", () => {
     assert.deepEqual(
-      deriveGithubOwnerRepo("https://github.com/google/skills.git"),
-      { owner: "google", repo: "skills" },
+      deriveRepoNamespace("https://github.com/google/skills.git"),
+      { namespace: "io.github.google", repo: "skills" },
     );
   });
 
   it("extracts owner and repo from a URL without .git", () => {
-    assert.deepEqual(
-      deriveGithubOwnerRepo("https://github.com/google/skills"),
-      { owner: "google", repo: "skills" },
-    );
+    assert.deepEqual(deriveRepoNamespace("https://github.com/google/skills"), {
+      namespace: "io.github.google",
+      repo: "skills",
+    });
   });
 
   it("lowercases mixed-case owners", () => {
     assert.deepEqual(
-      deriveGithubOwnerRepo(
+      deriveRepoNamespace(
         "https://github.com/GoogleCloudPlatform/db-context-enrichment.git",
       ),
-      { owner: "googlecloudplatform", repo: "db-context-enrichment" },
+      {
+        namespace: "io.github.googlecloudplatform",
+        repo: "db-context-enrichment",
+      },
     );
   });
 
-  it("throws on a non-GitHub URL", () => {
-    assert.throws(() => deriveGithubOwnerRepo("https://example.com/foo/bar"));
+  it("reverses a non-GitHub host and keeps only the top-level group of a nested path", () => {
+    assert.deepEqual(
+      deriveRepoNamespace(
+        "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git",
+      ),
+      { namespace: "com.gitlab.gitlab-org", repo: "gitlab-duo-plugins" },
+    );
+  });
+
+  it("handles a self-hosted instance", () => {
+    assert.deepEqual(
+      deriveRepoNamespace(
+        "https://gitlab.eclipse.org/eclipse-research-labs/mosaico-project/plugins",
+      ),
+      {
+        namespace: "org.eclipse.gitlab.eclipse-research-labs",
+        repo: "plugins",
+      },
+    );
+  });
+
+  it("throws on a URL without an owner and a repo", () => {
+    assert.throws(() => deriveRepoNamespace("https://example.com/foo"));
+  });
+
+  it("throws on a non-http URL", () => {
+    assert.throws(() =>
+      deriveRepoNamespace("git@github.com:google/skills.git"),
+    );
+    assert.throws(() => deriveRepoNamespace("file:///srv/repos/foo/bar"));
   });
 });
 
@@ -145,6 +176,27 @@ describe("derivePluginIdFromSource", () => {
         pathIsDescriptive: true,
       }),
       "io.github.googlecloudplatform/google-cloud-developer",
+    );
+  });
+
+  it("derives the same ID a direct approval uses for a GitLab-hosted local entry", () => {
+    assert.equal(
+      derivePluginIdFromSource({
+        url: "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git",
+        path: "plugins/mr-review",
+        pathIsDescriptive: true,
+      }),
+      "com.gitlab.gitlab-org/mr-review",
+    );
+  });
+
+  it("throws when the derived ID would not be a valid pluginId", () => {
+    assert.throws(() =>
+      derivePluginIdFromSource({
+        url: "https://github.com/acme/repo",
+        path: "plugins/My Plugin",
+        pathIsDescriptive: true,
+      }),
     );
   });
 

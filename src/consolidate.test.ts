@@ -3481,7 +3481,7 @@ describe("expandMarketplaceApprovals", () => {
         name: "bad-plugin",
         source: {
           source: "url",
-          url: "https://gitlab.com/foo/bar.git",
+          url: "https://example.com/bar.git",
           ref: "1.0.0",
         },
       },
@@ -3507,6 +3507,62 @@ describe("expandMarketplaceApprovals", () => {
       assert.equal(
         output.plugins[0].pluginId,
         "io.github.gemini-cli-extensions/alloydb",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("collects entries hosted outside github.com under the reversed host's namespace", () => {
+    const { sourceUrl, cleanup } = makeMarketplaceRepo([
+      {
+        name: "mr-review",
+        source: {
+          source: "git-subdir",
+          url: "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git",
+          path: "plugins/mr-review",
+        },
+      },
+      {
+        name: "self-hosted",
+        source: {
+          source: "url",
+          url: "https://gitlab.eclipse.org/eclipse-research-labs/mosaico.git",
+        },
+      },
+    ]);
+    try {
+      const output = emptyOutput();
+      expandMarketplaceApprovals(
+        [
+          {
+            organizationId: "acme",
+            data: {
+              date: "2026-09-04",
+              source: { url: sourceUrl, format: "codex" },
+            },
+          },
+        ],
+        output,
+      );
+
+      assert.deepEqual(
+        output.plugins.map((p) => [p.pluginId, p.source]),
+        [
+          [
+            "com.gitlab.gitlab-org/gitlab-duo-plugins",
+            {
+              url: "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git",
+              path: "plugins/mr-review",
+            },
+          ],
+          [
+            "org.eclipse.gitlab.eclipse-research-labs/mosaico",
+            {
+              url: "https://gitlab.eclipse.org/eclipse-research-labs/mosaico.git",
+            },
+          ],
+        ],
       );
     } finally {
       cleanup();

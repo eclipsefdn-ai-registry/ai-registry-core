@@ -49,7 +49,7 @@ export function parseCodexMarketplace(
 // characters on each side) is shorthand for a GitHub URL — expand it so
 // downstream git clone and ID derivation both get a real, clonable URL.
 // Anything else (already a full URL, or not shaped like owner/repo at all)
-// is returned unchanged; deriveGithubOwnerRepo's own validation is what
+// is returned unchanged; deriveRepoNamespace's own validation is what
 // ultimately rejects genuinely malformed input.
 export function normalizeGithubShorthand(url: string): string {
   if (/^[\w.-]+\/[\w.-]+$/.test(url)) {
@@ -60,17 +60,44 @@ export function normalizeGithubShorthand(url: string): string {
 
 // --- ID derivation ---
 
-const GITHUB_URL_RE = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/;
+// Same pattern as plugin-approval.schema.json's pluginId, so a derived ID is
+// held to the rule a hand-authored one is.
+const PLUGIN_ID_RE =
+  /^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-export function deriveGithubOwnerRepo(url: string): {
-  owner: string;
+// Splits an https git URL into the reverse-domain namespace a plugin ID
+// starts with and the repository's own name. GitHub keeps its established
+// io.github.<owner> form; every other host reverses its domain and appends
+// the top-level group, the convention direct approvals already use
+// (gitlab.com/gitlab-org/ai/gitlab-duo-plugins -> com.gitlab.gitlab-org).
+// Nested groups between the top level and the repository don't enter the ID.
+export function deriveRepoNamespace(url: string): {
+  namespace: string;
   repo: string;
 } {
-  const match = GITHUB_URL_RE.exec(url.trim());
-  if (!match) {
-    throw new Error(`Cannot derive GitHub owner/repo from URL "${url}"`);
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    throw new Error(`Cannot derive a plugin namespace from URL "${url}"`);
   }
-  return { owner: match[1].toLowerCase(), repo: match[2] };
+  const segments = parsed.pathname
+    .replace(/\.git\/?$/, "")
+    .split("/")
+    .filter((s) => s.length > 0);
+  if (
+    (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+    segments.length < 2
+  ) {
+    throw new Error(`Cannot derive a plugin namespace from URL "${url}"`);
+  }
+
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+  const owner = segments[0].toLowerCase();
+  const repo = segments[segments.length - 1];
+  const hostPrefix =
+    host === "github.com" ? "io.github" : host.split(".").reverse().join(".");
+  return { namespace: `${hostPrefix}.${owner}`, repo };
 }
 
 // Known limitation: two git-subdir entries pointing at different
@@ -83,12 +110,18 @@ export function deriveGithubOwnerRepo(url: string): {
 export function derivePluginIdFromSource(
   resolved: ResolvedPluginSource,
 ): string {
-  const { owner, repo } = deriveGithubOwnerRepo(resolved.url);
+  const { namespace, repo } = deriveRepoNamespace(resolved.url);
   const name =
     resolved.path && resolved.pathIsDescriptive
       ? resolved.path.split("/").pop()!
       : repo;
-  return `io.github.${owner}/${name}`;
+  const pluginId = `${namespace}/${name}`;
+  if (!PLUGIN_ID_RE.test(pluginId)) {
+    throw new Error(
+      `Derived plugin ID "${pluginId}" from URL "${resolved.url}" is not a valid pluginId`,
+    );
+  }
+  return pluginId;
 }
 
 // --- Codex source resolution ---
