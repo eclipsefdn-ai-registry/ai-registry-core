@@ -899,6 +899,15 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
           console.log(
             `    Contains: ${metadata.containedSkills.length} skill(s), ${metadata.containedMcpServers.length} MCP server(s)`,
           );
+          // Warnings, never failures: a Plugin that isn't an Agent Plugin
+          // is still a Plugin. The messages are the ones consolidation
+          // publishes in agentPluginIssues.
+          for (const issue of metadata.agentPluginIssues) {
+            console.warn(`  WARNING: ${file} — not an Agent Plugin: ${issue}`);
+          }
+          for (const notice of metadata.agentPluginNotices) {
+            console.warn(`  WARNING: ${file} — ${notice}`);
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           console.warn(
@@ -971,6 +980,14 @@ export async function validateVendorRepo(repoDir: string): Promise<boolean> {
               console.log(`    PASS: ${label} (${pluginId})`);
               console.log(`      Name: ${metadata.name}`);
               console.log(`      Description: ${metadata.description}`);
+              for (const issue of metadata.agentPluginIssues) {
+                console.warn(
+                  `    WARNING: ${label} — not an Agent Plugin: ${issue}`,
+                );
+              }
+              for (const notice of metadata.agentPluginNotices) {
+                console.warn(`    WARNING: ${label} — ${notice}`);
+              }
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
               console.warn(

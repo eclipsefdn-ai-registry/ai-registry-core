@@ -35,7 +35,9 @@ export const DOCS_NAV: DocsPageEntry[] = [
       { id: "core", label: "Core" },
       { id: "mcp-servers", label: "MCP servers" },
       { id: "agent-skills", label: "Agent Skills" },
-      { id: "agent-plugins", label: "Agent Plugins" },
+      // The id predates the Plugin/Agent Plugin split and stays so links
+      // into the page keep working.
+      { id: "agent-plugins", label: "Plugins" },
       { id: "a2a-agents", label: "A2A Agents" },
       { id: "sandbox-extensions", label: "Sandbox Extensions" },
       { id: "disappearing-entries", label: "Disappearing entries" },

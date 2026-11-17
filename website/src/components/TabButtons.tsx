@@ -1,7 +1,14 @@
+import { CircleAlert } from "lucide-react";
+
 export interface TabButtonSpec<K extends string> {
   key: K;
   label: string;
-  count: number;
+  // Left out where a count means nothing, as for the install tools on a
+  // plugin page.
+  count?: number;
+  // Marks a tab whose content says something can't be done, as for a tool
+  // that can't install a plugin. The tab still opens, to say why.
+  unavailable?: boolean;
 }
 
 /**
@@ -39,7 +46,16 @@ export function TabButtons<K extends string>({
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          {t.label} ({t.count})
+          {t.label}
+          {t.count !== undefined && ` (${t.count})`}
+          {t.unavailable && (
+            <span title="Can't install this plugin">
+              <CircleAlert
+                className="inline h-3.5 w-3.5 ml-1 -mt-0.5 opacity-70"
+                aria-label="Can't install this plugin"
+              />
+            </span>
+          )}
         </button>
       ))}
     </div>
