@@ -3,7 +3,7 @@ export function TermsPage() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-2">Terms of Use</h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Last updated: May 2026
+        Last updated: November 2026
       </p>
 
       <section className="mb-6">
@@ -32,21 +32,32 @@ export function TermsPage() {
         </h2>
         <p className="mb-3 leading-relaxed">
           The AI Registry is a trust and approval registry. It aggregates and
-          displays vendor approval data for AI artifacts, currently Model
-          Context Protocol (MCP) servers and in the future additional artifact
-          types. The Registry links to artifacts hosted by third parties — it
-          does not host, distribute, or store the artifacts themselves.
+          displays approval data for AI artifacts, such as Model Context
+          Protocol (MCP) servers, agent skills, and plugins. The Registry links
+          to artifacts hosted by third parties — it does not host, distribute,
+          or store the artifacts themselves.
         </p>
         <p className="mb-3 leading-relaxed">
           The approval data is contributed by third-party organizations ("Vendor
-          Organizations") that independently evaluate and endorse artifacts for
-          use with their tools.
+          Organizations") that independently evaluate and approve artifacts, for
+          example for use with their own tools.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Some organizations are shown as inferred. Their entries are compiled
+          by the Registry maintainers from information the organization has
+          published itself, such as its own repositories or marketplace
+          listings, and do not represent an approval by that organization.
         </p>
         <p className="mb-3 leading-relaxed">
           The Eclipse Foundation does not independently verify, test, or
           endorse, monitor, or continuously review the security, functionality,
           legality, or compliance of the artifacts referenced in the Registry
           beyond aggregating and displaying vendor approval data.
+        </p>
+        <p className="mb-3 leading-relaxed">
+          Installation commands and configurations shown on the Website are
+          provided for convenience only. Running them installs third-party
+          software at your own risk.
         </p>
       </section>
 
@@ -125,6 +136,19 @@ export function TermsPage() {
             license@eclipse.org
           </a>
           .
+        </p>
+        <p className="mb-3 leading-relaxed">
+          To report a security issue concerning this Website or an artifact it
+          lists, follow the{" "}
+          <a
+            href="https://github.com/eclipsefdn-ai-registry/ai-registry-core/blob/main/SECURITY.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            Security Policy
+          </a>{" "}
+          instead of creating a public issue.
         </p>
       </section>
 
