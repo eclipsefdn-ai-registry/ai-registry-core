@@ -39,7 +39,7 @@ export function TermsPage() {
         </p>
         <p className="mb-3 leading-relaxed">
           The approval data is contributed by third-party organizations ("Vendor
-          Organizations") that independently evaluate and approve artifacts, for
+          Organizations") that independently evaluate and endorse artifacts, for
           example for use with their own tools.
         </p>
         <p className="mb-3 leading-relaxed">
