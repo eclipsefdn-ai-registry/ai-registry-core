@@ -90,6 +90,69 @@ describe("lookupServer", () => {
     assert.equal(await lookupServer("io.example/server", NO_DELAY), undefined);
   });
 
+  it("returns undefined when every version listed is deleted", async () => {
+    serve(
+      Response.json({
+        servers: [
+          {
+            server: {
+              name: "io.example/server",
+              description: "Removed",
+              version: "1.0.0",
+            },
+            _meta: {
+              "io.modelcontextprotocol.registry/official": {
+                status: "deleted",
+                isLatest: true,
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    assert.equal(await lookupServer("io.example/server", NO_DELAY), undefined);
+  });
+
+  it("skips a deleted version, even one marked latest", async () => {
+    serve(
+      Response.json({
+        servers: [
+          {
+            server: {
+              name: "io.example/server",
+              description: "Kept",
+              version: "1.0.0",
+            },
+            _meta: {
+              "io.modelcontextprotocol.registry/official": { status: "active" },
+            },
+          },
+          {
+            server: {
+              name: "io.example/server",
+              description: "Removed",
+              version: "2.0.0",
+            },
+            _meta: {
+              "io.modelcontextprotocol.registry/official": {
+                status: "deleted",
+                isLatest: true,
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    assert.deepEqual(await lookupServer("io.example/server", NO_DELAY), {
+      name: "io.example/server",
+      description: "Kept",
+      verified: true,
+      latestVersion: "1.0.0",
+    });
+  });
+
   it("retries a 500 until the registry answers", async () => {
     const warnings = silenceWarnings();
     const urls = serve(status(500), status(500), versions("io.example/server"));

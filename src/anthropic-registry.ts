@@ -32,6 +32,7 @@ export interface LookupOptions {
 interface RegistryMeta {
   "io.modelcontextprotocol.registry/official"?: {
     isLatest?: boolean;
+    status?: string;
   };
 }
 
@@ -103,7 +104,8 @@ async function getWithRetry(
 /**
  * Look up an MCP server in the Anthropic MCP registry.
  *
- * Returns metadata on success, undefined if the server is not found (404).
+ * Returns metadata on success, undefined if the server is not found (404)
+ * or every version of it is deleted.
  * Throws on registry errors (network failure, non-404 HTTP errors), once
  * the transient ones have been retried (see getWithRetry).
  */
@@ -133,16 +135,27 @@ export async function lookupServer(
 
   const data = JSON.parse(response.body) as RegistryResponse;
 
-  if (data.servers.length === 0) {
+  // The registry marks a version deleted when it is removed, often for a
+  // moderation-policy violation, and already leaves deleted versions out of
+  // this response, answering 404 once all of them are. Skipping them here
+  // as well keeps a removed server from being verified should that ever
+  // change.
+  const servers = data.servers.filter(
+    (e) =>
+      e._meta?.["io.modelcontextprotocol.registry/official"]?.status !==
+      "deleted",
+  );
+
+  if (servers.length === 0) {
     return undefined;
   }
 
   const latest =
-    data.servers.find(
+    servers.find(
       (e) =>
         e._meta?.["io.modelcontextprotocol.registry/official"]?.isLatest ===
         true,
-    ) ?? data.servers[0];
+    ) ?? servers[0];
 
   return {
     name: latest.server.title ?? latest.server.name,
