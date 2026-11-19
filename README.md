@@ -1,6 +1,6 @@
 # AI Registry
 
-> **Preview** — This registry is currently in preview. Data, APIs, and the website may change as we iterate on the concept.
+> **Beta** — The registry is in beta. The API and metadata schema may still change.
 
 A vendor-neutral, federated trust registry for AI artifacts, hosted at the Eclipse Foundation. Supports [Model Context Protocol](https://modelcontextprotocol.io) (MCP) servers, [Agent Skills](https://agentskills.io), [Agent Plugins](https://agent-plugins.org), [A2A agents](https://a2a-protocol.org), and sandbox extensions for [Eclipse Enclave](https://enclave.eclipse.dev/).
 
