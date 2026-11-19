@@ -49,10 +49,10 @@ export function TermsPage() {
           listings, and do not represent an approval by that organization.
         </p>
         <p className="mb-3 leading-relaxed">
-          The Eclipse Foundation does not independently verify, test, or
-          endorse, monitor, or continuously review the security, functionality,
-          legality, or compliance of the artifacts referenced in the Registry
-          beyond aggregating and displaying vendor approval data.
+          The Eclipse Foundation does not independently verify, test, endorse,
+          monitor, or continuously review the security, functionality, legality,
+          or compliance of the artifacts referenced in the Registry beyond
+          aggregating and displaying vendor approval data.
         </p>
         <p className="mb-3 leading-relaxed">
           Installation commands and configurations shown on the Website are
