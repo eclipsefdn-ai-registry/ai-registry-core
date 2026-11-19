@@ -26,6 +26,14 @@ export function Footer() {
               Terms of Use
             </Link>
             <a
+              href="https://www.eclipse.org/legal/compliance/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              Compliance
+            </a>
+            <a
               href="https://www.eclipse.org/legal/"
               target="_blank"
               rel="noopener noreferrer"
