@@ -2,19 +2,19 @@ import { Link } from "react-router-dom";
 import { InfoCallout } from "./InfoCallout";
 
 /**
- * Shared "API preview" copy shown on both the About and API-docs pages.
- * `linkToApiDocs` adds a pointer to /docs/api — omit it on the docs pages
- * themselves to avoid a self-referential link.
+ * Shared "Beta" copy shown on the About and docs pages, and deliberately
+ * nowhere more prominent. `linkToApiDocs` adds a pointer to /docs/api — omit
+ * it on the docs pages themselves to avoid a self-referential link.
  */
-export function ApiPreviewNotice({
+export function BetaNotice({
   linkToApiDocs = false,
 }: {
   linkToApiDocs?: boolean;
 }) {
   return (
     <InfoCallout>
-      <strong>API preview:</strong> The public catalogue is available for use.
-      The API and metadata schema are still evolving and may change.
+      <strong>Beta:</strong> The public catalogue is available for use. The API
+      and metadata schema are still evolving and may change.
       {linkToApiDocs && (
         <>
           {" "}
