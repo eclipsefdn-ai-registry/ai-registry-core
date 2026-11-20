@@ -174,6 +174,15 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        skill pass, since the hit is genuine evidence of a publishable artifact in the other
        category (`docker/skills`, 2026-10-02). Say so explicitly in the report when the run is
        scoped to plugins only, or the finding is lost.
+     - **A vendor template repo is sample content**, however conformant: `github/plugin-marketplace-starter`
+       has agent-plugins.org manifests, an MIT license and a GitHub maintainer, but its README says
+       "Use this template" and to re-point the install commands (2026-11-20).
+     - One repo can carry several codex marketplace files (`openai/plugins` has
+       `.agents/plugins/api_marketplace.json` next to `marketplace.json`); read every
+       `*marketplace.json` under `.agents/plugins/`.
+     - Since ai-registry-core#170, fan-out derives plugin ids for hosts other than github.com, so a
+       cached marketplace rejection that gives "fan-out only resolves github.com" as its reason is
+       stale; re-check it.
      - A multi-entry index can still be a **duplicate** rather than a new marketplace: check
        whether its entries are the same plugins an already-approved marketplace fans out, and
        whether the entries are git submodules vendoring already-approved repos (check

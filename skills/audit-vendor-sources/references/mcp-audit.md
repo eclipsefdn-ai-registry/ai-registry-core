@@ -279,7 +279,13 @@ page week over week by distinct product name, not by row** — `docs.cloud.googl
 returns 594 rows but only 80 distinct products, and collapsing the regional duplicates (`awk` on
 `section | product`) made the 2026-10-09 diff against `knownSources` exactly one line long. Key the
 duplicate check on the **endpoint URL, not the product slug**: a product name need not match its
-host (`Service Metadata API` → `cloud.googleapis.com`).
+host (`Service Metadata API` → `cloud.googleapis.com`). A bare registry-listed approval has no
+`config.url` to match, so match the page against the registry's `remotes[].url` for those, or it
+shows up as a false "new" (memorystore, 2026-11-20). Google's managed servers answer an anonymous
+`tools/list`, which gives an accurate description for free.
+
+**A vendor's "AI tools" docs pages are a cheap lead.** kotlinlang.org/docs/ai-for-development.html
+led to the Compose Hot Reload MCP server on 2026-11-20.
 
 **Distinguish enumerable from combinatorial endpoint sets.** A product with a small, fixed set of
 global hosts and one toolset path each is approvable as one entry per toolset — Security Command

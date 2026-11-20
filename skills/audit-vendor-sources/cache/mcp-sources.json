@@ -22,7 +22,7 @@
   },
   "anthropic": {
     "githubOrgs": ["anthropics"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": []
     },
@@ -42,8 +42,8 @@
       {
         "url": "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.anthropics",
         "type": "mcpServer",
-        "reason": "Re-confirmed 2026-11-20: 0 results for io.github.anthropics and com.anthropic; 'anthropic' returns only third-party servers (e.g. ai.getvda/*-langchain-anthropic).",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-confirmed 2026-10-16: count 0 (also com.anthropic: 0; anthropic/claude searches return only third-party servers).",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://docs.claude.com/en/docs/agents-and-tools/remote-mcp-servers",
@@ -54,8 +54,8 @@
       {
         "url": "npm scope:@anthropic-ai",
         "type": "mcpServer",
-        "reason": "Re-listed 2026-11-20: only SDKs and claude-code/claude-agent-sdk native binaries. No MCP server package.",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-listed 2026-10-16: SDKs, claude-code/claude-agent-sdk binaries, sandbox-runtime, tokenizer, mcpb (MCP bundle packaging tool, not a server). No MCP server package.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "claude mcp serve (Claude Code CLI)",
@@ -80,18 +80,12 @@
         "type": "mcpServer",
         "reason": "Claude-Code-native plugin bundle's .mcp.json listing third-party vendor endpoints (Orion, wealth.com, Wealthbox, Addepar, ...), not Anthropic servers.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/anthropics/art-paper-data.git#benchmarks/fixed_input_benchmark/code",
-        "type": "mcpServer",
-        "reason": "MCP server of the paper benchmark's submission tool — experiment harness inside a static, unmaintained data release, not a published server.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "openai": {
     "githubOrgs": ["openai"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": ["com.openai/docs-mcp"]
     },
@@ -117,20 +111,14 @@
       {
         "url": "registry.modelcontextprotocol.io?search=openai",
         "type": "mcpServer",
-        "reason": "Re-checked 2026-11-20: search=openai hits are all third-party (AceDataCloud, getvda, smithery, modevc, etc.); search=com.openai and io.github.openai return none; com.openai/docs-mcp/versions still 404; developers.openai.com/mcp handshake returns openai-docs-mcp 1.0.0.",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-checked 2026-10-30: search=openai returned 30 servers, none in com.openai/* or io.github.openai/*; search=com.openai and search=io.github.openai returned none; com.openai/docs-mcp/versions still 404. developers.openai.com/mcp handshake returns serverInfo openai-docs-mcp 1.0.0.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://pypi.org/project/mcp-openai-pro",
         "type": "mcpServer",
         "reason": "Third-party (AceDataCloud) proxy for the OpenAI API, not OpenAI-published.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/openai/codex (codex-rs/message-board-mcp)",
-        "type": "mcpServer",
-        "reason": "Rust adapter library plus a debug binary built from source, serving Codex's internal SQLite message board on loopback; a building block for Codex hosts with no fixed connectable config, and its .mcp.json is Codex plugin packaging.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -157,7 +145,7 @@
   },
   "google": {
     "githubOrgs": ["google", "googleapis", "googlemaps"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.googleapis/agent-registry",
@@ -248,11 +236,7 @@
         "com.googleapis/slides",
         "com.googleapis/workspace-search",
         "com.googleapis/merchant-api",
-        "com.googleapis/merchant-api-docs",
-        "com.googleapis/capacity-planner",
-        "com.googleapis/developer-connect",
-        "io.github.google/three-live",
-        "io.github.google/agentmesh"
+        "com.googleapis/merchant-api-docs"
       ]
     },
     "rejected": [
@@ -303,24 +287,6 @@
         "type": "mcpServer",
         "reason": "53 regional variants of the already-approved global com.googleapis/data-lineage endpoint — combinatorial, covered by the global entry.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "io.github.GoogleCloudPlatform/cxidk",
-        "type": "mcpServer",
-        "reason": "Conversational Insights devkit (PyPI cxidk); GoogleCloudPlatform org not GitHub-verified, single signal — same class as gemini-cloud-assist-mcp.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://auditmanager.{us-central1,europe-west1}.rep.googleapis.com/mcp",
-        "type": "mcpServer",
-        "reason": "Regional variants of the already-approved global com.googleapis/audit-manager endpoint.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://sqladmin.googleapis.com/mcp/readonly",
-        "type": "mcpServer",
-        "reason": "Read-only toolset of the approved com.googleapis.sqladmin/mcp, mentioned only in a google/skills reference file, not on the catalog page.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -349,7 +315,7 @@
   },
   "jetbrains": {
     "githubOrgs": ["JetBrains", "Kotlin"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.jetbrains/mcp-server",
@@ -430,36 +396,12 @@
         "type": "mcpServer",
         "reason": "Plugin-bundled server of a Cursor/Grok Bot plugin (https://nopressure-mcp-grok.labs.jb.gg/mcp), tool packaging rather than a standalone published server.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "io.github.mrfentmen/jetbrains-mps-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party registry entry (mrfentmen/awesome-servers), not JetBrains.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.mrfentmen/kotlin-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party registry entry (mrfentmen/awesome-servers), not JetBrains/Kotlin.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/JetBrains/hexana.git#plugins/hexana/.mcp.json + mcp/packaging/*/.mcp.json",
-        "type": "mcpServer",
-        "reason": "Still plugin-bundled with a relative command (./bin/hexana-mcp stdio); no standalone connectable config.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/JetBrains/klibs-io.git#.mcp.json",
-        "type": "mcpServer",
-        "reason": "Repo-local dev config (default branch 'release') wiring a third-party server (uiverify.ai); the klibs MCP itself is already approved as io.klibs/mcp-server.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "atlassian": {
     "githubOrgs": ["atlassian", "atlassian-labs"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.atlassian/atlassian-mcp-server",
@@ -485,7 +427,7 @@
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.gitlab/mcp",
@@ -511,102 +453,12 @@
         "type": "mcpServer",
         "reason": "Third-party GitLab-targeting server, not GitLab-published.",
         "checkedAt": "2026-10-02"
-      },
-      {
-        "url": "io.github.dubuqingfeng/gitlab-mcp-server",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.jmrplens/gitlab-mcp-server",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.jmshinhwa/gitlab-ci-break-lint",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.mmedum/gitlab-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.mrfentmen/gitlab-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.mshegolev/gitlab-ci-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.nunolima/gitlab-docs-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.ozanmutlu/gitlab-docs",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.pipeworx-io/gitlab",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.pipeworx-io/gitlab-public",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.structured-world/gitlab-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.sumirati/mcp-gitlab",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.vish288/mcp-gitlab",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.github.zereight/gitlab-mcp",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "io.gitlab.memento-team-hq/memento-team",
-        "type": "mcpServer",
-        "reason": "Third-party GitLab-targeting server, not GitLab-published.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "github": {
     "githubOrgs": ["github"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": ["io.github.github/github-mcp-server"]
     },
@@ -640,24 +492,12 @@
         "type": "mcpServer",
         "reason": "GitHub-verified MCP servers (connectors, public preview) are third-party services (Sentry, Linear, Cloudflare, ...) GitHub curates, not GitHub-published servers.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/github/evals.git#packages/plugin/mcp.json",
-        "type": "mcpServer",
-        "reason": "Plugin-bundled copilot-evals stdio server (node ${PLUGIN_ROOT}/dist/mcp/server.mjs), only at release tags, under a limited-use licence tied to authorized tooling; not a standalone server.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/github/squad.git#.github/mcp.json",
-        "type": "mcpServer",
-        "reason": "Repo dev config for `gh aw mcp-server`, not a published server.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "docker": {
     "githubOrgs": ["docker"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.docker/hub-mcp",
@@ -718,7 +558,7 @@
   },
   "nvidia": {
     "githubOrgs": ["NVIDIA"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "mcpServers": [
         "com.nvidia.ngc.nsight.copilot.api/cuda-docs",
@@ -726,8 +566,7 @@
         "io.github.NVIDIA/kubectl-nv",
         "io.github.NVIDIA/multi-storage-client",
         "com.nvidia/nvidia-app",
-        "com.nvidia/rtx-remix-toolkit",
-        "com.nvidia/runai"
+        "com.nvidia/rtx-remix-toolkit"
       ]
     },
     "rejected": [
@@ -772,30 +611,6 @@
         "type": "mcpServer",
         "reason": "Developer-local config for the third-party mcp/sqlite image over a local benchmark DB, not an NVIDIA server.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "io.github.omerfsen/nvidia-nvsentinel-mcp",
-        "type": "mcpServer",
-        "reason": "Registry hit from a personal third-party account, not NVIDIA.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://docs.nvidia.com/switch-infrastructure/config-manager/_mcp/server",
-        "type": "mcpServer",
-        "reason": "The public Config Manager docs MCP is documented, but the endpoint returns 404 {\"error\":\"MCP requires Ask AI, which is disabled for this docs site\"}. Recheck.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/NVIDIA/Model-Optimizer.git#tools/mcp",
-        "type": "mcpServer",
-        "reason": "modelopt-mcp (uvx from a git subdirectory) has end-user install instructions, but it is anchored to internal Jira, belongs to a family with internal sibling servers (nmm-sandbox-mcp, pensieve-intern-mcp) and ships open_draft_pr. It reads as internal team tooling and is also bundled in the Claude/Codex plugin mcp.json. REVISIT.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "NVIDIA/skills vss-summarize-video (LVS MCP, port 38112)",
-        "type": "mcpServer",
-        "reason": "Per-deployment MCP/SSE endpoint inside a user-run VSS deployment, disabled by default. No fixed config.",
-        "checkedAt": "2026-11-20"
       }
     ]
   }

@@ -106,7 +106,8 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        On 2026-11-20 a vendor deprecated a whole approved catalog repo and moved each skill into
        its product repo (`NVIDIA/nurec-skills` → `NuRec`, `harmonizer`, `asset-harvester`); the
        deprecation README named every new location. To keep a moved skill's published id, approve
-       it with a single-path file whose `skillId` is the old expanded id (`<base>/<leaf>`).
+       it with a single-path file whose `skillId` is the old expanded id (`<base>/<leaf>`), but
+       only when the leaf name is unchanged; a renamed skill (`nre` → `nurec`) gets a new id.
    - **Filter false-positive hits before verifying anything.** `filename:SKILL.md` over-matches:
      - Skip any `SKILL.md` that lives under a repo/path already approved (or approvable) as an
        Agent Plugin's `skills/*/SKILL.md` — per `AGENTS.md`, a plugin's contained skills are
@@ -173,7 +174,14 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        under `skills/`, 17 repo-internal workflow skills under `.agents/skills/`). A product
        repo whose README tells users to install the skill (`youtrack skill install`,
        `gh skill install JetBrains/youtrack-cli youtrack-cli`, 2026-10-16) has settled the
-       question for that skill.
+       question for that skill. **The same goes for a cached org-wide "repo-internal"
+       rejection.** It can hide one customer-facing skill: `JetBrains/Exposed#.claude/skills/migrate-to-1.0`
+       sat under the 2026-10-02 JetBrains rejection while jetbrains.com's Exposed 1.0 migration guide
+       told users to run it. Approved 2026-11-20. When such a repo shows up in the delta, read each
+       skill's description again, and approve on a vendor-docs link or a README install command. A
+       library can also ship its skill inside its own package source (`google/sedpack`'s
+       `src/sedpack/.agents/skills/sedpack`, installed with `uvx library-skills`); with a README
+       install command, that path is not the repo-internal class.
      - **Reject a skill whose dependency on unshipped files is permanent — not merely one that
        references them.** Consolidation hashes and installs only the approved folder, so always
        list that folder's contents against what `SKILL.md` actually needs. But "routes outside
@@ -236,7 +244,9 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        these repos into a `strict: false` wrapper over root-level skill folders — the approvable
        catalog shape — and the cached rejection then hides it: `anthropics/life-sciences` did so on
        2026-10-23. One fetch of the marketplace file decides it: entries with `"source": "./"` plus
-       a `skills` array are the wrapper case.
+       a `skills` array are the wrapper case, provided the array's targets are root-level folders.
+       `anthropics/healthcare` has the same shape with every target under
+       `./plugins/healthcare/skills/*`, which is still plugin packaging (2026-11-20).
      - Reject skills compiled into an MCP server and served through it
        (`github/github-mcp-server#pkg/skills/catalog/skills/*`, 18 skills behind an opt-in
        Skills-over-MCP feature, 2026-11-20). The server is the delivery channel, which makes this a
@@ -283,7 +293,9 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      could not finish reading is neither approved nor rejected.** On 2026-11-20 the read of
      `anthropics/life-sciences#binder-gauntlet` was cut off partway. Report it for a human and keep
      it out of the cache's `rejected` list, so the next run raises it again rather than skipping it
-     for ~90 days.
+     for ~90 days. If the read was stopped by a safety classifier and stops again on the next
+     run, ask for a human read instead of dispatching it a third time (`binder-gauntlet` stopped on
+     both 2026-11-20 runs).
    - **Stage genuine findings** — group multiple newly-found skill folders in the _same_ repo into
      one approval using a glob or an explicit path array (per `create-skill-approval`'s multi-skill
      examples), rather than one file per skill folder. One file per _distinct source repo_, same as

@@ -17,7 +17,7 @@
   },
   "anthropic": {
     "githubOrgs": ["anthropics"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -26,14 +26,14 @@
       {
         "url": "org:anthropics",
         "type": "plugin",
-        "reason": "Re-checked 2026-11-20: 1 repo created and 37 pushed since 2026-10-30; full recursive tree scan of all of them found no root plugin.json (only .claude-plugin/ wrappers, incl. the new claude-plugins-official plugins champion-kit and claude-for-manufacturing).",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-checked 2026-10-30: no repos created since 2026-10-16; tree scan of all 32 repos pushed since 2026-10-16 found no root plugin.json (only .claude-plugin/ manifests).",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "org:anthropics",
         "type": "marketplace",
-        "reason": "Re-checked 2026-11-20: no .agents/plugins/marketplace.json in any of the 38 created/pushed repos.",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-checked 2026-10-30: no .agents/plugins/marketplace.json in the 32 repos pushed since 2026-10-16.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://github.com/anthropics/claude-code-playground.git",
@@ -58,18 +58,12 @@
         "type": "plugin",
         "reason": "Created 2026-10-15, default branch release; no plugin.json/marketplace.json in tree.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/anthropics/art-paper-data.git",
-        "type": "plugin",
-        "reason": "New repo 2026-11-14; static paper data release, no plugin.json/marketplace.json in tree.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "openai": {
     "githubOrgs": ["openai"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -78,8 +72,8 @@
       {
         "url": "org:openai",
         "type": "plugin",
-        "reason": "Re-checked 2026-11-20: tree diff (2026-10-30 vs HEAD) over all 35 repos pushed since 2026-10-30 plus skills/php2shell-checker/redcard; no agent-plugins.org plugin.json at any root or in any openai/plugins, mcp-extensions, snap-o, tunnel-client, codex-security subdir; only .codex-plugin/.claude-plugin/.cursor-plugin. Only new repo: auth-javascript (no manifests).",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-checked 2026-10-30 against default-branch trees of all 35 non-fork repos pushed since 2026-10-16 (incl. 2 new: php2shell-checker, MultiLangBench): no root agent-plugins.org plugin.json; manifests remain .codex-plugin/.claude-plugin/.cursor-plugin only. codex-security grew to 20 skills, still plugins/codex-security/.codex-plugin only.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://github.com/openai/plugins",
@@ -90,8 +84,8 @@
       {
         "url": "https://github.com/openai/community-plugins",
         "type": "marketplace",
-        "reason": "Re-checked 2026-11-20: still open-submission; new entries pcba-engineering (has a root plugin.json) and physical-engineering are third-party community submissions, so it is still not vendor self-published.",
-        "checkedAt": "2026-11-20"
+        "reason": "Open-submission community marketplace: CLA.md, maintainer review 'best-effort, no SLA', README instructs adding it via the slug tonyloehr/community-plugins, and listed entries are third-party authored (Autodesk Fusion, Grafana Observability). Not vendor self-published.",
+        "checkedAt": "2026-10-02"
       },
       {
         "url": "https://github.com/openai/snap-o",
@@ -146,12 +140,6 @@
         "type": "marketplace",
         "reason": ".agents/plugins/marketplace.json has one entry, source local './': a self-wrapper around the repo-root .codex-plugin bundle already rejected as a plugin.",
         "checkedAt": "2026-10-16"
-      },
-      {
-        "url": "https://github.com/openai/codex (codex-rs/message-board-mcp/plugin)",
-        "type": "plugin",
-        "reason": "New since 2026-10-30: .codex-plugin/plugin.json + .mcp.json only; Codex-native packaging of an internal Codex component.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -182,13 +170,8 @@
     ]
   },
   "google": {
-    "githubOrgs": [
-      "gemini-cli-extensions",
-      "google",
-      "GoogleCloudPlatform",
-      "googlemaps"
-    ],
-    "lastChecked": "2026-11-20",
+    "githubOrgs": ["gemini-cli-extensions", "google", "GoogleCloudPlatform"],
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [
         "https://github.com/gemini-cli-extensions/bigquery-data-analytics.git",
@@ -310,32 +293,14 @@
       {
         "url": "https://github.com/google/elephant-goldfish-model.git",
         "type": "plugin",
-        "reason": "Re-checked: root plugin.json still has no $schema.",
-        "checkedAt": "2026-11-20"
+        "reason": "Root plugin.json has no $schema (required) — not agent-plugins.org-conformant; .agents/plugins/marketplace.json is a single-entry self-wrapper (source ./). Re-check: otherwise a clean Google-authored plugin with skills/.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://github.com/gemini-cli-extensions/looker-conversational-analytics.git",
         "type": "plugin",
         "reason": "Conformant root plugin.json (author Google LLC), but gemini-cli-extensions org not verified and repo not listed in google/skills marketplace.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/googlemaps/agent-skills.git",
-        "type": "plugin",
-        "reason": "Conformant root plugin.json ($schema 1.0.0) with skills/, but googlemaps org is not GitHub-verified (single signal) and the repo is not listed in google/skills' marketplace.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/gemini-cli-extensions/cicd.git",
-        "type": "plugin",
-        "reason": "Root plugin.json has no $schema (author Google LLC); unverified org, not in google/skills marketplace; its four google-cicd-* skills are also published via google/skills#skills/cloud/*.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/gemini-cli-extensions/{google-secops,alloydb-observability,cloud-sql-mysql-observability,cloud-sql-postgresql-observability,cloud-sql-sqlserver-observability}.git",
-        "type": "plugin",
-        "reason": "gemini-extension.json only, no root plugin.json; unverified org, not marketplace-listed.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -373,7 +338,7 @@
   },
   "jetbrains": {
     "githubOrgs": ["JetBrains", "Kotlin"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -432,24 +397,12 @@
         "type": "plugin",
         "reason": "Cursor-format plugin (.cursor-plugin/plugin.json with top-level skills/mcpServers, no $schema); no agent-plugins.org root plugin.json. Repo created 2026-09-28, author JetBrains s.r.o., NoPressure product (nopressure.io).",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/JetBrains/context.git#.claude-plugin/marketplace.json",
-        "type": "marketplace",
-        "reason": "New 2026-11-19 (#47): single-entry Claude Code marketplace wrapping ./mods/jbcontext-watch, a hooks-only Claude Code plugin (.claude-plugin/plugin.json, no root plugin.json, no skills/ or mcp.json).",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/JetBrains/hexana.git#mcp/packaging/*",
-        "type": "plugin",
-        "reason": "Repo restructured: new mcp/packaging/claude-plugin and codex-plugin wrappers (.claude-plugin/.codex-plugin manifests only). The .agents/plugins/marketplace.json is still a single-entry local self-wrapper around ./plugins/hexana, which still has no root plugin.json.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "atlassian": {
     "githubOrgs": ["atlassian", "atlassian-labs"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [
         "https://github.com/atlassian/forge-skills.git",
@@ -506,18 +459,12 @@
         "type": "plugin",
         "reason": "No root agent-plugins.org plugin.json — root has only mcp.json and .cursor-plugin/plugin.json. Re-check each run per the no-root-manifest rule.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/atlassian-labs/atlassian-agent-plugins-beta.git",
-        "type": "plugin",
-        "reason": "Early-access channel. .agents/plugins/marketplace.json is a single-entry self-wrapper (local ./plugins/jira), and plugins/jira has only .claude-plugin/.codex-plugin manifests, no agent-plugins.org plugin.json (root and plugins/jira both 404). Re-check each run per the no-root-manifest rule.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "gitlab": {
     "githubOrgs": [],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [
         "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins.git#plugins/mr-review",
@@ -536,8 +483,8 @@
       {
         "url": "https://gitlab.com/gitlab-org/ai/gitlab-duo-plugins#marketplace.json",
         "type": "marketplace",
-        "reason": "Root marketplace.json in Claude format (string sources), not codex; all 3 entries already approved directly. The earlier 'github.com-only fan-out' part of the reason stopped being true with core #170.",
-        "checkedAt": "2026-11-20"
+        "reason": "Genuine multi-entry index but all 3 entries already approved individually; marketplace fan-out only resolves github.com sources (derivePluginIdFromSource), and it is not at the .agents/plugins/ path the codex format expects.",
+        "checkedAt": "2026-10-02"
       },
       {
         "url": "https://gitlab.com/gitlab-org/developer-relations/cursor-gitlab-plugin",
@@ -562,18 +509,12 @@
         "type": "plugin",
         "reason": "Claude Code-native .claude-plugin bundle (plugin.json + marketplace.json under .claude-plugin/), no agent-plugins.org root plugin.json; public-sector field-team namespace.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://gitlab.com/gitlab-org/security-products/secret-detection/team-skills",
-        "type": "plugin",
-        "reason": "Claude Code-native .claude-plugin bundle (plugin.json + marketplace.json) for Secret Detection team workflows; no agent-plugins.org root plugin.json, team-internal.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "github": {
     "githubOrgs": ["github"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [
         "https://github.com/github/github-mcp-server.git#agent-plugin",
@@ -627,8 +568,8 @@
       {
         "url": "https://github.com/github/computer-use-plugin.git",
         "type": "plugin",
-        "reason": "Still only LICENSE/README/SECURITY; recheck next run.",
-        "checkedAt": "2026-11-20"
+        "reason": "Repo contains only LICENSE/README/SECURITY — no plugin.json or any manifest yet. Empty placeholder, recheck next run.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://github.com/github/copilot-sdk-workshop.git#.github/skills/localizations",
@@ -671,30 +612,12 @@
         "type": "plugin",
         "reason": "Release-binaries repo (LICENSE/README/SECURITY/CODEOWNERS only), no manifest.",
         "checkedAt": "2026-10-30"
-      },
-      {
-        "url": "https://github.com/github/evals.git#packages/plugin",
-        "type": "plugin",
-        "reason": "Conformant agent-plugins.org 1.0.0 manifest (eval, GitHub Copilot Evals Preview, mcp.json + 6 skills), but it exists only at release tags (copilot-evals-v*), not on main, and LICENSE is the GitHub Limited Use Source License ('used only with Authorized Tooling', non-commercial). Copilot-bound, not portable. Its .github/plugin/marketplace.json is the native Copilot single-entry format.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/github/plugin-marketplace-starter.git",
-        "type": "plugin",
-        "reason": "GitHub template repo ('Use this template'). Root marketplace.json is the native Copilot format, not codex. plugins/plugin-authoring and marketplace-maintainer maintain 'this plugin marketplace' (template-bound). plugins/pr-description is conformant with a client-neutral skill but is a replaceable sample (sample set swapped wholesale between 10-30 and 11-20). Borderline; revisit if GitHub promotes pr-description outside the template.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/github/squad.git#plugins/squad",
-        "type": "plugin",
-        "reason": "Claude Code-native .claude-plugin/plugin.json (author Brady Gaster), no agent-plugins.org manifest; root .claude-plugin/marketplace.json.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
   "docker": {
     "githubOrgs": ["docker"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -703,8 +626,8 @@
       {
         "url": "org:docker",
         "type": "plugin",
-        "reason": "Re-checked 2026-11-20 by recursive tree scan of all 43 docker repos pushed since 2026-10-30: no root plugin.json or .agents/plugins/marketplace.json outside the already-rejected docker/skills wrappers (.claude-plugin/.codex-plugin/.cursor-plugin/.github/plugin + plugin-mcp.json). No agent-plugins.org manifest in the org.",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-checked 2026-10-09 via direct raw plugin.json fetch on skills, claude-plugins, sandbox-kit-spec, sbx-kits-contrib, model-runner, docker-agent, mcp-gateway, sbx-releases — all 404. Still no agent-plugins.org root manifest in the org.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://github.com/docker/claude-plugins.git",
@@ -722,7 +645,7 @@
   },
   "nvidia": {
     "githubOrgs": ["NVIDIA"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-10-30",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -731,8 +654,8 @@
       {
         "url": "org:NVIDIA",
         "type": "plugin",
-        "reason": "Re-checked 2026-11-20: tree diff of 282 repos pushed since 2026-10-30 found no root plugin.json. NVIDIA/skills plugins/nvidia-skills still contains only nvidia-skill-finder (duplicate). Model-Optimizer gained root .claude-plugin/.codex-plugin manifests (the codex one claims ./skills/) and its .agents/plugins/marketplace.json is now a single local './' self-wrapper with no plugin.json.",
-        "checkedAt": "2026-11-20"
+        "reason": "Re-checked 2026-10-30: tree scan of 226 repos pushed since 2026-10-16 found only NVIDIA/skills plugins/nvidia-skills/plugin.json (approved). Model-Optimizer, TensorRT-Model-Connect and NeMo-Relay marketplaces are unchanged self-wrappers.",
+        "checkedAt": "2026-10-30"
       },
       {
         "url": "https://github.com/NVIDIA/Model-Optimizer.git",

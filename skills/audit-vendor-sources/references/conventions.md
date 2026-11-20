@@ -276,6 +276,10 @@ a page: github's 122 pushed repos on 2026-10-30 needed page 2, which 403'd once 
 ~20s later. Compare the item count against `total_count`. A rate-limited call's 403 JSON body,
 redirected into the listing file, reads as a handful of results: google lost four orgs' listings
 that way when it fired them back-to-back. Check the exit status and space the calls ~8s apart.
+Dedupe the listing before scanning: order shifts between page fetches of a `sort=pushed`
+listing, so one repo can appear on two pages (JetBrains, 2026-11-20). And read `fork` on every
+listed repo, not only new ones: `docker/harbor` was scanned as Docker's own repo and became a
+fork later.
 
 **A recursive tree can come back `truncated: true`** (`JetBrains/intellij-plugins`, `kotlin`,
 `android`, `openai/MultiLangBench` on 2026-10-30). Follow up with direct `contents/` probes of
