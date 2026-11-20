@@ -15,6 +15,8 @@ const GITLAB_COM = /^https:\/\/gitlab\.com\/[^/]+\/.+$/;
 const MISROUTING_HOST = /github\.com\/|gitlab\.com\//;
 
 // cli/src/skillsAdd.ts mirrors skillsCommand's rules by hand: change both.
+// cli/src/pluginTools.ts mirrors which tools pluginInstallOptions lists per
+// verdict, and cli/src/codexPlan.ts mirrors codexOption: change both.
 
 // The commit form a published marketplace entry carries as `sha`, matching
 // src/marketplace-output.ts: Claude Code takes a full SHA and nothing shorter.

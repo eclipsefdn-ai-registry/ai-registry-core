@@ -1,5 +1,5 @@
-// cli/src/types.ts mirrors the Skill and Organization parts of this file by
-// hand: change both.
+// cli/src/types.ts mirrors the Skill, Plugin and Organization parts of this
+// file by hand: change both.
 
 export interface Organization {
   id: string;

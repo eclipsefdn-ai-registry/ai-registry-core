@@ -13,7 +13,14 @@ function normalizeRepoUrl(url: string): string {
  * `owner/repo` shorthand, or the full URL for any other host.
  */
 export function cliSource(url: string): string {
-  return normalizeRepoUrl(url).replace(/^https:\/\/github\.com\//, "");
+  return normalizeRepoUrl(url).replace(GITHUB_COM, "");
+}
+
+const GITHUB_COM = /^https:\/\/github\.com\//;
+
+/** Whether a `source.url` is on github.com, in the form cliSource shortens. */
+export function isGitHubUrl(url: string): boolean {
+  return GITHUB_COM.test(url);
 }
 
 /**

@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { confirm } from "./confirm.js";
 import { run } from "./run.js";
 import { installerEnv } from "./skillsAdd.js";
+import { execute, probe } from "./system.js";
 
 // skills ships a bin and no programmatic API, so it runs as a child process.
 // Resolved from this package's own pinned dependency rather than through npx,
@@ -35,4 +36,6 @@ process.exitCode = await run(process.argv.slice(2), {
       });
       child.on("exit", (code) => resolve(code ?? 1));
     }),
+  probe,
+  execute,
 });

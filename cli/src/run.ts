@@ -1,26 +1,46 @@
 import { parseArgs } from "node:util";
 import { GUARDRAIL_ENV, PROJECT_CONFIG, resolveGuardrail } from "./config.js";
-import { describeSkill, field, organizationNamer } from "./describeSkill.js";
-import { checkApprovals, guardrailLines, type Guardrail } from "./guardrail.js";
+import type { Guardrail } from "./guardrail.js";
+import type { InstallContext } from "./install.js";
+import { installPlugin } from "./installPlugin.js";
+import { MIN_CODEX_TEXT } from "./codexPlan.js";
+import { installSkill } from "./installSkill.js";
+import {
+  TOOLS,
+  type Action,
+  type ActionResult,
+  type Probe,
+  type ToolId,
+} from "./pluginTools.js";
 import {
   DEFAULT_REGISTRY,
   loadOrganizationsFeed,
-  loadSkillsFeed,
   resolveRegistry,
 } from "./registry.js";
-import { skillsAddArgs } from "./skillsAdd.js";
-import type { SkillsFeed } from "./types.js";
 
 const USAGE = `Usage: ai-registry install skill <id> [options]
+       ai-registry install plugin <id> --tool <tool>... [options]
 
-Installs a skill the AI Registry holds, through the skills CLI, after printing
-who approved it and what the approval targets.
+install skill installs a skill the AI Registry holds, through the skills CLI,
+after printing who approved it and what the approval targets.
+
+install plugin installs a plugin the AI Registry holds, at the commit that was
+approved, into each Tool named with --tool, after printing who approved it.
+It asks once, listing every command it will run, then reports one line per
+Tool. It exits 0 only when every Tool ends installed or already installed.
 
 Options:
-  -y, --yes             Install without asking, and let the skills CLI install
-                        to the agents it detects without asking either
-  -a, --agent <name>    Install for this agent; repeat for several
-  -g, --global          Install for the user rather than the project
+  -y, --yes             Install without asking; for install skill, also let
+                        the skills CLI install to the agents it detects
+                        without asking either
+  -a, --agent <name>    install skill: install for this agent; repeat for
+                        several
+  -g, --global          install skill: install for the user rather than the
+                        project
+      --tool <tool>     install plugin: install into this Tool, one of
+                        ${TOOLS.join(", ")}; repeat for several.
+                        Codex needs codex ${MIN_CODEX_TEXT} or later on PATH, or the
+                        steps are printed for you to run
       --registry <url|path>
                         Read the registry from this base URL or local
                         directory, such as dist/api/v1 (default:
@@ -50,13 +70,19 @@ export interface Deps {
   confirm: (question: string) => Promise<boolean>;
   // runs the skills CLI with these arguments, resolving to its exit code
   runSkills: (args: string[]) => Promise<number>;
+  // finds out what install plugin's planners need to know about these Tools
+  // on this machine; never throws, since what it can't read is unknown
+  probe: (tools: ToolId[]) => Promise<Probe>;
+  // carries out one action of a Tool's plan
+  execute: (action: Action) => Promise<ActionResult>;
 }
 
 /**
  * Runs one command line and resolves to the exit code. Everything this CLI
  * says goes to stderr, so stdout carries only the installer's own output.
  *
- * Typed rather than inferred (`install skill <id>`) because ids are only
+ * Typed rather than inferred (`install skill <id>`, `install plugin <id>`)
+ * because ids are only
  * unique within a type.
  */
 export async function run(argv: string[], deps: Deps): Promise<number> {
@@ -71,6 +97,7 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
         yes: { type: "boolean", short: "y" },
         agent: { type: "string", short: "a", multiple: true },
         global: { type: "boolean", short: "g" },
+        tool: { type: "string", multiple: true },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -83,8 +110,33 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     return 0;
   }
   const [command, type, id, ...rest] = positionals;
-  if (command !== "install" || type !== "skill" || !id || rest.length) {
+  if (
+    command !== "install" ||
+    (type !== "skill" && type !== "plugin") ||
+    !id ||
+    rest.length
+  ) {
     return usageError(deps);
+  }
+  const tools = values.tool ?? [];
+  if (type === "skill" && tools.length) {
+    return usageError(
+      deps,
+      "--tool is for install plugin; install skill takes --agent.",
+    );
+  }
+  if (type === "plugin" && (values.agent || values.global)) {
+    return usageError(
+      deps,
+      "--agent and --global are for install skill; install plugin takes --tool.",
+    );
+  }
+  const unknown = tools.find((tool) => !isToolId(tool));
+  if (unknown !== undefined) {
+    return usageError(
+      deps,
+      `Unknown tool ${unknown}: --tool takes ${TOOLS.join(", ")}.`,
+    );
   }
 
   let guardrail: Guardrail;
@@ -95,77 +147,32 @@ export async function run(argv: string[], deps: Deps): Promise<number> {
     return 1;
   }
   const registry = resolveRegistry(values.registry, deps.env);
-  // Organization names are display only: without them approvals show ids,
-  // which is no reason to refuse an install.
-  const organizations = loadOrganizationsFeed(registry).then(
-    (feed) => feed.organizations,
-    () => [],
-  );
-  let skillsFeed: SkillsFeed;
-  try {
-    skillsFeed = await loadSkillsFeed(registry);
-  } catch (error) {
-    deps.printErr((error as Error).message);
-    return 1;
-  }
-
-  // Exact match only: a near miss installed in its place would be something
-  // nobody asked for.
-  const skill = skillsFeed.skills.find((s) => s.skillId === id);
-  if (!skill) {
-    deps.printErr(`No skill with id ${id} in the registry at ${registry}.`);
-    return 1;
-  }
-  const orgName = organizationNamer(await organizations);
-  for (const line of describeSkill(skill, orgName, skillsFeed.generatedAt)) {
-    deps.printErr(line);
-  }
-  const decision = checkApprovals(
-    skill.approvals,
-    guardrail.requireApprovalFrom,
-  );
-  for (const line of guardrailLines(
-    skill.approvals,
-    decision,
+  const context: InstallContext = {
+    registry,
     guardrail,
-    orgName,
-  )) {
-    deps.printErr(line);
-  }
-  if (!decision.allowed) return 1;
-
-  const args = skillsAddArgs(skill, {
-    yes: values.yes,
-    agents: values.agent,
-    global: values.global,
-  });
-  // Never falls back to the default branch or a search by name: either would
-  // install content nobody approved.
-  if (!args) {
-    const target = [skill.source.path, skill.source.ref]
-      .filter(Boolean)
-      .join(" at ");
-    deps.printErr(
-      `Not installing: the skills CLI can't be pointed at ${target} in ${skill.source.url}, and anything else would install something other than what was approved.`,
+    organizations: loadOrganizationsFeed(registry).then(
+      (feed) => feed.organizations,
+      () => [],
+    ),
+  };
+  if (type === "plugin") {
+    return installPlugin(
+      id,
+      { tools: tools.filter(isToolId), yes: values.yes },
+      context,
+      deps,
     );
-    return 1;
   }
-  deps.printErr(field("Command", `skills ${args.join(" ")}`));
+  return installSkill(
+    id,
+    { yes: values.yes, agents: values.agent, global: values.global },
+    context,
+    deps,
+  );
+}
 
-  if (!values.yes) {
-    // An agent can't answer a prompt, so waiting for one would hang it.
-    if (!deps.isTTY) {
-      deps.printErr(
-        "Not installing: there is no terminal to confirm on. Pass --yes to install without asking.",
-      );
-      return 1;
-    }
-    if (!(await deps.confirm("Install it?"))) {
-      deps.printErr("Nothing was installed.");
-      return 1;
-    }
-  }
-  return deps.runSkills(args);
+function isToolId(value: string): value is ToolId {
+  return (TOOLS as string[]).includes(value);
 }
 
 function usageError(deps: Deps, message?: string): number {
