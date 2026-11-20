@@ -1,7 +1,7 @@
 {
   "theia": {
     "githubOrgs": ["eclipse-theia"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -157,11 +157,10 @@
   },
   "aws": {
     "githubOrgs": ["aws", "awslabs"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "plugins": [
-        "https://github.com/awslabs/cli-agent-orchestrator.git#skills",
-        "https://github.com/aws/agent-toolkit-for-aws.git#plugins/aws-continuum"
+        "https://github.com/awslabs/cli-agent-orchestrator.git#skills"
       ],
       "marketplaces": [
         "https://github.com/aws/agent-toolkit-for-aws.git#.agents/plugins/marketplace.json"
@@ -179,12 +178,6 @@
         "type": "marketplace",
         "reason": "Two .agents/plugins/marketplace.json files (root single-entry git-subdir self-wrapper; migrate/plugins/ 2-entry local-source) — referenced plugin subdirectories (migrate/plugins/migration-to-aws, migrate/plugins/ai-to-aws) have only tool-specific manifests, confirmed no root plugin.json (404 on direct fetch).",
         "checkedAt": "2026-09-18"
-      },
-      {
-        "url": "https://github.com/aws/agentcore-cli.git#src/assets/templates/bedrock-managed-agents/plugins/acr-report",
-        "type": "plugin",
-        "reason": "template asset inside a CLI's source tree, only a .codex-plugin manifest; not an agent-plugins.org plugin",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -348,7 +341,7 @@
   },
   "eclipsesource": {
     "githubOrgs": ["eclipsesource"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-12",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -364,7 +357,7 @@
   },
   "mosaico": {
     "githubOrgs": [],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "plugins": [],
       "marketplaces": []
@@ -373,8 +366,8 @@
       {
         "url": "gitlab.eclipse.org/eclipse-research-labs/mosaico-project",
         "type": "plugin",
-        "reason": "Re-confirmed 2026-11-20: full paginated GitLab REST tree scan of all 28 repos in the group (incl. new goldenuml-emfatic, data-cleansing-agent, mosaico-governance-agent, mosaico-orchestrator-v2) — no plugin.json or marketplace.json anywhere.",
-        "checkedAt": "2026-11-20"
+        "reason": "Mosaico publishes from Eclipse's own GitLab instance, not github.com — gh api search/code can't reach it. Re-confirmed 2026-09-18 via full recursive repository-tree scan of all 24 repos in the group (via GitLab REST API) plus WebSearch — no plugin.json or marketplace.json anywhere in the group.",
+        "checkedAt": "2026-09-18"
       }
     ]
   },
@@ -782,46 +775,6 @@
         "type": "plugin",
         "reason": "Conformant agent-plugins.org 1.0.0 plugin.json (added 2026-10-28 by build-plugins.sh), but its only content is nvidia-skill-finder, which the catalog already publishes as skills/nvidia-skill-finder through the io.github.nvidia skills/* approval. Approving it would publish the same skill twice. Dropped at review 2026-11-02. Revisit if the plugin gains content the catalog does not carry.",
         "checkedAt": "2026-11-02"
-      }
-    ]
-  },
-  "ai-registry": {
-    "githubOrgs": ["eclipsefdn-ai-registry"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "plugins": [],
-      "marketplaces": []
-    },
-    "rejected": []
-  },
-  "opcoach": {
-    "githubOrgs": ["opcoach"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "plugins": [],
-      "marketplaces": []
-    },
-    "rejected": []
-  },
-  "typefox": {
-    "githubOrgs": ["TypeFox", "eclipse-langium"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "plugins": [],
-      "marketplaces": []
-    },
-    "rejected": [
-      {
-        "url": "https://github.com/eclipse-langium/langium-ai.git#plugin.json",
-        "type": "plugin",
-        "reason": "Conformant root plugin.json (1.0.0, author TypeFox), but it holds only skills/* (7 skills), all already published through the io.github.eclipse-langium skills/* glob, so it would be a duplicate. Its .agents/plugins/marketplace.json is a single-entry self-wrapper (source ./). Re-check if mcp.json or non-duplicate content is added.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/TypeFox/agent-skills.git",
-        "type": "plugin",
-        "reason": "Only .claude-plugin/plugin.json and .claude-plugin/marketplace.json; no root plugin.json. Skills already approved through the skills/* glob. Re-check every run for a root plugin.json.",
-        "checkedAt": "2026-11-20"
       }
     ]
   }

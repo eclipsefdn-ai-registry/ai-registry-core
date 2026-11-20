@@ -106,12 +106,7 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        On 2026-11-20 a vendor deprecated a whole approved catalog repo and moved each skill into
        its product repo (`NVIDIA/nurec-skills` → `NuRec`, `harmonizer`, `asset-harvester`); the
        deprecation README named every new location. To keep a moved skill's published id, approve
-       it with a single-path file whose `skillId` is the old expanded id (`<base>/<leaf>`). The
-       same day, a curated third-party source moved its skills into a plugin directory with a root
-       `plugin.json` (`kepano/obsidian-skills` → `plugins/obsidian/skills/*`), which hands it to the
-       plugin pass. The warning matters on third-party approvals as much as on the vendor's own: in
-       a vendor repo that mostly curates others' sources, such as Theia's, it is the main drift
-       signal.
+       it with a single-path file whose `skillId` is the old expanded id (`<base>/<leaf>`).
    - **Filter false-positive hits before verifying anything.** `filename:SKILL.md` over-matches:
      - Skip any `SKILL.md` that lives under a repo/path already approved (or approvable) as an
        Agent Plugin's `skills/*/SKILL.md` — per `AGENTS.md`, a plugin's contained skills are
@@ -289,11 +284,6 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      `anthropics/life-sciences#binder-gauntlet` was cut off partway. Report it for a human and keep
      it out of the cache's `rejected` list, so the next run raises it again rather than skipping it
      for ~90 days.
-   - **Check the other vendor repos for an approval of the same source before choosing a
-     `skillId`** (`grep -rl <owner>/<repo> ../ai-registry-*/skills`). Reusing that approval's
-     `skillId` and `source` exactly makes the second organization a co-approver of the same entries;
-     a fresh id publishes duplicates. `ai-registry-eclipsesource` co-approved
-     `eclipsesource/ai-coding-cheat-sheet` with Theia this way on 2026-11-20.
    - **Stage genuine findings** — group multiple newly-found skill folders in the _same_ repo into
      one approval using a glob or an explicit path array (per `create-skill-approval`'s multi-skill
      examples), rather than one file per skill folder. One file per _distinct source repo_, same as

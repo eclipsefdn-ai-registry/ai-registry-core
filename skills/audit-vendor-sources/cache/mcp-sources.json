@@ -1,7 +1,7 @@
 {
   "theia": {
     "githubOrgs": ["eclipse-theia"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "mcpServers": []
     },
@@ -136,15 +136,14 @@
   },
   "aws": {
     "githubOrgs": ["aws", "awslabs"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "mcpServers": [
         "aws.api.us-east-1.ecs-mcp/server",
         "aws.api.us-east-1.eks-mcp/server",
         "com.amazon.aws/aws-mcp",
         "io.github.aws/aws-mcp (confirmed-covered alias of com.amazon.aws/aws-mcp)",
-        "io.github.aws/mcp-proxy-for-aws (confirmed-covered alias of com.amazon.aws/aws-mcp)",
-        "com.amazon.aws/aws-devops-agent"
+        "io.github.aws/mcp-proxy-for-aws (confirmed-covered alias of com.amazon.aws/aws-mcp)"
       ]
     },
     "rejected": [
@@ -153,24 +152,6 @@
         "type": "mcpServer",
         "reason": "registry-listed and technically installable, but the source repo (awslabs/mcp-server-for-oscal) is archived on GitHub — treat as deprecated, don't approve.",
         "checkedAt": "2026-09-18"
-      },
-      {
-        "url": "https://sagemaker-unified-studio-mcp.<region>.api.aws/{spark-upgrade,spark-troubleshooting,spark-code-recommendation}/mcp",
-        "type": "mcpServer",
-        "reason": "Deferred to AWS: an AWS-hosted managed server (Preview) that fits AWS's 'remotely managed MCP servers' scope but is not in the registry. Repo policy since #4 is that such selfPublished approvals come from AWS (as #5/#6 did); suggest an issue.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://knowledge-mcp.global.api.aws",
-        "type": "mcpServer",
-        "reason": "AWS Knowledge MCP Server; AWS's own Agent Toolkit setup guide says to remove it in favor of the AWS MCP Server (already approved)",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "com.amazonaws.us-east-1.execute-api.4fucgqu5if/agent-platform-rules",
-        "type": "mcpServer",
-        "reason": "registry namespace is just an API Gateway hostname anyone can create; no AWS ownership signal",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -344,23 +325,16 @@
     ]
   },
   "eclipsesource": {
-    "githubOrgs": ["eclipsesource"],
-    "lastChecked": "2026-11-20",
+    "githubOrgs": [],
+    "lastChecked": null,
     "knownSources": {
-      "mcpServers": ["com.eclipsesource/review-guard"]
+      "mcpServers": []
     },
-    "rejected": [
-      {
-        "url": "https://github.com/eclipsesource/fan-control-exercise.git",
-        "type": "mcp",
-        "reason": "Only a localhost .mcp.json for a training exercise; no published server.",
-        "checkedAt": "2026-11-20"
-      }
-    ]
+    "rejected": []
   },
   "mosaico": {
     "githubOrgs": [],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "mcpServers": []
     },
@@ -370,18 +344,6 @@
         "type": "mcpServer",
         "reason": "MCP registry search for 'mosaico' returned 0 results; npm search found no mosaico-scoped MCP package; recursive GitLab repo-tree scan found no mcp.json/mcpServers references; WebSearch/WebFetch of mosaico-project.eu found nothing.",
         "checkedAt": "2026-09-18"
-      },
-      {
-        "url": "https://gitlab.eclipse.org/eclipse-research-labs/mosaico-project/aisp-prototyping#mcp",
-        "type": "mcpServer",
-        "reason": "Four MCP servers (collaboration/solution/syntactic-supervisor/semantic-supervisor) that the README labels a proof-of-concept for a metamodelling task; built from source against local Ollama, no published package or fixed endpoint, not registry-listed.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://gitlab.eclipse.org/eclipse-research-labs/mosaico-project/mosaico-repository",
-        "type": "mcpServer",
-        "reason": "Internal MOSAICO platform component (AgentMCP.java) exposing the agent repository to MOSAICO's own reference agent; only documented as inspectable at http://host.docker.internal:8080/mcp inside the demonstrator deployment (mosaico-demonstrator/docs/mcp-repository.md). No standalone server published, not registry-listed.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -833,63 +795,6 @@
         "url": "NVIDIA/skills vss-summarize-video (LVS MCP, port 38112)",
         "type": "mcpServer",
         "reason": "Per-deployment MCP/SSE endpoint inside a user-run VSS deployment, disabled by default. No fixed config.",
-        "checkedAt": "2026-11-20"
-      }
-    ]
-  },
-  "ai-registry": {
-    "githubOrgs": ["eclipsefdn-ai-registry"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "mcpServers": []
-    },
-    "rejected": [
-      {
-        "url": "https://github.com/mrfentmen/awesome-mcps",
-        "type": "mcp",
-        "reason": "io.github.mrfentmen/open-vsx-mcp: third-party personal account surfaced by an 'open-vsx' registry search; not published by the AI Registry project",
-        "checkedAt": "2026-11-20"
-      }
-    ]
-  },
-  "opcoach": {
-    "githubOrgs": ["opcoach"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "mcpServers": ["https://github.com/opcoach/opcoach-mcp-mail"]
-    },
-    "rejected": [
-      {
-        "url": "https://brainmotor.ai",
-        "type": "mcp",
-        "reason": "Dolibarr and OPTiumm MCP servers are only mentioned on brainmotor.ai; no public repo, package or connection docs (BrainMotor itself unreleased, repo for paying customers only)",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/opcoach/dolibarr-api",
-        "type": "mcp",
-        "reason": "WordPress PHP plugin for the Dolibarr REST API, not an MCP server",
-        "checkedAt": "2026-11-20"
-      }
-    ]
-  },
-  "typefox": {
-    "githubOrgs": ["TypeFox", "eclipse-langium"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "mcpServers": []
-    },
-    "rejected": [
-      {
-        "url": "https://github.com/mrfentmen/awesome-servers",
-        "type": "mcp",
-        "reason": "Registry entry io.github.mrfentmen/langium-mcp is a third-party account, not TypeFox.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/eclipse-langium/langium-ai.git#skills/lai-gen-mcp",
-        "type": "mcp",
-        "reason": "Generates a per-DSL MCP server (framework/building block); no fixed connectable server.",
         "checkedAt": "2026-11-20"
       }
     ]

@@ -1,7 +1,7 @@
 {
   "theia": {
     "githubOrgs": ["eclipse-theia"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "skills": []
     },
@@ -11,24 +11,6 @@
         "type": "skill",
         "reason": "Theia is a consumer of the Agent Skills spec (in-IDE CreateSkill agent authors project-local SKILL.md files; AI Registry integration surfaces third-party skills) — no SKILL.md published under eclipse-theia's own org. gh code search filename:SKILL.md org:eclipse-theia returned 0 hits.",
         "checkedAt": "2026-09-18"
-      },
-      {
-        "url": "https://github.com/eclipse-theia/theia.git#.agents/skills/update-default-models",
-        "type": "skill",
-        "reason": "Repo-internal maintainer workflow: refreshes Theia's own default LLM aliases by editing packages/ai-* source files; not user-facing.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/eclipse-theia/theia.git#.agents/skills/update-dependency",
-        "type": "skill",
-        "reason": "Repo-internal maintainer workflow: post-release dependency updates for the Theia framework, routes into the repo's deps/*/GUIDE.md and doc/Publishing.md; not user-facing.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/eclipse-theia/theia-website.git#.agents/skills/theia-website-blog-sync",
-        "type": "skill",
-        "reason": "Repo-internal maintainer workflow: syncs EclipseSource blog posts into theia-website's Releases.js/Resources.js; not user-facing.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -362,14 +344,12 @@
   },
   "aws": {
     "githubOrgs": ["aws", "awslabs"],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "skills": [
         "https://github.com/awslabs/aidlc-workflows.git#core/skills/*",
         "https://github.com/awslabs/automated-security-helper.git#skills/ash-mcp",
-        "https://github.com/awslabs/mcp.git#src/cloudwatch-mcp-server/skills/agentcore-investigation",
-        "https://github.com/aws/agent-toolkit-for-aws.git#skills/core-skills/aws-emulator",
-        "https://github.com/aws/agent-toolkit-for-aws.git#skills/core-skills/aws-investigation"
+        "https://github.com/awslabs/mcp.git#src/cloudwatch-mcp-server/skills/agentcore-investigation"
       ]
     },
     "rejected": [
@@ -402,30 +382,6 @@
         "type": "skill",
         "reason": "plugin-embedded, covered by the newly-approved io.github.awslabs/cli-agent-orchestrator plugin's containedSkills (not standalone).",
         "checkedAt": "2026-09-18"
-      },
-      {
-        "url": "https://github.com/awslabs/*",
-        "type": "skill",
-        "reason": "Out of AWS's stated scope: on ai-registry-aws#4, AWS tech lead Laith Al-Saadoon named the Agent Toolkit for AWS and the remotely managed MCP servers as the canonical set; all awslabs approvals were dropped from #4 for that reason (applies to plugins and MCP too). Recheck only if AWS widens scope.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/aws/agent-toolkit-for-aws.git#skills/specialized-skills/**",
-        "type": "skill",
-        "reason": "Deferred, not refused: 104 customer-facing skills (84 not in any plugin) that AWS's own 07-27 approval left out by choosing core-skills/* only, even though the directory existed since 07-20. Widening is AWS's call and needs the bodies read; base skillId com.amazon.aws is taken, so it would mean editing that file's array.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/aws/tools-for-devops-agent.git#skills/*",
-        "type": "skill",
-        "reason": "README calls it 'sample code'; partner-contributed (Coralogix, Atlassian, Bronto...) skills for uploading to a DevOps Agent Agent Space, not coding-agent skills; outside AWS's stated canonical set",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/aws (product repos: aws-cdk#skills/cdk-review/*, aws-cdk-cli#skills/pr-review, aws-sdk-net, graph-explorer#.agents/skills/*, credential-daemon, aws-graviton-getting-started#tools/skills/*, aws-advanced-drivers, aws-advanced-ruby-driver-wrapper, solutions-for-amazon-evs, CICD-for-SageMakerUnifiedStudio, context-ontology-accelerator, Unified-Studio-for-Amazon-Sagemaker, modern-data-architecture-accelerator, aws-durable-execution-sdk-js)",
-        "type": "skill",
-        "reason": "Product/sample repos outside AWS's stated canonical set (Agent Toolkit + managed MCP servers); many are repo-internal (.agents/.claude skills, PR review). Not read in depth.",
-        "checkedAt": "2026-11-20"
       }
     ]
   },
@@ -702,34 +658,16 @@
     ]
   },
   "eclipsesource": {
-    "githubOrgs": ["eclipsesource"],
-    "lastChecked": "2026-11-20",
+    "githubOrgs": [],
+    "lastChecked": null,
     "knownSources": {
-      "skills": [
-        "https://github.com/eclipsesource/ai-coding-cheat-sheet.git#skills/explain",
-        "https://github.com/eclipsesource/ai-coding-cheat-sheet.git#skills/implement-phase",
-        "https://github.com/eclipsesource/ai-coding-cheat-sheet.git#skills/plan-phases",
-        "https://github.com/eclipsesource/ai-coding-cheat-sheet.git#skills/review-guide"
-      ]
+      "skills": []
     },
-    "rejected": [
-      {
-        "url": "https://github.com/eclipsesource/enclave-extensions.git",
-        "type": "skill",
-        "reason": "features/diffity/skills/* (9 diffity-* skills) are bundled inside an Enclave sandbox feature that builds diffity (personal repo sdirix/diffity); packaging of a non-root bundle, not standalone skills. Repo README: internal ES sharing, no maintenance promise, experimental.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/eclipsesource/theia-ai-calculator-example.git",
-        "type": "skill",
-        "reason": ".prompts/skills/eclipse-style lives in an example repo's tool-config directory; not a published skill.",
-        "checkedAt": "2026-11-20"
-      }
-    ]
+    "rejected": []
   },
   "mosaico": {
     "githubOrgs": [],
-    "lastChecked": "2026-11-20",
+    "lastChecked": "2026-09-18",
     "knownSources": {
       "skills": []
     },
@@ -737,8 +675,8 @@
       {
         "url": "gitlab.eclipse.org/eclipse-research-labs/mosaico-project",
         "type": "skill",
-        "reason": "Re-confirmed 2026-11-20: full paginated tree scan of all 28 repos in the GitLab group + WebSearch — no SKILL.md anywhere.",
-        "checkedAt": "2026-11-20"
+        "reason": "Full recursive tree scan of all 24 repos in the GitLab group + WebSearch: no SKILL.md anywhere.",
+        "checkedAt": "2026-09-18"
       }
     ]
   },
@@ -2011,76 +1949,6 @@
         "url": "https://github.com/NVIDIA/(NVSentinel|elements|OpenShell|cudf|cloudai|hyperflare-inference|k8s-test-infra|dl-lowlat-infer|structured-data-models|trt-samples-for-hackathon-cn|TensorRT-LLM) new .agents/.claude/openvex skills",
         "type": "skill",
         "reason": "Repo-internal workflows: PR, release and labelling, vulnerability triage pointing at ../../../SECURITY.md, the elements monorepo modernization PR flow, the TensorRT-LLM agent-flow internals.",
-        "checkedAt": "2026-11-20"
-      }
-    ]
-  },
-  "ai-registry": {
-    "githubOrgs": ["eclipsefdn-ai-registry"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "skills": [
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/audit-vendor-sources",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/create-agent-approval",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/create-marketplace-approval",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/create-mcp-approval",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/create-plugin-approval",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/create-sandbox-extension-approval",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/create-skill-approval",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/create-vendor-repo",
-        "https://github.com/eclipsefdn-ai-registry/ai-registry-core.git#skills/implement-registry-client"
-      ]
-    },
-    "rejected": []
-  },
-  "opcoach": {
-    "githubOrgs": ["opcoach"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "skills": []
-    },
-    "rejected": []
-  },
-  "typefox": {
-    "githubOrgs": ["TypeFox", "eclipse-langium"],
-    "lastChecked": "2026-11-20",
-    "knownSources": {
-      "skills": [
-        "https://github.com/TypeFox/agent-skills.git#skills/agent-experience",
-        "https://github.com/TypeFox/agent-skills.git#skills/eclipse-license-check",
-        "https://github.com/TypeFox/agent-skills.git#skills/go-documentation",
-        "https://github.com/TypeFox/agent-skills.git#skills/idiomatic-go",
-        "https://github.com/TypeFox/agent-skills.git#skills/publish-vscode-extension",
-        "https://github.com/TypeFox/agent-skills.git#skills/skill-evals",
-        "https://github.com/TypeFox/agent-skills.git#skills/write-like-me",
-        "https://github.com/TypeFox/baukasten.git#skills/write-baukasten",
-        "https://github.com/TypeFox/vscode-messenger.git#.github/skills/vscode-messenger",
-        "https://github.com/eclipse-langium/langium-ai.git#skills/lai",
-        "https://github.com/eclipse-langium/langium-ai.git#skills/lai-gen-descriptor",
-        "https://github.com/eclipse-langium/langium-ai.git#skills/lai-gen-evals",
-        "https://github.com/eclipse-langium/langium-ai.git#skills/lai-gen-language-skill",
-        "https://github.com/eclipse-langium/langium-ai.git#skills/lai-gen-mcp",
-        "https://github.com/eclipse-langium/langium-ai.git#skills/lai-gen-sysprompt",
-        "https://github.com/eclipse-langium/langium-ai.git#skills/langium"
-      ]
-    },
-    "rejected": [
-      {
-        "url": "https://github.com/TypeFox/lanzer.git#skills/lanzer",
-        "type": "skill",
-        "reason": "Repo-bound: describes Lanzer as 'the repository's DSL', drives `node packages/lanzer/bin/lanzer.js` and in-repo examples; Lanzer is installed by cloning the repo, no standalone skill install offered.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/TypeFox/lanzer.git#skills/write-lox",
-        "type": "skill",
-        "reason": "Repo-bound: writes code for the langium-lox demo submodule at packages/langium-lox and grounds answers in in-repo grammar/validator paths.",
-        "checkedAt": "2026-11-20"
-      },
-      {
-        "url": "https://github.com/TypeFox/agent-skills.git#skills/skill-evals/evals/files/dsl-skills/*",
-        "type": "skill",
-        "reason": "Eval fixture SKILL.md files nested inside skill-evals; not top-level, not matched by the glob.",
         "checkedAt": "2026-11-20"
       }
     ]

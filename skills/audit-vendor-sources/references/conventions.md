@@ -34,11 +34,6 @@ cache's `githubOrgs` for this vendor, orgs implied by this vendor's existing app
 `source.url`, and — only if the cache has nothing yet for this vendor — one round of discovery:
 does a GitHub org literally named after the vendor id exist, and is it verified?
 
-**When `orgs/<vendor>` 404s, try `users/<vendor>`.** A small vendor can publish from a personal
-account (`opcoach`, 2026-11-20), where `orgs/*/repos` fails and `users/<id>/repos` lists the
-repos. Such an account can never be verified, so ownership rests on the vendor's own site linking
-it, plus the existing approvals.
-
 **The `gh` token running the audit can see private repos.** It belongs to a member of some vendor
 orgs: 27 of the 33 eclipsesource repos in the 2026-11-20 `pushed:>` delta were private, and
 `fork:false` in `search/repositories` doesn't filter them. Pass `type=public` to `orgs/<org>/repos`
@@ -149,10 +144,6 @@ listed `docker/sbx-kits-contrib` as rejected while a committed approval sourced 
 until 4b9a328 fixed it).
 Read that section as part of reading current state, re-validate each entry's _stated reason_ rather
 than trusting the verdict, and mirror anything still valid into the cache so the next run sees it.
-**A fourth: the comments on the vendor repo's merged PRs.** AWS's scope (the Agent Toolkit for
-AWS plus its remotely managed MCP servers, and self-published servers approved by AWS itself) was
-stated by AWS's tech lead on `ai-registry-aws#4` and recorded nowhere else. The 2026-11-20 run only
-found it by reading that PR. When a scope like that turns up, propose putting it in the README.
 
 ## Verification checklist (condensed — full version in create-inferred-vendor)
 
@@ -232,10 +223,7 @@ method, not WebSearch.** The GitLab REST API is usable unauthenticated for publi
    call with `&path=skills`.** A 3-page scan of `gitlab-org/orbit/knowledge-graph` on 2026-10-09
    found no `SKILL.md` at all; the repo's root-level `skills/` directory with three skills in it
    only appeared on page 7. A short scan returns a clean empty result that reads exactly like
-   "nothing here" — treat an unexhausted scan as unchecked. **`gitlab.eclipse.org` rate-limits
-   anonymous calls after about 50 pages**, and its error body is plain text, so a JSON parser
-   reads it as an empty tree (2026-11-20). Space pages ~2s apart, detect the error body, and retry
-   after a wait.
+   "nothing here" — treat an unexhausted scan as unchecked.
 3. Group/project-level **content** (blob) search (`/api/v4/groups/.../search?scope=blobs`) returns
    `401 Unauthorized` anonymously — don't rely on it; filename/path enumeration via (1)+(2) is the
    working approach instead.
