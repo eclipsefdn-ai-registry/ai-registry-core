@@ -34,6 +34,17 @@ cache's `githubOrgs` for this vendor, orgs implied by this vendor's existing app
 `source.url`, and — only if the cache has nothing yet for this vendor — one round of discovery:
 does a GitHub org literally named after the vendor id exist, and is it verified?
 
+**When `orgs/<vendor>` 404s, try `users/<vendor>`.** A small vendor can publish from a personal
+account (`opcoach`, 2026-11-20), where `orgs/*/repos` fails and `users/<id>/repos` lists the
+repos. Such an account can never be verified, so ownership rests on the vendor's own site linking
+it, plus the existing approvals.
+
+**The `gh` token running the audit can see private repos.** It belongs to a member of some vendor
+orgs: 27 of the 33 eclipsesource repos in the 2026-11-20 `pushed:>` delta were private, and
+`fork:false` in `search/repositories` doesn't filter them. Pass `type=public` to `orgs/<org>/repos`
+or drop items whose `visibility` isn't `public`, and never name a private repo in a vendor commit
+or a cache entry.
+
 ## Branch, commit, validate
 
 - Stage findings on a new branch, only if there's at least one finding for that vendor: branch off
@@ -138,6 +149,10 @@ listed `docker/sbx-kits-contrib` as rejected while a committed approval sourced 
 until 4b9a328 fixed it).
 Read that section as part of reading current state, re-validate each entry's _stated reason_ rather
 than trusting the verdict, and mirror anything still valid into the cache so the next run sees it.
+**A fourth: the comments on the vendor repo's merged PRs.** AWS's scope (the Agent Toolkit for
+AWS plus its remotely managed MCP servers, and self-published servers approved by AWS itself) was
+stated by AWS's tech lead on `ai-registry-aws#4` and recorded nowhere else. The 2026-11-20 run only
+found it by reading that PR. When a scope like that turns up, propose putting it in the README.
 
 ## Verification checklist (condensed — full version in create-inferred-vendor)
 
@@ -176,7 +191,9 @@ but only when (a) `api.github.com/orgs/<org>` returns `is_verified: true` with a
 vendor controls, **and** (b) the specific artifact is documented on the vendor's own
 product/developer-docs domain (there, `developer.atlassian.com/cloud/twg-cli/`). Neither signal
 suffices alone: (a) without (b) is just a verified org publishing anything it likes, and (b)
-without (a) is the `gemini-cli-extensions` trap. When you do admit one, **record the two signals
+without (a) is the `gemini-cli-extensions` trap. A forum thread is not (b), even on the
+developer domain: `atlassian-labs/dc-app-upgrade-skills` had only a
+`community.developer.atlassian.com` post on 2026-11-20 and was rejected. When you do admit one, **record the two signals
 in the vendor repo's README** next to the entry, so the next run can see the basis and does not
 generalise it to every similarly-named org — nothing is inherited by siblings.
 
@@ -203,7 +220,9 @@ method, not WebSearch.** The GitLab REST API is usable unauthenticated for publi
    thousands of projects; adding `&search=<keyword>` to that same endpoint with the four keywords
    `mcp`, `skill`, `plugin`, `agent` surfaced every real finding in one pass on 2026-10-02. Two
    false-positive classes to filter from the results: any path under `*/experiments/*`, and
-   `<team-name>/skills` repos, are reliably internal. For a weekly delta, filter by
+   `<team-name>/skills` repos, are reliably internal, and so are the ReviewBench fixture mirrors
+   under `*/code-review/benchmarks/reviewbench/*`, which dominated the 2026-11-20 activity
+   results. For a weekly delta, filter by
    `&last_activity_after=<last-run-date>` as well as by creation date:
    `gitlab-org/growth/ai/skills` was created in 2026-04 and only appeared through activity on
    2026-10-16.
@@ -213,7 +232,10 @@ method, not WebSearch.** The GitLab REST API is usable unauthenticated for publi
    call with `&path=skills`.** A 3-page scan of `gitlab-org/orbit/knowledge-graph` on 2026-10-09
    found no `SKILL.md` at all; the repo's root-level `skills/` directory with three skills in it
    only appeared on page 7. A short scan returns a clean empty result that reads exactly like
-   "nothing here" — treat an unexhausted scan as unchecked.
+   "nothing here" — treat an unexhausted scan as unchecked. **`gitlab.eclipse.org` rate-limits
+   anonymous calls after about 50 pages**, and its error body is plain text, so a JSON parser
+   reads it as an empty tree (2026-11-20). Space pages ~2s apart, detect the error body, and retry
+   after a wait.
 3. Group/project-level **content** (blob) search (`/api/v4/groups/.../search?scope=blobs`) returns
    `401 Unauthorized` anonymously — don't rely on it; filename/path enumeration via (1)+(2) is the
    working approach instead.
@@ -247,7 +269,10 @@ Across `atlassian` + `atlassian-labs`, 181 repos scanned in about two minutes.
 **For a vendor already fully scanned in a previous run, `search/repositories` answers "what's new"
 on a different, far cheaper bucket.** `gh api -X GET search/repositories -f q='org:<org>
 created:><last-run-date> fork:false'` costs a `search` call (30/min), not a `code_search` call
-(10/hr), and is the right first move for a weekly delta.
+(10/hr), and is the right first move for a weekly delta. For the pushed-since delta,
+`gh api "orgs/<org>/repos?type=public&sort=pushed&direction=desc&per_page=100"`, paged until
+`pushed_at` falls before the last run, needs no `search` call at all: it covered 465 google repos on
+2026-11-20.
 
 **Run `pushed:><last-run-date>` as well as `created:>`, and tree-scan every repo it returns.**
 Existing repos gain skills and manifests far more often than new repos appear. On 2026-10-16 the

@@ -186,6 +186,15 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        `npm run validate-vendor` do the resolution/duplicate-detection rather than hand-parsing,
        or handle both shapes explicitly if you must parse it yourself.
 
+     - **A tree scan of the default branch is not the whole story.** `github/evals#packages/plugin`
+       has a conformant manifest only at its release tags (`copilot-evals-v*`), not on `main`
+       (2026-11-20), so read the `ref`/`sha` of marketplace entries that point at a tag. The other
+       way round, 7 of the 17 entries in `google/skills`' marketplace pin tags older than their
+       plugin's root `plugin.json`, which validation reports only as a per-entry "plugin.json not
+       found" warning; on that warning, compare the pinned ref against the default branch. Read
+       the plugin's `LICENSE` too: GitHub's "Limited Use Source License" (use "only with Authorized
+       Tooling") makes `evals` Copilot-bound however conformant its manifest is.
+
    - **Verify every remaining candidate** against `conventions.md`'s checklist. Anything that
      doesn't clearly clear the bar goes to the reject pile with a one-line reason; it does not
      become an approval, and does not get asked about.

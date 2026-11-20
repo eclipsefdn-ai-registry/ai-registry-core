@@ -103,6 +103,15 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        skills went and re-check any rejection whose reason names the old location. The same
        goes for "SKILL.md not found" on an explicit path array: `google/mantis` moved every skill
        under `skills/` on 2026-10-17, which broke all 15 paths of an approved array at once.
+       On 2026-11-20 a vendor deprecated a whole approved catalog repo and moved each skill into
+       its product repo (`NVIDIA/nurec-skills` → `NuRec`, `harmonizer`, `asset-harvester`); the
+       deprecation README named every new location. To keep a moved skill's published id, approve
+       it with a single-path file whose `skillId` is the old expanded id (`<base>/<leaf>`). The
+       same day, a curated third-party source moved its skills into a plugin directory with a root
+       `plugin.json` (`kepano/obsidian-skills` → `plugins/obsidian/skills/*`), which hands it to the
+       plugin pass. The warning matters on third-party approvals as much as on the vendor's own: in
+       a vendor repo that mostly curates others' sources, such as Theia's, it is the main drift
+       signal.
    - **Filter false-positive hits before verifying anything.** `filename:SKILL.md` over-matches:
      - Skip any `SKILL.md` that lives under a repo/path already approved (or approvable) as an
        Agent Plugin's `skills/*/SKILL.md` — per `AGENTS.md`, a plugin's contained skills are
@@ -187,7 +196,16 @@ point, though: this runs weekly, so a missed finding this week is caught next we
          pointer into a repo you must separately obtain and keep, not a distributable artifact.
 
        So: install-time bootstrap with detection and a documented recovery path is fine; a
-       permanent runtime dependency on files that never ship is not. A related sub-signal worth
+       permanent runtime dependency on files that never ship is not. **For a product skill that
+       works against a checkout of the product, the line is who gets the checkout.** Approvable:
+       the skill clones and validates it itself (`NVIDIA/NuRec#skills/nurec`, whose
+       `references/install.md` runs the `git clone`, and `JetBrains/lsp-integration-samples`'s
+       documented sparse checkout of its template). Not approvable: the skill assumes it already
+       runs inside the checkout and names the repo's docs as its source of truth (`NVIDIA/ncore`,
+       `flashdreams`, `TensorRT-Edge-LLM`, `deepops`, `sports-intelligence-playbooks`, all
+       2026-11-20). Files a product CLI embeds and serves
+       (`teamcity skill guide <skill> references/...`) are shipped, not a dependency. A related
+       sub-signal worth
        checking at the same time: a README saying "Reference code … companion to the blog post …
        not actively maintained. Issues and PRs are not monitored" marks a whole class of vendor
        blog-companion kits (verified on the above). These repos are _not_ archived, so the MCP
@@ -224,6 +242,10 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        catalog shape — and the cached rejection then hides it: `anthropics/life-sciences` did so on
        2026-10-23. One fetch of the marketplace file decides it: entries with `"source": "./"` plus
        a `skills` array are the wrapper case.
+     - Reject skills compiled into an MCP server and served through it
+       (`github/github-mcp-server#pkg/skills/catalog/skills/*`, 18 skills behind an opt-in
+       Skills-over-MCP feature, 2026-11-20). The server is the delivery channel, which makes this a
+       product repo bundling skills, not a catalog, however client-neutral the bodies read.
      - Reject "deprecated compatibility redirect" stubs — a `SKILL.md` with well-formed
        frontmatter whose body explicitly says the skill moved/is deprecated (seen 6x in one repo,
        `awslabs/mcp`'s aurora-dsql-mcp-server skills, 2026-09-18) has no canonical content to
@@ -262,7 +284,16 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      community-contributed aggregator (e.g. its own README says so) — that verdict generalizes
      across artifact types within the same repo without re-verifying each individual `SKILL.md`'s
      authorship. Anything that doesn't clearly clear the bar goes to the reject pile with a
-     one-line reason; it does not become an approval, and does not get asked about.
+     one-line reason; it does not become an approval, and does not get asked about. **A body you
+     could not finish reading is neither approved nor rejected.** On 2026-11-20 the read of
+     `anthropics/life-sciences#binder-gauntlet` was cut off partway. Report it for a human and keep
+     it out of the cache's `rejected` list, so the next run raises it again rather than skipping it
+     for ~90 days.
+   - **Check the other vendor repos for an approval of the same source before choosing a
+     `skillId`** (`grep -rl <owner>/<repo> ../ai-registry-*/skills`). Reusing that approval's
+     `skillId` and `source` exactly makes the second organization a co-approver of the same entries;
+     a fresh id publishes duplicates. `ai-registry-eclipsesource` co-approved
+     `eclipsesource/ai-coding-cheat-sheet` with Theia this way on 2026-11-20.
    - **Stage genuine findings** — group multiple newly-found skill folders in the _same_ repo into
      one approval using a glob or an explicit path array (per `create-skill-approval`'s multi-skill
      examples), rather than one file per skill folder. One file per _distinct source repo_, same as

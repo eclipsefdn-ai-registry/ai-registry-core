@@ -38,7 +38,11 @@ vendor publishes without ever registering.
      2026-10-09 several `?search=` queries timed out past 120s and the identical query then returned
      instantly on retry. Retry before recording "no results"; recording a timeout as an empty search
      silently drops a vendor's whole registry-listed path for that run. `?limit=` appears
-     unsupported and makes the request hang on its own.
+     unsupported and makes the request hang on its own. **Page with `cursor`**: one third-party
+     server's 30 versions filled page 1 of `?search=gitlab` on 2026-11-20, and 15 more ids were
+     behind it. **Search the bare vendor name as well as its namespaces.** `?search=google` found
+     `io.github.google/three-live` and `io.github.google/agentmesh`, from new repos that no
+     `com.googleapis` search reaches.
      **Also check already-approved registry-listed servers that carry their own `config`.** A
      search for new serverIds never notices a version bump that moves the endpoint:
      `com.atlassian/atlassian-mcp-server` 2.0.0 lists `https://mcp.atlassian.com/v2/mcp`, while the
@@ -74,6 +78,10 @@ vendor publishes without ever registering.
        closed-source server (nothing on GitHub at all) has to be found via the web/docs route
        above instead — there's no code-search equivalent for that case, so don't report "nothing
        found" without having tried the web route too.
+     - Scope one WebSearch to the vendor's docs domains. On 2026-11-20 that found the NVIDIA
+       Run:ai MCP server in product docs and release notes, where neither the registry nor GitHub
+       showed it. It also found a documented docs server whose endpoint answered "MCP requires Ask
+       AI, which is disabled" — a docs page is a lead, the handshake below is the proof.
      - Check for a vendor-published "supported products"/"managed servers" catalog page (one
        WebFetch) — this can be a single high-yield source enumerating dozens of servers at once
        (see `docs.cloud.google.com/mcp/supported-products`, which alone surfaced 41 servers on
