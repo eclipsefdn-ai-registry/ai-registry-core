@@ -14,8 +14,16 @@ export function parseVersionLine(
   const firstLine = output.split("\n", 1)[0].trim();
   const prefix = `${program} `;
   if (!firstLine.startsWith(prefix)) return undefined;
+  return parseVersion(firstLine.slice(prefix.length));
+}
+
+/**
+ * Reads `X.Y.Z`, with any prerelease after a `-`, from the whole of `text`,
+ * dropping build metadata after a `+`. Undefined when `text` is anything else.
+ */
+export function parseVersion(text: string): Version | undefined {
   const match = /^(\d+)\.(\d+)\.(\d+)(?:-([^\s+]+))?(?:\+\S*)?$/.exec(
-    firstLine.slice(prefix.length),
+    text.trim(),
   );
   if (!match) return undefined;
   const version: Version = [

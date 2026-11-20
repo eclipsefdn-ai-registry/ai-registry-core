@@ -2,7 +2,15 @@
 // Tools' CLIs. Kept thin, since none of it is unit-tested; the decisions live
 // in the pure planners.
 import { spawn } from "node:child_process";
-import { cp, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { parseKiroInstalled } from "./kiroPlan.js";
@@ -10,11 +18,14 @@ import type {
   Action,
   ActionResult,
   CommandProbe,
+  FileRead,
   KiroPower,
   Probe,
   ToolId,
 } from "./pluginTools.js";
 import type { Snapshot } from "./snapshotStore.js";
+import { vsCodeUserFolder } from "./vscodePlan.js";
+import { editPluginLocations } from "./vscodeSettings.js";
 
 interface Finished {
   code: number | null;
@@ -76,6 +87,21 @@ export async function probe(tools: ToolId[], stored?: string): Promise<Probe> {
     result.kiro = await probeVersion("kiro-cli");
     result.kiroPowers = await readKiroPowers();
   }
+  if (tools.includes("vscode")) {
+    const userFolder = vsCodeUserFolder(
+      process.platform,
+      process.env,
+      homedir(),
+    );
+    const settingsFile = join(userFolder, "settings.json");
+    result.vscode = {
+      userFolder,
+      userFolderFound: await isDirectory(userFolder),
+      settingsFile,
+      settings: await readText(settingsFile),
+      code: await probeVersion("code"),
+    };
+  }
   return result;
 }
 
@@ -84,6 +110,16 @@ async function isDirectory(path: string): Promise<boolean> {
     return (await stat(path)).isDirectory();
   } catch {
     return false;
+  }
+}
+
+async function readText(path: string): Promise<FileRead> {
+  try {
+    return { kind: "read", text: await readFile(path, "utf-8") };
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+      ? { kind: "missing" }
+      : { kind: "unreadable", error: (error as Error).message };
   }
 }
 
@@ -114,6 +150,8 @@ export async function execute(action: Action): Promise<ActionResult> {
       case "move":
         await rename(action.from, action.to);
         return { ok: true };
+      case "edit-settings":
+        return await editSettings(action.file, action.add, action.remove);
       default:
         return {
           ok: false,
@@ -123,6 +161,24 @@ export async function execute(action: Action): Promise<ActionResult> {
   } catch (error) {
     return { ok: false, error: (error as Error).message };
   }
+}
+
+/**
+ * Edits `chat.pluginLocations` in a VS Code settings.json as it is now, which
+ * may differ from what the probe read. Written in place rather than through a
+ * temporary file, so a symlinked settings.json stays a symlink; a missing one
+ * is created. Settings that can't be edited are left as they are.
+ */
+async function editSettings(
+  file: string,
+  add: string,
+  remove: string[],
+): Promise<ActionResult> {
+  const current = await readText(file);
+  if (current.kind === "unreadable") return { ok: false, error: current.error };
+  const text = current.kind === "read" ? current.text : undefined;
+  await writeFile(file, editPluginLocations(text, add, remove), "utf-8");
+  return { ok: true };
 }
 
 async function execCommand(

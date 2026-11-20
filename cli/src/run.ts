@@ -5,6 +5,7 @@ import type { InstallContext } from "./install.js";
 import { installPlugin } from "./installPlugin.js";
 import { MIN_CODEX_TEXT } from "./codexPlan.js";
 import { MIN_KIRO_TEXT } from "./kiroPlan.js";
+import { MIN_VSCODE_TEXT } from "./vscodePlan.js";
 import { installSkill } from "./installSkill.js";
 import {
   TOOLS,
@@ -44,7 +45,9 @@ Options:
                         PATH; without kiro-cli, a github.com plugin gets the
                         Kiro IDE's import step to take yourself.
                         Codex needs codex ${MIN_CODEX_TEXT} or later on PATH, or the
-                        steps are printed for you to run
+                        steps are printed for you to run.
+                        VS Code needs git and its user settings folder, and
+                        ${MIN_VSCODE_TEXT} or later when \`code\` is on PATH
       --registry <url|path>
                         Read the registry from this base URL or local
                         directory, such as dist/api/v1 (default:
@@ -60,9 +63,12 @@ Options:
 The approval guardrail binds installs that go through this CLI only. It can't
 stop anyone running the installers directly, such as npx skills add.
 
-For Kiro, install plugin fetches the plugin's folder at the approved commit
-with your git into $XDG_DATA_HOME/ai-registry/plugins/ (default
-~/.local/share/ai-registry/plugins/), and deletes it once Kiro has its copy.
+For Kiro and VS Code, install plugin fetches the plugin's folder at the
+approved commit with your git into $XDG_DATA_HOME/ai-registry/plugins/
+(default ~/.local/share/ai-registry/plugins/). It deletes the folder once Kiro
+has its copy, and keeps it for VS Code, which reads it from there: it adds the
+folder to chat.pluginLocations in the user settings.json of VS Code's default
+profile, removing this plugin's entries for other commits.
 
 Config files hold JSON: {"requireApprovalFrom": ["eclipse", "anthropic"]}
 or {"requireApprovalFrom": "off"}. $XDG_CONFIG_HOME replaces ~/.config.`;

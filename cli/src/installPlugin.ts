@@ -21,6 +21,7 @@ import { loadPluginsFeed } from "./registry.js";
 import type { Deps } from "./run.js";
 import { snapshotFor, storeRoot, type Snapshot } from "./snapshotStore.js";
 import type { Plugin, PluginsFeed } from "./types.js";
+import { PLUGIN_LOCATIONS } from "./vscodeSettings.js";
 
 export interface PluginInstallOptions {
   tools: ToolId[];
@@ -191,8 +192,12 @@ export function describeAction(action: Action): string {
     }
     case "write-file":
       return `write ${action.path}`;
-    case "edit-settings":
-      return `add ${action.add} to ${action.file}`;
+    case "edit-settings": {
+      const removing = action.remove.length
+        ? `, removing ${action.remove.map((key) => `"${key}"`).join(", ")}`
+        : "";
+      return `add "${action.add}": true to ${PLUGIN_LOCATIONS} in ${action.file}${removing}`;
+    }
     case "remove":
       return `delete ${action.path}`;
     case "move":
@@ -211,21 +216,40 @@ function shellWord(word: string): string {
 /**
  * Carries out the actions of every Tool in a run. The snapshot is fetched once,
  * however many Tools ask for it, and a Tool that asks after a failed fetch
- * gets the same failure. `finish` then keeps the snapshot in the store if any
- * Tool asked to keep it, and deletes its staging folder otherwise, whether the
- * installs succeeded or not.
+ * gets the same failure. The first Tool that keeps it has it moved into the
+ * store before its next action, so that nothing points at the store before
+ * the folder is there; a failed move fails that Tool like a failed fetch.
+ * That relies on a Tool that reads the staging folder (Kiro) running before
+ * one that keeps it (VS Code), as TOOLS orders them. `finish` deletes the
+ * staging folder when nothing moved it, whether the installs succeeded or not.
  */
 class Runner {
   private fetch?: { snapshot: Snapshot; result: Promise<ActionResult> };
-  private keep = false;
+  private kept?: Promise<ActionResult>;
 
   constructor(private readonly deps: Pick<Deps, "execute" | "printErr">) {}
 
   execute(action: Action): Promise<ActionResult> {
     if (action.kind !== "snapshot") return this.announce(action);
-    this.keep ||= action.keep;
-    this.fetch ??= { snapshot: action.snapshot, result: this.announce(action) };
-    return this.fetch.result;
+    const { snapshot } = action;
+    this.fetch ??= { snapshot, result: this.announce(action) };
+    if (!action.keep) return this.fetch.result;
+    this.kept ??= this.fetch.result.then(async (fetched) => {
+      if (!fetched.ok) return fetched;
+      const move: Action = {
+        kind: "move",
+        from: snapshot.staging,
+        to: snapshot.stored,
+      };
+      const moved = await this.announce(move);
+      return moved.ok
+        ? moved
+        : {
+            ok: false,
+            error: `Couldn't ${describeAction(move)}.\n${moved.error}`,
+          };
+    });
+    return this.kept;
   }
 
   private announce(action: Action): Promise<ActionResult> {
@@ -234,13 +258,11 @@ class Runner {
   }
 
   async finish(): Promise<void> {
-    if (!this.fetch) return;
-    const { snapshot } = this.fetch;
-    const fetched = (await this.fetch.result).ok;
-    const cleanUp: Action =
-      fetched && this.keep
-        ? { kind: "move", from: snapshot.staging, to: snapshot.stored }
-        : { kind: "remove", path: snapshot.staging };
+    if (!this.fetch || (await this.kept)?.ok) return;
+    const cleanUp: Action = {
+      kind: "remove",
+      path: this.fetch.snapshot.staging,
+    };
     const outcome = await this.deps.execute(cleanUp);
     if (!outcome.ok) {
       this.deps.printErr(

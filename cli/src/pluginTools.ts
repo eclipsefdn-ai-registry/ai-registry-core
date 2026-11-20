@@ -6,6 +6,7 @@
 // because a terminal can do a step the website can only describe.
 import { planCodex } from "./codexPlan.js";
 import { planKiro } from "./kiroPlan.js";
+import { planVsCode } from "./vscodePlan.js";
 import type { Snapshot } from "./snapshotStore.js";
 import type { Plugin } from "./types.js";
 
@@ -77,6 +78,24 @@ export interface KiroPower {
   registryId?: string;
 }
 
+/** What reading a file came to; unreadable is any failure but its absence. */
+export type FileRead =
+  | { kind: "missing" }
+  | { kind: "read"; text: string }
+  | { kind: "unreadable"; error: string };
+
+/** What the probe found of stable VS Code's default profile. */
+export interface VsCodeProbe {
+  // the user settings folder, where it was looked for
+  userFolder: string;
+  userFolderFound: boolean;
+  // its settings.json
+  settingsFile: string;
+  settings: FileRead;
+  // `code --version`, whose first line is the bare version
+  code: CommandProbe;
+}
+
 /** What the probe found on this machine, for the Tools it was asked about. */
 export interface Probe {
   // whether git is on PATH, asked only for the Tools that need a snapshot
@@ -85,6 +104,7 @@ export interface Probe {
   kiro?: CommandProbe;
   // the powers Kiro has installed; undefined when that can't be read
   kiroPowers?: KiroPower[];
+  vscode?: VsCodeProbe;
   // whether the store already holds the snapshot of the approved commit
   snapshotStored?: boolean;
 }
@@ -130,7 +150,7 @@ const PLANNERS: Record<
   kiro: planKiro,
   "claude-code": notYet("Claude Code"),
   codex: (plugin, probe) => planCodex(plugin, probe.codex ?? { found: false }),
-  vscode: notYet("VS Code"),
+  vscode: planVsCode,
 };
 
 /**

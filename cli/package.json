@@ -18,6 +18,7 @@
     "prepare": "npm run build"
   },
   "dependencies": {
+    "jsonc-parser": "3.3.1",
     "skills": "1.7.4"
   },
   "devDependencies": {

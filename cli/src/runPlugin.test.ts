@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Action, ActionResult, Probe, ToolId } from "./pluginTools.js";
+import type {
+  Action,
+  ActionResult,
+  Probe,
+  ToolId,
+  VsCodeProbe,
+} from "./pluginTools.js";
 import { run, type Deps } from "./run.js";
 import type { Plugin } from "./types.js";
 
@@ -37,6 +43,15 @@ const STAGING = `${STORED}.partial-*`;
 const unrandom = (text: string) =>
   text.replace(/\.partial-[0-9a-f]+/g, ".partial-*");
 
+const SETTINGS = "/home/me/.config/Code/User/settings.json";
+const VSCODE: VsCodeProbe = {
+  userFolder: "/home/me/.config/Code/User",
+  userFolderFound: true,
+  settingsFile: SETTINGS,
+  settings: { kind: "missing" },
+  code: { found: true, output: "1.146.0\nabc123\nx64\n" },
+};
+
 const MARKETPLACE_ADD = `codex plugin marketplace add acme/plugins --ref ${COMMIT}`;
 const PLUGIN_ADD = "codex plugin add notes@acme";
 
@@ -57,8 +72,9 @@ interface Fake {
 }
 
 /**
- * A machine with git, codex 0.171.0 and kiro-cli 3.5.0 on PATH, no powers
- * installed and an empty Snapshot store, where every action succeeds unless
+ * A machine with git, codex 0.171.0, kiro-cli 3.5.0 and VS Code 1.146.0 on
+ * PATH, no powers installed, no VS Code settings.json and an empty Snapshot
+ * store, where every action succeeds unless
  * `fails` maps it to an error. Actions are recorded as their command line, or
  * as their kind and path.
  */
@@ -98,6 +114,7 @@ function fake(
           codex: { found: true, output: "codex-cli 0.171.0\n" },
           kiro: { found: true, output: "kiro-cli 3.5.0\n" },
           kiroPowers: [],
+          vscode: VSCODE,
           snapshotStored: false,
           ...probe,
         };
@@ -108,7 +125,11 @@ function fake(
             ? action.argv.join(" ")
             : action.kind === "remove"
               ? `remove ${action.path}`
-              : action.kind,
+              : action.kind === "move"
+                ? `move ${action.from} ${action.to}`
+                : action.kind === "edit-settings"
+                  ? `edit ${action.file}`
+                  : action.kind,
         );
         executed.push(command);
         return command in fails
@@ -227,7 +248,10 @@ describe("run install plugin", () => {
   });
 
   it("installs into the Tools it can and reports the others, exiting 1", async () => {
-    const f = fake();
+    const f = fake(
+      {},
+      { probe: { vscode: { ...VSCODE, userFolderFound: false } } },
+    );
     const code = await run(
       install("--tool", "vscode", "--tool", "codex", "--tool", "kiro", "--yes"),
       f.deps,
@@ -359,6 +383,156 @@ describe("run install plugin", () => {
     });
   });
 
+  describe("VS Code", () => {
+    it("keeps the snapshot in the store and adds it to the default profile's settings", async () => {
+      const f = fake();
+      assert.equal(await run(install("--tool", "vscode", "--yes"), f.deps), 0);
+      assert.deepEqual(f.executed, [
+        "snapshot",
+        `move ${STAGING} ${STORED}`,
+        `edit ${SETTINGS}`,
+      ]);
+      assert.equal(
+        f.stderr.at(-1),
+        "VS Code: installed. Installed `notes` at commit `7b4a44e` in VS Code's default profile. Start a new chat to use it.",
+      );
+    });
+
+    it("shares one fetch with Kiro, keeping the snapshot", async () => {
+      const f = fake({ isTTY: true });
+      assert.equal(
+        await run(install("--tool", "vscode", "--tool", "kiro"), f.deps),
+        0,
+      );
+      assert.deepEqual(f.executed, [
+        "snapshot",
+        `kiro-cli powers install ${STAGING}`,
+        `move ${STAGING} ${STORED}`,
+        `edit ${SETTINGS}`,
+      ]);
+      const fetch = f.stderr.indexOf(
+        `Fetch: plugins/notes from https://github.com/acme/plugins.git at ${COMMIT}`,
+      );
+      assert.deepEqual(f.stderr.slice(fetch + 1, fetch + 7), [
+        `  into ${STAGING}, then kept at ${STORED}`,
+        "Kiro will run:",
+        `  kiro-cli powers install ${STAGING}`,
+        "VS Code will run:",
+        `  add "${STORED}": true to chat.pluginLocations in ${SETTINGS}`,
+        "  Note: Only VS Code's default profile loads it; other profiles don't.",
+      ]);
+      assert.equal(
+        f.stderr.filter((line) => line.startsWith("Fetch: ")).length,
+        1,
+      );
+    });
+
+    it("fails without touching settings when the snapshot can't be moved into the store", async () => {
+      const f = fake(
+        {},
+        { fails: { [`move ${STAGING} ${STORED}`]: "ENOTEMPTY" } },
+      );
+      assert.equal(
+        await run(
+          install("--tool", "vscode", "--tool", "kiro", "--yes"),
+          f.deps,
+        ),
+        1,
+      );
+      assert.deepEqual(f.executed, [
+        "snapshot",
+        `kiro-cli powers install ${STAGING}`,
+        `move ${STAGING} ${STORED}`,
+        `remove ${STAGING}`,
+      ]);
+      assert.equal(
+        f.stderr.at(-4),
+        "Kiro: installed. Installed power `notes`. It loads in `kiro-cli chat --v3` and the Kiro IDE.",
+      );
+      assert.match(f.stderr.at(-3)!, /^VS Code: failed\. `fetch .*` failed\.$/);
+      assert.deepEqual(f.stderr.slice(-2), [
+        `  Couldn't move ${STAGING} to ${STORED}.`,
+        "  ENOTEMPTY",
+      ]);
+    });
+
+    it("names the entries it removes in the confirmation", async () => {
+      const old = `/data/ai-registry/plugins/io.github.acme--notes/${"1".repeat(40)}`;
+      const f = fake(
+        { isTTY: true },
+        {
+          probe: {
+            vscode: {
+              ...VSCODE,
+              settings: {
+                kind: "read",
+                text: JSON.stringify({
+                  "chat.pluginLocations": { [old]: true },
+                }),
+              },
+            },
+          },
+        },
+      );
+      await run(install("--tool", "vscode"), f.deps);
+      assert.ok(
+        f.stderr.includes(
+          `  add "${STORED}": true to chat.pluginLocations in ${SETTINGS}, removing "${old}"`,
+        ),
+        f.stderr.join("\n"),
+      );
+    });
+
+    it("keeps the snapshot and gives the entry by hand when settings.json can't be parsed", async () => {
+      const f = fake(
+        { isTTY: true },
+        {
+          probe: {
+            vscode: { ...VSCODE, settings: { kind: "read", text: "{" } },
+          },
+        },
+      );
+      assert.equal(await run(install("--tool", "vscode"), f.deps), 1);
+      assert.equal(f.questions.length, 1);
+      assert.deepEqual(f.executed, ["snapshot", `move ${STAGING} ${STORED}`]);
+      assert.match(
+        f.stderr.at(-2)!,
+        /^VS Code: manual step needed\. This CLI didn't edit /,
+      );
+      assert.equal(
+        f.stderr.at(-1),
+        `  1. Add \`"${STORED}": true\` to \`chat.pluginLocations\` in ${SETTINGS}, the user settings of VS Code's default profile.`,
+      );
+    });
+
+    it("is already installed with the entry set and the snapshot stored, asking nothing", async () => {
+      const f = fake(
+        { isTTY: true },
+        {
+          probe: {
+            snapshotStored: true,
+            vscode: {
+              ...VSCODE,
+              settings: {
+                kind: "read",
+                text: JSON.stringify({
+                  "chat.pluginLocations": { [STORED]: true },
+                }),
+              },
+            },
+          },
+        },
+      );
+      assert.equal(await run(install("--tool", "vscode"), f.deps), 0);
+      assert.deepEqual(f.executed, []);
+      assert.deepEqual(f.questions, []);
+      assert.equal(
+        f.stderr.at(-1),
+        "VS Code: already installed. `notes` is already installed at the approved commit in VS Code's default profile.",
+      );
+    });
+  });
+
   it("reports a Tool named twice once", async () => {
     const f = fake();
     await run(install("--tool", "codex", "--tool", "codex", "--yes"), f.deps);
@@ -380,11 +554,14 @@ describe("run install plugin", () => {
     });
 
     it("lists the Tools that won't install alongside", async () => {
-      const f = fake({ isTTY: true });
+      const f = fake(
+        { isTTY: true },
+        { probe: { vscode: { ...VSCODE, userFolderFound: false } } },
+      );
       await run(install("--tool", "codex", "--tool", "vscode"), f.deps);
       assert.ok(
         f.stderr.includes(
-          "VS Code can't install it: This CLI doesn't install plugins into VS Code yet.",
+          "VS Code can't install it: VS Code's user settings folder wasn't found at `/home/me/.config/Code/User`.",
         ),
       );
     });
