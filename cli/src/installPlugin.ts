@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { sourceTreeUrl } from "./cliSource.js";
 import { approvalLines, field, organizationNamer } from "./describeSkill.js";
 import {
@@ -7,6 +8,7 @@ import {
 } from "./install.js";
 import {
   listedTools,
+  type ActionResult,
   planTools,
   TOOL_LABELS,
   TOOLS,
@@ -17,6 +19,7 @@ import {
 } from "./pluginTools.js";
 import { loadPluginsFeed } from "./registry.js";
 import type { Deps } from "./run.js";
+import { snapshotFor, storeRoot, type Snapshot } from "./snapshotStore.js";
 import type { Plugin, PluginsFeed } from "./types.js";
 
 export interface PluginInstallOptions {
@@ -82,20 +85,28 @@ export async function installPlugin(
   }
 
   const listed = listedTools(plugin);
+  const snapshot = snapshotFor(
+    storeRoot(deps.env, deps.homeDir),
+    plugin,
+    randomBytes(4).toString("hex"),
+  );
   const probe = await deps.probe(
     options.tools.filter((tool) => listed.includes(tool)),
+    snapshot?.stored,
   );
-  const planned = planTools(plugin, options.tools, probe);
+  const planned = planTools(plugin, options.tools, probe, { snapshot });
 
   if (planned.some(({ plan }) => actionsOf(plan).length)) {
     for (const line of confirmationLines(planned)) deps.printErr(line);
     if (!(await confirmInstall(options.yes, deps))) return 1;
   }
 
+  const runner = new Runner(deps);
   const results: ToolResult[] = [];
   for (const { tool, plan } of planned) {
-    results.push(await carryOut(tool, plan, deps));
+    results.push(await carryOut(tool, plan, runner));
   }
+  await runner.finish();
   for (const line of reportLines(results)) deps.printErr(line);
   return results.every(
     (r) => r.status === "installed" || r.status === "already installed",
@@ -128,13 +139,29 @@ function actionsOf(plan: ToolPlan): Action[] {
 }
 
 /**
- * The one confirmation's text: per Tool that will run something, its actions,
- * notes and warnings, then the Tools that won't, and why.
+ * The one confirmation's text: the snapshot, if any Tool needs one, with where
+ * it is fetched and whether it is kept; per Tool that will run something, its
+ * commands, notes and warnings; then the Tools that won't, and why.
  */
 export function confirmationLines(planned: PlannedTool[]): string[] {
   const lines: string[] = [];
+  const fetches = planned.flatMap(({ plan }) =>
+    actionsOf(plan).filter((action) => action.kind === "snapshot"),
+  );
+  if (fetches.length) {
+    const { snapshot } = fetches[0]!;
+    lines.push(`Fetch: ${describeAction(fetches[0]!).replace(/^fetch /, "")}`);
+    lines.push(
+      fetches.some((fetch) => fetch.keep)
+        ? `  into ${snapshot.staging}, then kept at ${snapshot.stored}`
+        : `  into ${snapshot.staging}, deleted once the install is over`,
+    );
+  }
   for (const { tool, plan } of planned) {
-    const actions = actionsOf(plan);
+    // The fetch is listed once above, however many Tools use it.
+    const actions = actionsOf(plan).filter(
+      (action) => action.kind !== "snapshot",
+    );
     if (!actions.length) continue;
     lines.push(`${TOOL_LABELS[tool]} will run:`);
     for (const action of actions) lines.push(`  ${describeAction(action)}`);
@@ -158,12 +185,18 @@ export function describeAction(action: Action): string {
   switch (action.kind) {
     case "exec":
       return action.argv.map(shellWord).join(" ");
-    case "snapshot":
-      return `fetch the approved commit${action.keep ? "" : " (deleted afterwards)"}`;
+    case "snapshot": {
+      const { url, path, commit } = action.snapshot;
+      return `fetch ${path ? `${path} from ` : ""}${url} at ${commit}`;
+    }
     case "write-file":
       return `write ${action.path}`;
     case "edit-settings":
       return `add ${action.add} to ${action.file}`;
+    case "remove":
+      return `delete ${action.path}`;
+    case "move":
+      return `move ${action.from} to ${action.to}`;
   }
 }
 
@@ -175,12 +208,54 @@ function shellWord(word: string): string {
     : `'${word.replace(/'/g, `'\\''`)}'`;
 }
 
+/**
+ * Carries out the actions of every Tool in a run. The snapshot is fetched once,
+ * however many Tools ask for it, and a Tool that asks after a failed fetch
+ * gets the same failure. `finish` then keeps the snapshot in the store if any
+ * Tool asked to keep it, and deletes its staging folder otherwise, whether the
+ * installs succeeded or not.
+ */
+class Runner {
+  private fetch?: { snapshot: Snapshot; result: Promise<ActionResult> };
+  private keep = false;
+
+  constructor(private readonly deps: Pick<Deps, "execute" | "printErr">) {}
+
+  execute(action: Action): Promise<ActionResult> {
+    if (action.kind !== "snapshot") return this.announce(action);
+    this.keep ||= action.keep;
+    this.fetch ??= { snapshot: action.snapshot, result: this.announce(action) };
+    return this.fetch.result;
+  }
+
+  private announce(action: Action): Promise<ActionResult> {
+    this.deps.printErr(`Running: ${describeAction(action)}`);
+    return this.deps.execute(action);
+  }
+
+  async finish(): Promise<void> {
+    if (!this.fetch) return;
+    const { snapshot } = this.fetch;
+    const fetched = (await this.fetch.result).ok;
+    const cleanUp: Action =
+      fetched && this.keep
+        ? { kind: "move", from: snapshot.staging, to: snapshot.stored }
+        : { kind: "remove", path: snapshot.staging };
+    const outcome = await this.deps.execute(cleanUp);
+    if (!outcome.ok) {
+      this.deps.printErr(
+        `Couldn't ${describeAction(cleanUp)}: ${outcome.error.trim()}`,
+      );
+    }
+  }
+}
+
 // Carries out one Tool's plan. A failed action stops this Tool's remaining
 // actions, never the next Tool's.
 async function carryOut(
   tool: ToolId,
   plan: ToolPlan,
-  deps: Deps,
+  runner: Runner,
 ): Promise<ToolResult> {
   const result = (status: Status, detail: string, more: string[] = []) => ({
     tool,
@@ -192,8 +267,7 @@ async function carryOut(
   if (plan.kind === "done") return result("already installed", plan.message);
 
   for (const action of actionsOf(plan)) {
-    deps.printErr(`Running: ${describeAction(action)}`);
-    const outcome = await deps.execute(action);
+    const outcome = await runner.execute(action);
     if (outcome.ok) continue;
     return result(
       "failed",

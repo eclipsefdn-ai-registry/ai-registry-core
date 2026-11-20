@@ -4,6 +4,7 @@ import type { Guardrail } from "./guardrail.js";
 import type { InstallContext } from "./install.js";
 import { installPlugin } from "./installPlugin.js";
 import { MIN_CODEX_TEXT } from "./codexPlan.js";
+import { MIN_KIRO_TEXT } from "./kiroPlan.js";
 import { installSkill } from "./installSkill.js";
 import {
   TOOLS,
@@ -39,6 +40,9 @@ Options:
                         project
       --tool <tool>     install plugin: install into this Tool, one of
                         ${TOOLS.join(", ")}; repeat for several.
+                        Kiro needs git and kiro-cli ${MIN_KIRO_TEXT} or later on
+                        PATH; without kiro-cli, a github.com plugin gets the
+                        Kiro IDE's import step to take yourself.
                         Codex needs codex ${MIN_CODEX_TEXT} or later on PATH, or the
                         steps are printed for you to run
       --registry <url|path>
@@ -56,6 +60,10 @@ Options:
 The approval guardrail binds installs that go through this CLI only. It can't
 stop anyone running the installers directly, such as npx skills add.
 
+For Kiro, install plugin fetches the plugin's folder at the approved commit
+with your git into $XDG_DATA_HOME/ai-registry/plugins/ (default
+~/.local/share/ai-registry/plugins/), and deletes it once Kiro has its copy.
+
 Config files hold JSON: {"requireApprovalFrom": ["eclipse", "anthropic"]}
 or {"requireApprovalFrom": "off"}. $XDG_CONFIG_HOME replaces ~/.config.`;
 
@@ -71,8 +79,9 @@ export interface Deps {
   // runs the skills CLI with these arguments, resolving to its exit code
   runSkills: (args: string[]) => Promise<number>;
   // finds out what install plugin's planners need to know about these Tools
-  // on this machine; never throws, since what it can't read is unknown
-  probe: (tools: ToolId[]) => Promise<Probe>;
+  // on this machine, including whether the Snapshot store holds the folder
+  // `stored`; never throws, since what it can't read is unknown
+  probe: (tools: ToolId[], stored?: string) => Promise<Probe>;
   // carries out one action of a Tool's plan
   execute: (action: Action) => Promise<ActionResult>;
 }

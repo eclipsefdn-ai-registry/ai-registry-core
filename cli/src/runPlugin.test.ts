@@ -31,6 +31,12 @@ const NOTES: Plugin = {
   approvals: [{ organizationId: "acme", date: "2026-01-02" }],
 };
 
+const STORED = `/data/ai-registry/plugins/io.github.acme--notes/${COMMIT}`;
+// The staging suffix is random; the fake records it as `*`.
+const STAGING = `${STORED}.partial-*`;
+const unrandom = (text: string) =>
+  text.replace(/\.partial-[0-9a-f]+/g, ".partial-*");
+
 const MARKETPLACE_ADD = `codex plugin marketplace add acme/plugins --ref ${COMMIT}`;
 const PLUGIN_ADD = "codex plugin add notes@acme";
 
@@ -51,8 +57,10 @@ interface Fake {
 }
 
 /**
- * A machine with codex 0.171.0 on PATH, where every command succeeds unless
- * `fails` maps it to an error.
+ * A machine with git, codex 0.171.0 and kiro-cli 3.5.0 on PATH, no powers
+ * installed and an empty Snapshot store, where every action succeeds unless
+ * `fails` maps it to an error. Actions are recorded as their command line, or
+ * as their kind and path.
  */
 function fake(
   overrides: Partial<Deps> = {},
@@ -71,11 +79,11 @@ function fake(
     executed,
     questions,
     deps: {
-      env: {},
+      env: { XDG_DATA_HOME: "/data" },
       cwd: join(tmpdir(), "ai-registry-cli-no-project"),
       homeDir: join(tmpdir(), "ai-registry-cli-no-home"),
       isTTY: false,
-      printErr: (line) => stderr.push(line),
+      printErr: (line) => stderr.push(unrandom(line)),
       confirm: async (question) => {
         questions.push(question);
         return true;
@@ -86,13 +94,22 @@ function fake(
       probe: async (tools) => {
         probed.push(tools);
         return {
+          git: true,
           codex: { found: true, output: "codex-cli 0.171.0\n" },
+          kiro: { found: true, output: "kiro-cli 3.5.0\n" },
+          kiroPowers: [],
+          snapshotStored: false,
           ...probe,
         };
       },
       execute: async (action: Action): Promise<ActionResult> => {
-        const command =
-          action.kind === "exec" ? action.argv.join(" ") : action.kind;
+        const command = unrandom(
+          action.kind === "exec"
+            ? action.argv.join(" ")
+            : action.kind === "remove"
+              ? `remove ${action.path}`
+              : action.kind,
+        );
         executed.push(command);
         return command in fails
           ? { ok: false, error: fails[command] }
@@ -216,12 +233,130 @@ describe("run install plugin", () => {
       f.deps,
     );
     assert.equal(code, 1);
-    assert.deepEqual(f.executed, [MARKETPLACE_ADD, PLUGIN_ADD]);
+    assert.deepEqual(f.executed, [
+      "snapshot",
+      `kiro-cli powers install ${STAGING}`,
+      MARKETPLACE_ADD,
+      PLUGIN_ADD,
+      `remove ${STAGING}`,
+    ]);
     // One line per requested Tool, those that could install first.
     assert.deepEqual(
       f.stderr.slice(-3).map((line) => line.split(".")[0]),
-      ["Codex: installed", "Kiro: unavailable", "VS Code: unavailable"],
+      ["Kiro: installed", "Codex: installed", "VS Code: unavailable"],
     );
+  });
+
+  describe("Kiro", () => {
+    it("fetches a snapshot of the approved commit, installs it as a power and deletes it", async () => {
+      const f = fake();
+      assert.equal(await run(install("--tool", "kiro", "--yes"), f.deps), 0);
+      assert.deepEqual(f.executed, [
+        "snapshot",
+        `kiro-cli powers install ${STAGING}`,
+        `remove ${STAGING}`,
+      ]);
+      assert.equal(
+        f.stderr.at(-1),
+        "Kiro: installed. Installed power `notes`. It loads in `kiro-cli chat --v3` and the Kiro IDE.",
+      );
+    });
+
+    it("probes for the store's snapshot of the approved commit", async () => {
+      const f = fake();
+      const probed: (string | undefined)[] = [];
+      f.deps.probe = async (_tools, stored) => {
+        probed.push(stored);
+        return {};
+      };
+      await run(install("--tool", "kiro", "--yes"), f.deps);
+      assert.deepEqual(probed, [STORED]);
+    });
+
+    it("installs the store's snapshot as is, fetching and deleting nothing", async () => {
+      const f = fake({}, { probe: { snapshotStored: true } });
+      assert.equal(await run(install("--tool", "kiro", "--yes"), f.deps), 0);
+      assert.deepEqual(f.executed, [`kiro-cli powers install ${STORED}`]);
+    });
+
+    it("deletes the snapshot when the install fails", async () => {
+      const f = fake(
+        {},
+        {
+          fails: {
+            [`kiro-cli powers install ${STAGING}`]: "It exited 1.\nbad power",
+          },
+        },
+      );
+      assert.equal(await run(install("--tool", "kiro", "--yes"), f.deps), 1);
+      assert.equal(f.executed.at(-1), `remove ${STAGING}`);
+    });
+
+    it("fails only the Tools that need the snapshot when the fetch fails", async () => {
+      const f = fake(
+        {},
+        { fails: { snapshot: "It exited 128.\nno such commit" } },
+      );
+      const code = await run(
+        install("--tool", "kiro", "--tool", "codex", "--yes"),
+        f.deps,
+      );
+      assert.equal(code, 1);
+      assert.deepEqual(f.executed, [
+        "snapshot",
+        MARKETPLACE_ADD,
+        PLUGIN_ADD,
+        `remove ${STAGING}`,
+      ]);
+      const report = f.stderr.slice(-4);
+      assert.match(report[0]!, /^Kiro: failed\. `fetch .*` failed\.$/);
+      assert.deepEqual(report.slice(1), [
+        "  It exited 128.",
+        "  no such commit",
+        "Codex: installed. Installed `notes@acme` at the approved commit. Start a new Codex session to use it.",
+      ]);
+    });
+
+    it("is unavailable without git, fetching nothing, while other Tools install", async () => {
+      const f = fake({}, { probe: { git: false } });
+      const code = await run(
+        install("--tool", "kiro", "--tool", "codex", "--yes"),
+        f.deps,
+      );
+      assert.equal(code, 1);
+      assert.deepEqual(f.executed, [MARKETPLACE_ADD, PLUGIN_ADD]);
+      assert.match(f.stderr.at(-1)!, /^Kiro: unavailable\. git not found/);
+    });
+
+    it("gives the Kiro IDE's step without kiro-cli, fetching nothing and asking nothing", async () => {
+      const f = fake({ isTTY: true }, { probe: { kiro: { found: false } } });
+      assert.equal(await run(install("--tool", "kiro"), f.deps), 1);
+      assert.deepEqual(f.executed, []);
+      assert.deepEqual(f.questions, []);
+      assert.match(
+        f.stderr.at(-2)!,
+        /^Kiro: manual step needed\. `kiro-cli` wasn't found on PATH\./,
+      );
+      assert.match(f.stderr.at(-1)!, /^  1\. In Kiro, open Powers → /);
+    });
+
+    it("names the fetch once in the confirmation, with where it goes and that it is deleted", async () => {
+      const f = fake({ isTTY: true });
+      await run(install("--tool", "kiro"), f.deps);
+      const fetch = f.stderr.indexOf(
+        `Fetch: plugins/notes from https://github.com/acme/plugins.git at ${COMMIT}`,
+      );
+      assert.notEqual(fetch, -1);
+      assert.deepEqual(f.stderr.slice(fetch + 1, fetch + 4), [
+        `  into ${STAGING}, deleted once the install is over`,
+        "Kiro will run:",
+        `  kiro-cli powers install ${STAGING}`,
+      ]);
+      assert.equal(
+        f.stderr.filter((line) => line.startsWith("Fetch: ")).length,
+        1,
+      );
+    });
   });
 
   it("reports a Tool named twice once", async () => {
@@ -246,10 +381,10 @@ describe("run install plugin", () => {
 
     it("lists the Tools that won't install alongside", async () => {
       const f = fake({ isTTY: true });
-      await run(install("--tool", "codex", "--tool", "kiro"), f.deps);
+      await run(install("--tool", "codex", "--tool", "vscode"), f.deps);
       assert.ok(
         f.stderr.includes(
-          "Kiro can't install it: This CLI doesn't install plugins into Kiro yet.",
+          "VS Code can't install it: This CLI doesn't install plugins into VS Code yet.",
         ),
       );
     });

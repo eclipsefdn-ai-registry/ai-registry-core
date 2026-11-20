@@ -5,6 +5,8 @@
 // Keep them in sync. Where the CLI goes further than the website, it is
 // because a terminal can do a step the website can only describe.
 import { planCodex } from "./codexPlan.js";
+import { planKiro } from "./kiroPlan.js";
+import type { Snapshot } from "./snapshotStore.js";
 import type { Plugin } from "./types.js";
 
 export type ToolId = "kiro" | "claude-code" | "codex" | "vscode";
@@ -25,12 +27,18 @@ export const TOOL_LABELS: Record<ToolId, string> = {
  * it out.
  */
 export type Action =
-  | { kind: "snapshot"; keep: boolean }
+  // fetch the snapshot into its staging folder, once per run however many
+  // Tools ask; at the end of the run it is kept in the store if any Tool asked
+  // to keep it, and deleted otherwise
+  | { kind: "snapshot"; snapshot: Snapshot; keep: boolean }
   // run with stdin from /dev/null; onFailure runs once this fails, to undo
   // what the actions before it did
   | { kind: "exec"; argv: string[]; onFailure?: Action[] }
   | { kind: "write-file"; path: string; contents: string }
-  | { kind: "edit-settings"; file: string; add: string; remove: string[] };
+  | { kind: "edit-settings"; file: string; add: string; remove: string[] }
+  // the run's own clean-up of a staging snapshot, never part of a plan
+  | { kind: "remove"; path: string }
+  | { kind: "move"; from: string; to: string };
 
 /** What carrying out one action came to; `error` says why it failed. */
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -62,9 +70,29 @@ export type ToolPlan =
  */
 export type CommandProbe = { found: false } | { found: true; output: string };
 
+/** A power listed in Kiro's `powers/installed.json`. */
+export interface KiroPower {
+  name: string;
+  // "user-added" for a power imported in the Kiro IDE
+  registryId?: string;
+}
+
 /** What the probe found on this machine, for the Tools it was asked about. */
 export interface Probe {
+  // whether git is on PATH, asked only for the Tools that need a snapshot
+  git?: boolean;
   codex?: CommandProbe;
+  kiro?: CommandProbe;
+  // the powers Kiro has installed; undefined when that can't be read
+  kiroPowers?: KiroPower[];
+  // whether the store already holds the snapshot of the approved commit
+  snapshotStored?: boolean;
+}
+
+/** What planning knows about the run beyond the plugin and the probe. */
+export interface PlanContext {
+  // the snapshot this run would fetch; undefined without a commit
+  snapshot?: Snapshot;
 }
 
 export interface PlannedTool {
@@ -95,8 +123,11 @@ function notYet(label: string): () => ToolPlan {
 }
 
 // One planner per Tool. A new Tool is a planner here and an entry in TOOLS.
-const PLANNERS: Record<ToolId, (plugin: Plugin, probe: Probe) => ToolPlan> = {
-  kiro: notYet("Kiro"),
+const PLANNERS: Record<
+  ToolId,
+  (plugin: Plugin, probe: Probe, context: PlanContext) => ToolPlan
+> = {
+  kiro: planKiro,
   "claude-code": notYet("Claude Code"),
   codex: (plugin, probe) => planCodex(plugin, probe.codex ?? { found: false }),
   vscode: notYet("VS Code"),
@@ -111,13 +142,14 @@ export function planTools(
   plugin: Plugin,
   requested: ToolId[],
   probe: Probe,
+  context: PlanContext,
 ): PlannedTool[] {
   const listed = listedTools(plugin);
   const planned = TOOLS.filter((tool) => requested.includes(tool)).map(
     (tool): PlannedTool => ({
       tool,
       plan: listed.includes(tool)
-        ? PLANNERS[tool](plugin, probe)
+        ? PLANNERS[tool](plugin, probe, context)
         : { kind: "unavailable", reason: NOT_LISTED },
     }),
   );
