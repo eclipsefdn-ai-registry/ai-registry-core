@@ -1,0 +1,360 @@
+{
+  "lastRun": "2026-11-20",
+  "coverage": {
+    "mcp": {
+      "total": 124,
+      "direct": 34,
+      "trusted": {
+        "google": 89,
+        "eclipsesource": 1
+      }
+    },
+    "skills": {
+      "total": 526,
+      "direct": 77,
+      "trusted": {
+        "google": 352,
+        "openai": 42,
+        "aws": 26,
+        "anthropic": 20,
+        "ai-registry": 9
+      }
+    },
+    "plugins": {
+      "total": 0,
+      "direct": 0,
+      "trusted": {}
+    },
+    "agents": {
+      "total": 0,
+      "direct": 0,
+      "trusted": {}
+    }
+  },
+  "candidates": [
+    {
+      "id": "io.github.microsoft/azure-skills",
+      "type": "plugin",
+      "source": "https://github.com/microsoft/azure-skills.git#.github/plugins/* (8 plugins)",
+      "status": "proposed",
+      "reason": "skills.sh 19.4M installs over 33 skills; verified microsoft org; MIT; Agent Plugins 1.0.0 $schema on all 8, azure-cost passed vendor validation",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.vercel-labs",
+      "type": "skill",
+      "source": "https://github.com/vercel-labs/agent-skills.git#skills/*",
+      "status": "proposed",
+      "reason": "skills.sh 3.4M installs (react-best-practices 917k); 34.6k stars; verified Vercel org; README says MIT but no LICENSE file",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.addyosmani/agent-skills",
+      "type": "plugin",
+      "source": "https://github.com/addyosmani/agent-skills.git",
+      "status": "proposed",
+      "reason": "119k stars, skills.sh 1.36M; Addy Osmani (GitHub since 2009); MIT; conforming Agent Plugin, 26 skills",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.cloudflare/skills",
+      "type": "plugin",
+      "source": "https://github.com/cloudflare/skills.git",
+      "status": "proposed",
+      "reason": "skills.sh 1.6M; 3.4k stars; Apache-2.0; conforming Agent Plugin, 22 skills + Cloudflare MCP (Theia already approves Cloudflare MCP)",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.stripe/stripe",
+      "type": "plugin",
+      "source": "https://github.com/stripe/ai.git#providers/agent-plugins/plugin",
+      "status": "proposed",
+      "reason": "Stripe's own plugin, 11 skills + MCP; MIT; conforming; Theia already approves Stripe MCP",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.obsidianmd/obsidian",
+      "type": "plugin",
+      "source": "https://github.com/obsidianmd/obsidian-skills.git#plugins/obsidian",
+      "status": "proposed",
+      "reason": "replacement for broken io.github.kepano skills approval; 53k stars; MIT; conforming Agent Plugin, 7 skills",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.supabase",
+      "type": "skill",
+      "source": "https://github.com/supabase/agent-skills.git#skills/*",
+      "status": "proposed",
+      "reason": "skills.sh 863k over 2 skills; verified Supabase org; MIT; pairs with approved Supabase MCP",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.microsoft/playwright-cli",
+      "type": "skill",
+      "source": "https://github.com/microsoft/playwright-cli.git#skills/playwright-cli",
+      "status": "proposed",
+      "reason": "skills.sh 222k; 15k stars; Apache-2.0; pairs with approved Playwright MCP",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.neondatabase",
+      "type": "skill",
+      "source": "https://github.com/neondatabase/agent-skills.git#skills/*",
+      "status": "proposed",
+      "reason": "skills.sh 585k; verified Neon org; Apache-2.0; pairs with approved Neon MCP",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.prisma",
+      "type": "skill",
+      "source": "https://github.com/prisma/skills.git#skills/*",
+      "status": "proposed",
+      "reason": "skills.sh 4.0M but only 80 stars (install count possibly inflated); verified Prisma org; MIT",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "com.microsoft/microsoft-learn-mcp",
+      "type": "mcp",
+      "source": "https://learn.microsoft.com/api/mcp",
+      "status": "proposed",
+      "reason": "DNS-verified com.microsoft; remote, no auth; 2k stars on MicrosoftDocs/mcp",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "com.microsoft/azure",
+      "type": "mcp",
+      "source": "npm @azure/mcp",
+      "status": "proposed",
+      "reason": "878k npm downloads/month; DNS-verified com.microsoft; MIT; version is 3.0.0-beta",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.vercel/next-devtools-mcp",
+      "type": "mcp",
+      "source": "npm next-devtools-mcp",
+      "status": "proposed",
+      "reason": "710k npm downloads/month; Vercel org; no license in API, to check",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "io.github.SonarSource/sonarqube-mcp-server",
+      "type": "mcp",
+      "source": "docker.io/sonarsource/sonarqube-mcp",
+      "status": "proposed",
+      "reason": "official SonarSource; 692 stars; IDE code-quality fit; license NOASSERTION to read",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "com.postman/postman-mcp-server",
+      "type": "mcp",
+      "source": "https://mcp.postman.com/mcp, npm @postman/postman-mcp-server",
+      "status": "proposed",
+      "reason": "DNS-verified com.postman; 47k npm downloads/month; Apache-2.0",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "com.figma.mcp/mcp",
+      "type": "mcp",
+      "source": "https://mcp.figma.com/mcp",
+      "status": "deferred",
+      "reason": "remote server accepts only allowlisted OAuth clients; Theia not known to be allowlisted",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "com.vercel/vercel-mcp",
+      "type": "mcp",
+      "source": "https://mcp.vercel.com",
+      "status": "deferred",
+      "reason": "remote server accepts only allowlisted OAuth clients; Theia not known to be allowlisted",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "vercel-labs/skills#find-skills",
+      "type": "skill",
+      "source": "https://github.com/vercel-labs/skills.git",
+      "status": "declined",
+      "reason": "top skills.sh install (4.4M), but it tells the agent to find and install skills from outside the registry, which goes around curation",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "vercel-labs/agent-browser",
+      "type": "skill",
+      "source": "https://github.com/vercel-labs/agent-browser.git#skills/agent-browser",
+      "status": "deferred",
+      "reason": "1.6M installs, 53k stars, Apache-2.0; needs the agent-browser CLI installed and overlaps approved Playwright/Chrome DevTools MCP; revisit next month",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "remotion-dev/skills",
+      "type": "skill",
+      "source": "https://github.com/remotion-dev/skills.git",
+      "status": "declined",
+      "reason": "5M installs but no license file (Remotion is under its own company license) and weak IDE fit",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "superpowers look-alikes",
+      "type": "skill",
+      "source": "101-skills, magentosh, skills-shell, qu-skills, bankai-skills, its-a-skill-issue /superpowers",
+      "status": "declined",
+      "reason": "reuse obra's name for unrelated AI media/twitter-automation skills from unknown owners; installs look inflated",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "heygen-com/hyperframes",
+      "type": "skill",
+      "source": "https://github.com/heygen-com/hyperframes.git",
+      "status": "declined",
+      "reason": "video-generation tooling, little fit for an IDE audience",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "open.feishu.cn / larksuite/cli",
+      "type": "skill",
+      "source": "open.feishu.cn, https://github.com/larksuite/cli",
+      "status": "declined",
+      "reason": "Lark/Feishu workplace-suite skills; outside Theia's audience",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "coreyhaines31/marketingskills",
+      "type": "skill",
+      "source": "https://github.com/coreyhaines31/marketingskills",
+      "status": "declined",
+      "reason": "marketing skills, no IDE fit",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "juliusbrussee/caveman",
+      "type": "skill",
+      "source": "https://github.com/juliusbrussee/caveman",
+      "status": "declined",
+      "reason": "individual without a long public track record; output-style persona, not engineering capability",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "id": "prime-skills/runcomfy-agent-skills, lllllllama/rigorpilot-skills, flowkit-labs/skills, designed-by-ai/skills, uizze",
+      "type": "skill",
+      "source": "skills.sh leaderboard",
+      "status": "declined",
+      "reason": "unknown owners with high install counts; flowkit is social-media automation",
+      "checkedAt": "2026-11-20"
+    }
+  ],
+  "trustDecisions": [
+    {
+      "org": "google",
+      "types": ["agents"],
+      "status": "proposed",
+      "reason": "drop: Theia has no agentInstallUrlPrefix and Google approves 0 agents",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "google",
+      "types": ["plugins"],
+      "status": "proposed",
+      "reason": "add: 12 conforming Agent Plugins incl. google/agents-cli (4.1M skills.sh installs), only reachable as a plugin",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "aws",
+      "types": ["plugins", "mcp"],
+      "status": "proposed",
+      "reason": "add: non-inferred org; 6 conforming plugins + 3 MCP servers (makes direct com.amazon.aws/aws-mcp redundant)",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "github",
+      "types": ["plugins", "mcp", "skills"],
+      "status": "proposed",
+      "reason": "add mcp+plugins (direct github-mcp-server becomes redundant; +lever, +github-mcp-server plugin); skills optional (16, mostly CI-migration)",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "atlassian",
+      "types": ["mcp", "plugins"],
+      "status": "proposed",
+      "reason": "add: direct atlassian-mcp-server becomes redundant; +Trello MCP, 3 conforming plugins",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "typefox",
+      "types": ["skills"],
+      "status": "proposed",
+      "reason": "add: non-inferred Theia co-maintainer; 15 skills incl. Langium (Eclipse project)",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "gitlab",
+      "types": ["mcp"],
+      "status": "proposed",
+      "reason": "add mcp only (direct com.gitlab/mcp becomes redundant, +lazy-mcp, +orbit); not skills (55, mixed internal-workflow) or plugins (3 non-conforming)",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "docker",
+      "types": ["mcp"],
+      "status": "proposed",
+      "reason": "add mcp (direct hub-mcp becomes redundant, +dhi-mcp); open PR #4 (Docker Docs MCP) would come in too",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "nvidia",
+      "types": ["skills", "mcp"],
+      "status": "declined",
+      "reason": "514 skills, mostly GPU/DGX/NeMo; too broad and specialised for an IDE default",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "jetbrains",
+      "types": ["skills", "mcp"],
+      "status": "declined",
+      "reason": "largely JetBrains-IDE-specific (Rider, PhpStorm, IntelliJ MCP server); little use in Theia",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "org": "opcoach",
+      "types": ["mcp"],
+      "status": "declined",
+      "reason": "single niche mail MCP server",
+      "checkedAt": "2026-11-20"
+    }
+  ],
+  "fixes": [
+    {
+      "approval": "io.github.kepano",
+      "problem": "kepano/obsidian-skills moved to obsidianmd/obsidian-skills; skills/* now matches nothing (0 entries in feed); skills live at plugins/obsidian/skills/* (7)",
+      "proposal": "https://github.com/obsidianmd/obsidian-skills.git",
+      "status": "proposed",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "approval": "io.github.e2b-dev/mcp-server",
+      "problem": "repo archived and README marked deprecated; not in MCP registry; 2.2k npm downloads/month",
+      "proposal": "npm @e2b/mcp-server",
+      "status": "proposed",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "approval": "io.github.makenotion/notion-mcp-server",
+      "problem": "serverId gone from MCP registry; Notion steers users to remote com.notion/mcp",
+      "proposal": "com.notion/mcp",
+      "status": "proposed",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "approval": "io.github.brightdata-com/brightdata-mcp",
+      "problem": "serverId gone from MCP registry; now io.github.brightdata/brightdata-mcp (same @brightdata/mcp package)",
+      "proposal": "io.github.brightdata/brightdata-mcp",
+      "status": "proposed",
+      "checkedAt": "2026-11-20"
+    },
+    {
+      "approval": "com.asana/mcp",
+      "problem": "not in MCP registry (no official Asana entry under any name); config itself still valid",
+      "proposal": "https://mcp.asana.com/v2/mcp",
+      "status": "deferred",
+      "checkedAt": "2026-11-20"
+    }
+  ]
+}
