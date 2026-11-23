@@ -26,6 +26,14 @@ export function Footer() {
               Terms of Use
             </Link>
             <a
+              href="https://github.com/eclipsefdn-ai-registry/ai-registry-core/blob/main/SECURITY.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              Security
+            </a>
+            <a
               href="https://www.eclipse.org/legal/compliance/"
               target="_blank"
               rel="noopener noreferrer"
