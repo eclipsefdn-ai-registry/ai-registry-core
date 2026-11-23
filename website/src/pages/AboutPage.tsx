@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ApiPreviewNotice } from "../components/ApiPreviewNotice";
+import { BetaNotice } from "../components/BetaNotice";
 import { InlineCode } from "../components/docs/Code";
 
 export function AboutPage() {
@@ -67,7 +67,7 @@ export function AboutPage() {
       </section>
 
       <section className="mb-6">
-        <ApiPreviewNotice linkToApiDocs />
+        <BetaNotice linkToApiDocs />
       </section>
 
       <section className="mb-6">

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { InfoCallout } from "../../components/InfoCallout";
-import { ApiPreviewNotice } from "../../components/ApiPreviewNotice";
+import { BetaNotice } from "../../components/BetaNotice";
 import { DocsSection } from "../../components/docs/DocsSection";
 import { CodeBlock, InlineCode } from "../../components/docs/Code";
 
@@ -53,7 +53,7 @@ export function ClientsPage() {
       </h1>
 
       <div className="mb-8">
-        <ApiPreviewNotice />
+        <BetaNotice />
       </div>
 
       <p className="mb-3 leading-relaxed">
