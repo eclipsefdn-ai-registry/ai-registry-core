@@ -12,6 +12,14 @@ export function Footer() {
           />
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <a
+              href="https://status.ai.open-vsx.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              Status
+            </a>
+            <a
               href="https://www.eclipse.org/legal/privacy/"
               target="_blank"
               rel="noopener noreferrer"
