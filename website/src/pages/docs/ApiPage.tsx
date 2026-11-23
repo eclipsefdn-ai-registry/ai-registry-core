@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ApiPreviewNotice } from "../../components/ApiPreviewNotice";
+import { BetaNotice } from "../../components/BetaNotice";
 import { DocsSection } from "../../components/docs/DocsSection";
 import { CodeBlock, FieldTable, InlineCode } from "../../components/docs/Code";
 
@@ -77,7 +77,7 @@ export function ApiPage() {
       <h1 className="text-2xl font-bold mb-6">API</h1>
 
       <div className="mb-8">
-        <ApiPreviewNotice />
+        <BetaNotice />
       </div>
 
       <p className="mb-3 leading-relaxed">
