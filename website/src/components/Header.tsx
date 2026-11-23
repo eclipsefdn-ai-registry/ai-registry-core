@@ -41,6 +41,14 @@ export function Header() {
             Documentation
           </Link>
           <a
+            href="https://status.ai.open-vsx.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Status
+          </a>
+          <a
             href="https://github.com/eclipsefdn-ai-registry/ai-registry-core"
             target="_blank"
             rel="noopener noreferrer"
