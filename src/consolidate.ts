@@ -1618,7 +1618,12 @@ function writeOutput(
 
   writeMarketplace(
     resolve(outputDir, "marketplace.json"),
-    buildMarketplace(output.plugins, undefined, pluginSourceMismatches),
+    buildMarketplace(
+      output.plugins,
+      undefined,
+      pluginSourceMismatches,
+      output.organizations.filter((o) => o.inferred).map((o) => o.id),
+    ),
   );
 
   console.log(`\n  Organizations: ${output.organizations.length}`);

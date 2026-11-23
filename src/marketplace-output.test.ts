@@ -82,6 +82,51 @@ describe("buildMarketplace", () => {
     assert.match(org.description, /approved by Google/);
   });
 
+  it("doesn't call an inferred organization's listing an approval", () => {
+    const file = buildMarketplace([plugin()], {
+      id: "google",
+      name: "Google",
+      inferred: true,
+    });
+    assert.doesNotMatch(file.description, /approved by Google/);
+    assert.match(file.description, /listed for Google/);
+    assert.match(file.description, /not an approval by Google/);
+  });
+
+  it("marks an inferred organization's approvals in the entry metadata", () => {
+    const shared = plugin({
+      approvals: [
+        {
+          organizationId: "aws",
+          date: "2026-09-11",
+          configHash: "f400c1e06354",
+          installConfigs: [],
+        },
+        {
+          organizationId: "google",
+          date: "2026-09-11",
+          configHash: "f400c1e06354",
+          installConfigs: [],
+        },
+      ],
+    });
+
+    const all = buildMarketplace([shared], undefined, new Set(), ["google"]);
+    assert.deepEqual(all.plugins[0].metadata.approvals, [
+      { organizationId: "aws", date: "2026-09-11" },
+      { organizationId: "google", date: "2026-09-11", inferred: true },
+    ]);
+
+    const org = buildMarketplace([shared], {
+      id: "google",
+      name: "Google",
+      inferred: true,
+    });
+    assert.deepEqual(org.plugins[0].metadata.approvals, [
+      { organizationId: "google", date: "2026-09-11", inferred: true },
+    ]);
+  });
+
   it("carries no generatedAt, since the schema is not ours to extend", () => {
     assert.deepEqual(Object.keys(buildMarketplace([])), [
       "$schema",

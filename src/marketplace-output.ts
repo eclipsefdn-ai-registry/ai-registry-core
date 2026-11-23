@@ -42,7 +42,12 @@ export interface MarketplaceEntrySource {
 export type MarketplaceEntryApproval = Pick<
   PluginApproval,
   "organizationId" | "date" | "viaTrust" | "sourcedFrom"
->;
+> & {
+  // Present only for an inferred organization, whose entry is not an approval
+  // it gave. The file goes to a client without the organization list that
+  // carries the flag, so it travels with the approval here.
+  inferred?: true;
+};
 
 export interface MarketplaceEntryMetadata {
   pluginId: string;
@@ -79,7 +84,7 @@ export interface MarketplaceFile {
 // Absent builds the aggregate across every organization. Present filters to one
 // organization's approvals, which is the form an enterprise subscribes to:
 // trust here is per organization, and a merged catalog would flatten it.
-export type MarketplaceOrg = Pick<Organization, "id" | "name">;
+export type MarketplaceOrg = Pick<Organization, "id" | "name" | "inferred">;
 
 // --- Constants ---
 
@@ -174,6 +179,7 @@ function entryApprovals(
   plugin: PluginEntry,
   orgId: string | undefined,
   sourceMismatches: ReadonlySet<string>,
+  inferredOrgIds: ReadonlySet<string>,
 ): MarketplaceEntryApproval[] {
   return plugin.approvals
     .filter((a) => !orgId || a.organizationId === orgId)
@@ -187,6 +193,7 @@ function entryApprovals(
       const approval: MarketplaceEntryApproval = { organizationId, date };
       if (viaTrust) approval.viaTrust = viaTrust;
       if (sourcedFrom) approval.sourcedFrom = sourcedFrom;
+      if (inferredOrgIds.has(organizationId)) approval.inferred = true;
       return approval;
     });
 }
@@ -224,12 +231,25 @@ function buildEntry(
 
 // --- Marketplace file ---
 
+// An inferred organization approved nothing itself: its entries were compiled
+// from what it published, so its file says listed for, matching its page.
+function marketplaceDescription(org: MarketplaceOrg | undefined): string {
+  if (!org) return "Agent Plugins listed in the Eclipse AI Registry.";
+  if (org.inferred) {
+    return `Agent Plugins listed for ${org.name} in the Eclipse AI Registry, inferred from ${org.name}'s own published sources. This is not an approval by ${org.name}.`;
+  }
+  return `Agent Plugins approved by ${org.name} in the Eclipse AI Registry.`;
+}
+
 export function buildMarketplace(
   plugins: PluginEntry[],
   org?: MarketplaceOrg,
   sourceMismatches: ReadonlySet<string> = new Set(),
+  inferredOrgIds: Iterable<string> = [],
 ): MarketplaceFile {
   const orgId = org?.id;
+  const inferred = new Set(inferredOrgIds);
+  if (org?.inferred) inferred.add(org.id);
 
   // Unchecked: the organization schema already restricts an id to
   // ^[a-z0-9-]+$, fatally, before consolidation runs, so this is always a
@@ -255,7 +275,7 @@ export function buildMarketplace(
     // Also the organization filter: nothing left to show means either another
     // organization approved this plugin, or this one approved a different
     // revision of it.
-    const approvals = entryApprovals(plugin, orgId, sourceMismatches);
+    const approvals = entryApprovals(plugin, orgId, sourceMismatches, inferred);
     if (approvals.length === 0) continue;
 
     const entryName = marketplaceEntryName(plugin.pluginId);
@@ -291,9 +311,7 @@ export function buildMarketplace(
   return {
     $schema: SCHEMA_URL,
     name,
-    description: org
-      ? `Agent Plugins approved by ${org.name} in the Eclipse AI Registry.`
-      : "Agent Plugins approved in the Eclipse AI Registry.",
+    description: marketplaceDescription(org),
     owner: OWNER,
     plugins: entries,
   };
