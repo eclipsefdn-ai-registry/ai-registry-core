@@ -284,6 +284,12 @@ claude plugin marketplace add ${BASE_URL}api/v1/marketplace.json`}</CodeBlock>
           without affecting how it installs.
         </p>
         <p className="mb-3 leading-relaxed">
+          An approval by an inferred organization carries{" "}
+          <InlineCode>inferred: true</InlineCode> there, since the file reaches
+          a client without the organization list. An inferred organization's own
+          file says its plugins are listed for it rather than approved by it.
+        </p>
+        <p className="mb-3 leading-relaxed">
           These files follow Claude Code's marketplace format, and they are the
           only ones here that carry no <InlineCode>generatedAt</InlineCode>: the
           schema is Anthropic's, and an unrecognised top-level key is a

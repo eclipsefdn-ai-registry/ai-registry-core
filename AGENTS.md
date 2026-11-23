@@ -32,7 +32,7 @@ This is the opposite direction from `marketplaces/*.json` approvals, which consu
 
 - Entry `name` is the `pluginId` with `/` replaced by `.`, and the plugin's own name goes to `displayName`. Consolidation is a stateless rebuild and so can't emit the `renames` map that repairs installs after a name moves; a name derived from the id can never move.
 - Entries pin `sha` to `source.commit`, alongside `ref` where the approval names one, so an install is what `contentHash` covers. Claude Code wants a full 40-character SHA and anything shorter is dropped.
-- Approval provenance goes in each entry's free-form `metadata`, which Claude Code ignores at load.
+- Approval provenance goes in each entry's free-form `metadata`, which Claude Code ignores at load. An inferred organization's approval carries `inferred: true` there, and its own file's description says listed for, not approved by, since the file reaches a client without the organization list.
 - Each Plugin entry publishes `publishedMarketplaces`, one `{ orgId, marketplaceName, entryName }` per organization file that lists it, read off the built files by `buildOrgMarketplaces` before anything is written, so entries and files can't disagree. Empty means listed nowhere; absent (an older feed) means unknown.
 - Claude Code only. It is the only client that adds a marketplace from a URL; Codex and Copilot read one out of a git repository, which a static API isn't. Publishing their dialects means publishing a generated repository.
 
