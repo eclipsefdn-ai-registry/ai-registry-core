@@ -122,7 +122,9 @@ export function OrgList({
               to={`/orgs/${org.id}`}
               className="inline-flex items-center text-sm font-medium text-primary mt-4 no-underline"
             >
-              {approvedArtifactsLabel(artifactCount)}
+              {approvedArtifactsLabel(artifactCount, {
+                inferred: org.inferred,
+              })}
               <ChevronRight className="h-4 w-4 ml-1" />
             </Link>
           </div>

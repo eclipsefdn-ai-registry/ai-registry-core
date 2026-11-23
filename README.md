@@ -442,6 +442,10 @@ Skills, plugins, and sandbox extensions also record whether their approval is pi
 
 If collection or MCP enrichment fails, the build stops and the previous deployment stays live.
 
+## Security
+
+See [SECURITY.md](SECURITY.md). Report security issues privately to security@open-vsx.org, never in a public issue.
+
 ## Links
 
 - [Development guide](DEVELOPMENT.md) — scripts, local development, GitHub Actions
