@@ -449,6 +449,7 @@ See [SECURITY.md](SECURITY.md). Report security issues privately to security@ope
 ## Links
 
 - [Development guide](DEVELOPMENT.md) — scripts, local development, GitHub Actions
+- [Runbook](RUNBOOK.md) — incidents, rebuilding the site, and taking down an artifact or organization
 - [Theia organization repo](https://github.com/eclipsefdn-ai-registry/ai-registry-theia) — reference organization implementation
 - [MCP approval skill](skills/create-mcp-approval/SKILL.md) — AI agent skill for generating MCP approval files
 - [Skill approval skill](skills/create-skill-approval/SKILL.md) — AI agent skill for generating skill approval files

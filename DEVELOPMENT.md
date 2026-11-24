@@ -93,6 +93,8 @@ After deploying to GitHub Pages, `build.yml` calls an Eclipse Foundation Jenkins
 
 https://foundation.eclipse.org/ci/webdev/job/public/job/ai.open-vsx.org/
 
+For incidents and takedowns on the live site, see the [runbook](RUNBOOK.md).
+
 ## Adding a vendor
 
 1. Create a vendor repository following the [vendor template](https://github.com/eclipsefdn-ai-registry/ai-registry-theia)
