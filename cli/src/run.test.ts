@@ -67,6 +67,8 @@ function fake(overrides: Partial<Deps> = {}, exitCode = 0): Fake {
         installs.push(args);
         return exitCode;
       },
+      probe: async () => ({}),
+      execute: async () => ({ ok: true }),
       ...overrides,
     },
   };
@@ -467,7 +469,8 @@ describe("run usage", () => {
     [],
     ["install"],
     ["install", "skill"],
-    ["install", "plugin", "some/id"],
+    ["install", "plugin"],
+    ["install", "agent", "some/id"],
     ["install", "skill", "some/id", "--bogus"],
     ["install", "skill", "some/id", "extra"],
   ]) {

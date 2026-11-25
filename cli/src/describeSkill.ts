@@ -1,4 +1,4 @@
-import type { Organization, Skill } from "./types.js";
+import type { Organization, Skill, SkillApproval } from "./types.js";
 import { approvedTarget, approvedTargetText } from "./approvedTarget.js";
 import { sourceTreeUrl } from "./cliSource.js";
 
@@ -12,6 +12,25 @@ export function organizationNamer(
 /** One line of the pre-install summary; no name continues the field above. */
 export function field(name: string | undefined, value: string): string {
   return `${(name ? `${name}:` : "").padEnd(16)}${value}`;
+}
+
+/**
+ * One line per approval, under an "Approved by" field: who approved, when,
+ * and the organization whose judgement a trust-derived approval rests on.
+ */
+export function approvalLines(
+  approvals: Pick<SkillApproval, "organizationId" | "date" | "viaTrust">[],
+  orgName: (id: string) => string,
+): string[] {
+  return approvals.map((approval, i) => {
+    const via = approval.viaTrust
+      ? `, via trust in ${orgName(approval.viaTrust)}`
+      : "";
+    return field(
+      i === 0 ? "Approved by" : undefined,
+      `${orgName(approval.organizationId)}, ${approval.date}${via}`,
+    );
+  });
 }
 
 /**
@@ -29,15 +48,7 @@ export function describeSkill(
   return [
     `${skill.name} (${skill.skillId})`,
     field("Source", sourceTreeUrl(skill.source)),
-    ...skill.approvals.map((approval, i) => {
-      const via = approval.viaTrust
-        ? `, via trust in ${orgName(approval.viaTrust)}`
-        : "";
-      return field(
-        i === 0 ? "Approved by" : undefined,
-        `${orgName(approval.organizationId)}, ${approval.date}${via}`,
-      );
-    }),
+    ...approvalLines(skill.approvals, orgName),
     field("Target", approvedTargetText(approvedTarget(skill), generatedAt)),
     field("Content hash", skill.contentHash),
   ];
