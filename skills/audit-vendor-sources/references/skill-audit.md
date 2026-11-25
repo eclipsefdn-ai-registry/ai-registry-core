@@ -103,6 +103,11 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        skills went and re-check any rejection whose reason names the old location. The same
        goes for "SKILL.md not found" on an explicit path array: `google/mantis` moved every skill
        under `skills/` on 2026-10-17, which broke all 15 paths of an approved array at once.
+       On 2026-11-20 a vendor deprecated a whole approved catalog repo and moved each skill into
+       its product repo (`NVIDIA/nurec-skills` → `NuRec`, `harmonizer`, `asset-harvester`); the
+       deprecation README named every new location. To keep a moved skill's published id, approve
+       it with a single-path file whose `skillId` is the old expanded id (`<base>/<leaf>`), but
+       only when the leaf name is unchanged; a renamed skill (`nre` → `nurec`) gets a new id.
    - **Filter false-positive hits before verifying anything.** `filename:SKILL.md` over-matches:
      - Skip any `SKILL.md` that lives under a repo/path already approved (or approvable) as an
        Agent Plugin's `skills/*/SKILL.md` — per `AGENTS.md`, a plugin's contained skills are
@@ -169,7 +174,14 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        under `skills/`, 17 repo-internal workflow skills under `.agents/skills/`). A product
        repo whose README tells users to install the skill (`youtrack skill install`,
        `gh skill install JetBrains/youtrack-cli youtrack-cli`, 2026-10-16) has settled the
-       question for that skill.
+       question for that skill. **The same goes for a cached org-wide "repo-internal"
+       rejection.** It can hide one customer-facing skill: `JetBrains/Exposed#.claude/skills/migrate-to-1.0`
+       sat under the 2026-10-02 JetBrains rejection while jetbrains.com's Exposed 1.0 migration guide
+       told users to run it. Approved 2026-11-20. When such a repo shows up in the delta, read each
+       skill's description again, and approve on a vendor-docs link or a README install command. A
+       library can also ship its skill inside its own package source (`google/sedpack`'s
+       `src/sedpack/.agents/skills/sedpack`, installed with `uvx library-skills`); with a README
+       install command, that path is not the repo-internal class.
      - **Reject a skill whose dependency on unshipped files is permanent — not merely one that
        references them.** Consolidation hashes and installs only the approved folder, so always
        list that folder's contents against what `SKILL.md` actually needs. But "routes outside
@@ -187,7 +199,22 @@ point, though: this runs weekly, so a missed finding this week is caught next we
          pointer into a repo you must separately obtain and keep, not a distributable artifact.
 
        So: install-time bootstrap with detection and a documented recovery path is fine; a
-       permanent runtime dependency on files that never ship is not. A related sub-signal worth
+       permanent runtime dependency on files that never ship is not. **For a product skill that
+       works against a checkout of the product, the line is who gets the checkout.** Approvable:
+       the skill clones and validates it itself (`NVIDIA/NuRec#skills/nurec`, whose
+       `references/install.md` runs the `git clone`, and `JetBrains/lsp-integration-samples`'s
+       documented sparse checkout of its template). Not approvable: the skill assumes it already
+       runs inside the checkout and names the repo's docs as its source of truth (`NVIDIA/ncore`,
+       `flashdreams`, `TensorRT-Edge-LLM`, `deepops`, `sports-intelligence-playbooks`, all
+       2026-11-20). **A published-docs fallback does not make it approvable**, which is where the
+       2026-11-20 run got `NVIDIA/daqiri#skills/daqiri-onboarding` wrong: its own
+       `references/documentation-map.md` has the agent locate a checkout and confirm the
+       repository's `CMakeLists.txt`, `docs/` and `scripts/`, and reaches for the published guides
+       only when no checkout exists, warning they may describe another version. Read the reference
+       file that resolves paths, not just `SKILL.md`, and ask which source the skill treats as
+       authoritative. Files a product CLI embeds and serves
+       (`teamcity skill guide <skill> references/...`) are shipped, not a dependency. A related
+       sub-signal worth
        checking at the same time: a README saying "Reference code … companion to the blog post …
        not actively maintained. Issues and PRs are not monitored" marks a whole class of vendor
        blog-companion kits (verified on the above). These repos are _not_ archived, so the MCP
@@ -223,7 +250,13 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        these repos into a `strict: false` wrapper over root-level skill folders — the approvable
        catalog shape — and the cached rejection then hides it: `anthropics/life-sciences` did so on
        2026-10-23. One fetch of the marketplace file decides it: entries with `"source": "./"` plus
-       a `skills` array are the wrapper case.
+       a `skills` array are the wrapper case, provided the array's targets are root-level folders.
+       `anthropics/healthcare` has the same shape with every target under
+       `./plugins/healthcare/skills/*`, which is still plugin packaging (2026-11-20).
+     - Reject skills compiled into an MCP server and served through it
+       (`github/github-mcp-server#pkg/skills/catalog/skills/*`, 18 skills behind an opt-in
+       Skills-over-MCP feature, 2026-11-20). The server is the delivery channel, which makes this a
+       product repo bundling skills, not a catalog, however client-neutral the bodies read.
      - Reject "deprecated compatibility redirect" stubs — a `SKILL.md` with well-formed
        frontmatter whose body explicitly says the skill moved/is deprecated (seen 6x in one repo,
        `awslabs/mcp`'s aurora-dsql-mcp-server skills, 2026-09-18) has no canonical content to
@@ -262,7 +295,13 @@ point, though: this runs weekly, so a missed finding this week is caught next we
      community-contributed aggregator (e.g. its own README says so) — that verdict generalizes
      across artifact types within the same repo without re-verifying each individual `SKILL.md`'s
      authorship. Anything that doesn't clearly clear the bar goes to the reject pile with a
-     one-line reason; it does not become an approval, and does not get asked about.
+     one-line reason; it does not become an approval, and does not get asked about. **A body you
+     could not finish reading is neither approved nor rejected.** On 2026-11-20 the read of
+     `anthropics/life-sciences#binder-gauntlet` was cut off partway. Report it for a human and keep
+     it out of the cache's `rejected` list, so the next run raises it again rather than skipping it
+     for ~90 days. If the read was stopped by a safety classifier and stops again on the next
+     run, ask for a human read instead of dispatching it a third time (`binder-gauntlet` stopped on
+     both 2026-11-20 runs).
    - **Stage genuine findings** — group multiple newly-found skill folders in the _same_ repo into
      one approval using a glob or an explicit path array (per `create-skill-approval`'s multi-skill
      examples), rather than one file per skill folder. One file per _distinct source repo_, same as

@@ -1,7 +1,7 @@
 ---
 name: audit-vendor-sources
 description: >
-  Weekly discovery sweep across every AI Registry vendor for newly published Agent Plugins,
+  Weekly discovery sweep across every inferred AI Registry vendor for newly published Agent Plugins,
   marketplaces, Agent Skills, and MCP servers — one subagent per vendor, one feature branch with
   one commit per vendor covering everything found (never pushed). Runs all three artifact types by
   default; pass an argument ("plugins", "skills", or "mcp") to scope a run to just one type. Use as
@@ -11,10 +11,19 @@ description: >
 
 # AI Registry — Vendor Source Audit
 
-Recurring (intended: weekly) research pass over every vendor already in the registry, looking for
-Agent Plugins, marketplaces, Agent Skills, and MCP servers each vendor has published since the last
-run. This is discovery, not onboarding — it only touches vendors already listed in `vendors.json`;
-use `create-inferred-vendor` to add a brand-new vendor.
+Recurring (intended: weekly) research pass over every inferred vendor already in the registry,
+looking for Agent Plugins, marketplaces, Agent Skills, and MCP servers each vendor has published
+since the last run. This is discovery, not onboarding — it only touches vendors already listed in
+`vendors.json`; use `create-inferred-vendor` to add a brand-new vendor.
+
+**Only inferred vendors are audited**: those whose `organization.json` has `"inferred": true`.
+The registry maintains their approvals on their behalf, so finding what they publish is our job. A
+non-inferred organization maintains its own repository and decides its own approvals: on
+`ai-registry-aws#4` AWS stated its own scope and merged the PR itself. The September 2026 runs
+still covered theia, aws, eclipsesource and mosaico; every run since 2026-10-02 has covered
+inferred vendors only, and the 2026-11-20 run that went back to all 16 had to be cut back. Leave
+a non-inferred vendor out of the preflight, the cache and the dispatch, even when it is in
+`vendors.json`.
 
 All file paths below (`references/...`, `cache/...`) are relative to this skill's own root
 directory, not the invoking repo — this skill is self-contained and portable on its own. The one
@@ -48,7 +57,9 @@ a single type: still dispatch one subagent per vendor, not one shared agent loop
 
 ## Workflow
 
-1. **Preflight (main thread, not delegated).** For every vendor in `vendors.json`, check
+1. **Preflight (main thread, not delegated).** First keep only the inferred vendors:
+   `jq -r '.[].id' vendors.json`, then `jq -e '.inferred == true' ../ai-registry-<id>/organization.json`
+   for each. For every vendor that remains, check
    `git status`/current branch. Report dirty/non-main vendors as their own message, before
    dispatching anything — per `references/conventions.md`'s preflight rule. Exclude those vendors
    from dispatch this run. In the same pass, list every vendor's **open** PRs

@@ -174,6 +174,15 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        skill pass, since the hit is genuine evidence of a publishable artifact in the other
        category (`docker/skills`, 2026-10-02). Say so explicitly in the report when the run is
        scoped to plugins only, or the finding is lost.
+     - **A vendor template repo is sample content**, however conformant: `github/plugin-marketplace-starter`
+       has agent-plugins.org manifests, an MIT license and a GitHub maintainer, but its README says
+       "Use this template" and to re-point the install commands (2026-11-20).
+     - One repo can carry several codex marketplace files (`openai/plugins` has
+       `.agents/plugins/api_marketplace.json` next to `marketplace.json`); read every
+       `*marketplace.json` under `.agents/plugins/`.
+     - Since ai-registry-core#170, fan-out derives plugin ids for hosts other than github.com, so a
+       cached marketplace rejection that gives "fan-out only resolves github.com" as its reason is
+       stale; re-check it.
      - A multi-entry index can still be a **duplicate** rather than a new marketplace: check
        whether its entries are the same plugins an already-approved marketplace fans out, and
        whether the entries are git submodules vendoring already-approved repos (check
@@ -185,6 +194,15 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        this 2026-09-18 on `google/skills`'s marketplace file). Prefer letting
        `npm run validate-vendor` do the resolution/duplicate-detection rather than hand-parsing,
        or handle both shapes explicitly if you must parse it yourself.
+
+     - **A tree scan of the default branch is not the whole story.** `github/evals#packages/plugin`
+       has a conformant manifest only at its release tags (`copilot-evals-v*`), not on `main`
+       (2026-11-20), so read the `ref`/`sha` of marketplace entries that point at a tag. The other
+       way round, 7 of the 17 entries in `google/skills`' marketplace pin tags older than their
+       plugin's root `plugin.json`, which validation reports only as a per-entry "plugin.json not
+       found" warning; on that warning, compare the pinned ref against the default branch. Read
+       the plugin's `LICENSE` too: GitHub's "Limited Use Source License" (use "only with Authorized
+       Tooling") makes `evals` Copilot-bound however conformant its manifest is.
 
    - **Verify every remaining candidate** against `conventions.md`'s checklist. Anything that
      doesn't clearly clear the bar goes to the reject pile with a one-line reason; it does not

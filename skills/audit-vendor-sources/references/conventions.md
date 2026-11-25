@@ -34,6 +34,12 @@ cache's `githubOrgs` for this vendor, orgs implied by this vendor's existing app
 `source.url`, and — only if the cache has nothing yet for this vendor — one round of discovery:
 does a GitHub org literally named after the vendor id exist, and is it verified?
 
+**The `gh` token running the audit can see private repos.** It belongs to a member of some vendor
+orgs: 27 of the 33 eclipsesource repos in the 2026-11-20 `pushed:>` delta were private, and
+`fork:false` in `search/repositories` doesn't filter them. Pass `type=public` to `orgs/<org>/repos`
+or drop items whose `visibility` isn't `public`, and never name a private repo in a vendor commit
+or a cache entry.
+
 ## Branch, commit, validate
 
 - Stage findings on a new branch, only if there's at least one finding for that vendor: branch off
@@ -176,9 +182,20 @@ but only when (a) `api.github.com/orgs/<org>` returns `is_verified: true` with a
 vendor controls, **and** (b) the specific artifact is documented on the vendor's own
 product/developer-docs domain (there, `developer.atlassian.com/cloud/twg-cli/`). Neither signal
 suffices alone: (a) without (b) is just a verified org publishing anything it likes, and (b)
-without (a) is the `gemini-cli-extensions` trap. When you do admit one, **record the two signals
+without (a) is the `gemini-cli-extensions` trap. A forum thread is not (b), even on the
+developer domain: `atlassian-labs/dc-app-upgrade-skills` had only a
+`community.developer.atlassian.com` post on 2026-11-20 and was rejected. When you do admit one, **record the two signals
 in the vendor repo's README** next to the entry, so the next run can see the basis and does not
 generalise it to every similarly-named org — nothing is inherited by siblings.
+**And the signal has to be attached to the artifact, not to a neighbour of it.** Where a vendor
+repository already records its own test for an adjacent org, apply that test as written. The
+2026-11-20 run approved the Kotlin documentation MCP server because the verified `Kotlin` org
+hosts it on `kotlinlang.org` and an already-approved Kotlin repository documents it; review
+dropped it, because `ai-registry-jetbrains` admits that org only on a first-party JetBrains
+signal carried by the artifact itself — the Incubator badge plus `SKILL.md` self-attribution —
+and the badge sat on the repository describing the server, not on the server. Substituting a
+different pair of signals widens the rule instead of applying it, so propose the widening
+explicitly rather than approving through it.
 
 ## Known gap: non-GitHub-hosted vendors (git-based types only)
 
@@ -203,7 +220,9 @@ method, not WebSearch.** The GitLab REST API is usable unauthenticated for publi
    thousands of projects; adding `&search=<keyword>` to that same endpoint with the four keywords
    `mcp`, `skill`, `plugin`, `agent` surfaced every real finding in one pass on 2026-10-02. Two
    false-positive classes to filter from the results: any path under `*/experiments/*`, and
-   `<team-name>/skills` repos, are reliably internal. For a weekly delta, filter by
+   `<team-name>/skills` repos, are reliably internal, and so are the ReviewBench fixture mirrors
+   under `*/code-review/benchmarks/reviewbench/*`, which dominated the 2026-11-20 activity
+   results. For a weekly delta, filter by
    `&last_activity_after=<last-run-date>` as well as by creation date:
    `gitlab-org/growth/ai/skills` was created in 2026-04 and only appeared through activity on
    2026-10-16.
@@ -247,7 +266,10 @@ Across `atlassian` + `atlassian-labs`, 181 repos scanned in about two minutes.
 **For a vendor already fully scanned in a previous run, `search/repositories` answers "what's new"
 on a different, far cheaper bucket.** `gh api -X GET search/repositories -f q='org:<org>
 created:><last-run-date> fork:false'` costs a `search` call (30/min), not a `code_search` call
-(10/hr), and is the right first move for a weekly delta.
+(10/hr), and is the right first move for a weekly delta. For the pushed-since delta,
+`gh api "orgs/<org>/repos?type=public&sort=pushed&direction=desc&per_page=100"`, paged until
+`pushed_at` falls before the last run, needs no `search` call at all: it covered 465 google repos on
+2026-11-20.
 
 **Run `pushed:><last-run-date>` as well as `created:>`, and tree-scan every repo it returns.**
 Existing repos gain skills and manifests far more often than new repos appear. On 2026-10-16 the
@@ -263,6 +285,10 @@ a page: github's 122 pushed repos on 2026-10-30 needed page 2, which 403'd once 
 ~20s later. Compare the item count against `total_count`. A rate-limited call's 403 JSON body,
 redirected into the listing file, reads as a handful of results: google lost four orgs' listings
 that way when it fired them back-to-back. Check the exit status and space the calls ~8s apart.
+Dedupe the listing before scanning: order shifts between page fetches of a `sort=pushed`
+listing, so one repo can appear on two pages (JetBrains, 2026-11-20). And read `fork` on every
+listed repo, not only new ones: `docker/harbor` was scanned as Docker's own repo and became a
+fork later.
 
 **A recursive tree can come back `truncated: true`** (`JetBrains/intellij-plugins`, `kotlin`,
 `android`, `openai/MultiLangBench` on 2026-10-30). Follow up with direct `contents/` probes of
@@ -356,3 +382,15 @@ run faster or more accurate, and act on it now, not "if it comes up":
   skill review (`Megatron-LM`, `NemoClaw`, `TensorRT-LLM` each narrowed from a wholesale glob down
   to only the skills actually read and confirmed customer-facing; `cudf` dropped entirely) for a
   worked example of what this looks like across a batch of vendors in one sitting.
+- **A source this process cannot review does not stay in the registry.** An approval asserts that
+  someone checked the artifact, so a source where the check cannot be performed cannot carry one —
+  and when the obstacle is the source itself rather than one run, it applies to the whole
+  repository, not just the artifact that hit it: the same wall stands in front of re-reviewing its
+  approved artifacts when they change, and whatever it publishes next. `anthropics/life-sciences`
+  was withdrawn whole on 2026-11-20 after reading `binder-gauntlet`'s body stopped on a safety
+  classifier three times across three runs; the already-published `scientific-problem-selection`
+  approval was removed with it, and `clinical-trial-forecast`, fully reviewed that day, was not
+  added. Write the reason as what it is — a limit of this review process, not a finding about the
+  vendor's material — and record it at repository level in the cache so later runs don't re-raise
+  it. A human reading the repository directly is what reverses it; one blocked read is not this
+  rule (see `skill-audit.md`), two in a row on the same artifact is.
