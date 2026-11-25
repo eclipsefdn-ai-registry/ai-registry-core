@@ -8,9 +8,9 @@ Uptime and incident history are on <https://status.ai.open-vsx.org/>.
 
 Infra handles the hosting level as usual: nginx, the cluster, and rolling back to a previous image if your setup keeps them. The nginx configuration is [`config/nginx/default.conf`](config/nginx/default.conf), and the Jenkins pipeline is defined in the [`Jenkinsfile`](Jenkinsfile).
 
-None of the procedures in this section need a change in a GitHub repository. Changes there go through a pull request and a green build, so the registry maintainers make them.
+None of the procedures in this section need a change in a GitHub repository. Changes there go through a pull request and a green build, so the AI Registry Operations team makes them.
 
-To reach the registry maintainers, open an issue at <https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues>. For anything security-related, email [security@open-vsx.org](mailto:security@open-vsx.org) instead, as [SECURITY.md](SECURITY.md) describes.
+To reach the AI Registry Operations team, open an issue at <https://github.com/eclipsefdn-ai-registry/ai-registry-core/issues>. For anything security-related, email [security@open-vsx.org](mailto:security@open-vsx.org) instead, as [SECURITY.md](SECURITY.md) describes.
 
 ### Rebuild the site
 
@@ -27,15 +27,15 @@ A failed build is not an outage. The site keeps serving the last successful depl
 1. Open the failed build's log and find the error.
 2. Act on what the error says:
 
-   | Error in the log                                                                                  | Cause                                                                                       | What to do                                                                                                                                                                                                             |
-   | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `Anthropic MCP registry returned HTTP 5xx for ...` or `Anthropic MCP registry appears to be down` | The Anthropic MCP registry failed. The build retries 5xx and 429 responses before it fails. | [Rebuild the site](#rebuild-the-site) later. If it keeps failing, open an issue. The registry maintainers can't fix an outage of the Anthropic MCP registry, so the previous deployment stays live until it recovers.  |
-   | `Failed to clone <repository>` or `[<organization>] Validation failed`                            | One organization repository is unreachable or invalid.                                      | Open an issue with the link to the log. If a takedown is waiting for the build, say so, and the registry maintainers [exclude the organization that blocks the build](#exclude-an-organization-that-blocks-the-build). |
-   | Anything else                                                                                     |                                                                                             | Open an issue with the link to the log.                                                                                                                                                                                |
+   | Error in the log                                                                                  | Cause                                                                                       | What to do                                                                                                                                                                                                                         |
+   | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `Anthropic MCP registry returned HTTP 5xx for ...` or `Anthropic MCP registry appears to be down` | The Anthropic MCP registry failed. The build retries 5xx and 429 responses before it fails. | [Rebuild the site](#rebuild-the-site) later. If it keeps failing, open an issue. The AI Registry Operations team can't fix an outage of the Anthropic MCP registry, so the previous deployment stays live until it recovers.       |
+   | `Failed to clone <repository>` or `[<organization>] Validation failed`                            | One organization repository is unreachable or invalid.                                      | Open an issue with the link to the log. If a takedown is waiting for the build, say so, and the AI Registry Operations team will [exclude the organization that blocks the build](#exclude-an-organization-that-blocks-the-build). |
+   | Anything else                                                                                     |                                                                                             | Open an issue with the link to the log.                                                                                                                                                                                            |
 
 ## Takedowns
 
-The Eclipse Foundation Security Team decides on reports about listed artifacts, as described in [SECURITY.md](SECURITY.md#listed-artifacts). This section describes how to carry out a decision.
+The AI Registry Operations team, in collaboration with the Eclipse Foundation Security Team, decides on reports about listed artifacts, as described in [SECURITY.md](SECURITY.md#listed-artifacts). This section describes how to carry out a decision.
 
 The registry hosts no artifacts. An artifact is listed because an organization's repository contains an approval file for it. To take the artifact down, remove that file. To take an organization down, remove its entry from [`vendors.json`](vendors.json).
 
@@ -62,7 +62,7 @@ These approval files can list more than one artifact:
 
 ### Take down an organization
 
-A registry maintainer does this.
+The AI Registry Operations team does this.
 
 1. Open a pull request on this repository that removes the organization's entry from [`vendors.json`](vendors.json).
 2. Merge the pull request once its build is green.
@@ -72,7 +72,7 @@ The organization and all its approvals disappear from the site. Organizations th
 
 ### Exclude an organization that blocks the build
 
-The build collects data from all organization repositories, and one failure stops it. If one repository is unreachable or contains invalid data, no change is deployed, including a takedown. A registry maintainer can exclude that organization until it fixes its repository.
+The build collects data from all organization repositories, and one failure stops it. If one repository is unreachable or contains invalid data, no change is deployed, including a takedown. The AI Registry Operations team can exclude that organization until it fixes its repository.
 
 1. Find the organization's ID in the build log.
 2. Follow [Take down an organization](#take-down-an-organization) for it. The pull request's build runs without that organization, so it can pass.
