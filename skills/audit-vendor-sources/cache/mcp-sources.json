@@ -350,7 +350,6 @@
         "io.klibs/mcp-server",
         "com.jetbrains/teamcity-mcp",
         "com.jetbrains/youtrack-mcp",
-        "org.kotlinlang/mcp",
         "com.jetbrains/compose-hot-reload-mcp"
       ]
     },
@@ -437,6 +436,12 @@
         "url": "https://github.com/JetBrains/MPS.git#.ai/mcp/mcp.json",
         "type": "mcpServer",
         "reason": "Repo-local dev config.",
+        "checkedAt": "2026-11-20"
+      },
+      {
+        "url": "https://mcp.kotlinlang.org/mcp",
+        "type": "mcpServer",
+        "reason": "Approved by the 2026-11-20 audit and dropped at review the same day. It answers the handshake, the Kotlin org is verified with kotlinlang.org as its domain and hosts the server, and the README of the already-approved Kotlin/kotlin-agent-skills documents it with client-neutral setup. But ai-registry-jetbrains admits the Kotlin org only on a first-party JetBrains signal attached to the artifact itself (the Incubator badge plus SKILL.md self-attribution, the rule that excludes Kotlin/kotlin-backend-agent-skills), and that badge sits on the repository documenting the server rather than on the server. Recorded in that repository's README under Considered and excluded. Re-raise once kotlinlang.org documents the server on a docs page of its own.",
         "checkedAt": "2026-11-20"
       }
     ]

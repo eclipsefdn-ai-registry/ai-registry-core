@@ -247,77 +247,88 @@
       "types": ["agents"],
       "status": "proposed",
       "reason": "drop: Theia has no agentInstallUrlPrefix and Google approves 0 agents",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "google",
       "types": ["plugins"],
       "status": "proposed",
       "reason": "add: 12 conforming Agent Plugins incl. google/agents-cli (4.1M skills.sh installs), only reachable as a plugin",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "aws",
       "types": ["plugins", "mcp"],
       "status": "proposed",
       "reason": "add: non-inferred org; 6 conforming plugins + 3 MCP servers (makes direct com.amazon.aws/aws-mcp redundant)",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "github",
       "types": ["plugins", "mcp", "skills"],
       "status": "proposed",
       "reason": "add mcp+plugins (direct github-mcp-server becomes redundant; +lever, +github-mcp-server plugin); skills optional (16, mostly CI-migration)",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "atlassian",
       "types": ["mcp", "plugins"],
       "status": "proposed",
       "reason": "add: direct atlassian-mcp-server becomes redundant; +Trello MCP, 3 conforming plugins",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "typefox",
       "types": ["skills"],
       "status": "proposed",
       "reason": "add: non-inferred Theia co-maintainer; 15 skills incl. Langium (Eclipse project)",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "gitlab",
       "types": ["mcp"],
       "status": "proposed",
       "reason": "add mcp only (direct com.gitlab/mcp becomes redundant, +lazy-mcp, +orbit); not skills (55, mixed internal-workflow) or plugins (3 non-conforming)",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "docker",
       "types": ["mcp"],
       "status": "proposed",
       "reason": "add mcp (direct hub-mcp becomes redundant, +dhi-mcp); open PR #4 (Docker Docs MCP) would come in too",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "nvidia",
       "types": ["skills", "mcp"],
       "status": "declined",
       "reason": "514 skills, mostly GPU/DGX/NeMo; too broad and specialised for an IDE default",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "jetbrains",
       "types": ["skills", "mcp"],
       "status": "declined",
       "reason": "largely JetBrains-IDE-specific (Rider, PhpStorm, IntelliJ MCP server); little use in Theia",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     },
     {
       "org": "opcoach",
       "types": ["mcp"],
       "status": "declined",
       "reason": "single niche mail MCP server",
-      "checkedAt": "2026-11-20"
+      "checkedAt": "2026-11-20",
+      "note": "Reviewed 2026-11-25: trust itself accepted, since the registry performs the ownership verification. Not yet applied to organization.json."
     }
   ],
   "fixes": [
@@ -325,36 +336,41 @@
       "approval": "io.github.kepano",
       "problem": "kepano/obsidian-skills moved to obsidianmd/obsidian-skills; skills/* now matches nothing (0 entries in feed); skills live at plugins/obsidian/skills/* (7)",
       "proposal": "https://github.com/obsidianmd/obsidian-skills.git",
-      "status": "proposed",
-      "checkedAt": "2026-11-20"
+      "status": "applied",
+      "checkedAt": "2026-11-25",
+      "outcome": "Replaced by the Agent Plugin obsidianmd/obsidian-skills#plugins/obsidian (ai-registry-theia#26)."
     },
     {
       "approval": "io.github.e2b-dev/mcp-server",
       "problem": "repo archived and README marked deprecated; not in MCP registry; 2.2k npm downloads/month",
       "proposal": "npm @e2b/mcp-server",
-      "status": "proposed",
-      "checkedAt": "2026-11-20"
+      "status": "applied",
+      "checkedAt": "2026-11-25",
+      "outcome": "Removed (ai-registry-theia#26)."
     },
     {
       "approval": "io.github.makenotion/notion-mcp-server",
       "problem": "serverId gone from MCP registry; Notion steers users to remote com.notion/mcp",
       "proposal": "com.notion/mcp",
-      "status": "proposed",
-      "checkedAt": "2026-11-20"
+      "status": "applied",
+      "checkedAt": "2026-11-25",
+      "outcome": "Re-pointed to com.notion/mcp; its authorization server advertises a registration endpoint, so dynamic client registration works and no pre-registered app is needed (ai-registry-theia#26)."
     },
     {
       "approval": "io.github.brightdata-com/brightdata-mcp",
       "problem": "serverId gone from MCP registry; now io.github.brightdata/brightdata-mcp (same @brightdata/mcp package)",
       "proposal": "io.github.brightdata/brightdata-mcp",
-      "status": "proposed",
-      "checkedAt": "2026-11-20"
+      "status": "applied",
+      "checkedAt": "2026-11-25",
+      "outcome": "Renamed to io.github.brightdata/brightdata-mcp, config unchanged (ai-registry-theia#26)."
     },
     {
       "approval": "com.asana/mcp",
       "problem": "not in MCP registry (no official Asana entry under any name); config itself still valid",
       "proposal": "https://mcp.asana.com/v2/mcp",
-      "status": "deferred",
-      "checkedAt": "2026-11-20"
+      "status": "applied",
+      "checkedAt": "2026-11-25",
+      "outcome": "Kept: no official Asana server is registered under any id and the documented pre-registered OAuth app still works. Given a metadata block so it stops publishing without a name (ai-registry-theia#26)."
     }
   ]
 }

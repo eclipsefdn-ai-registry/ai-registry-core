@@ -206,7 +206,13 @@ point, though: this runs weekly, so a missed finding this week is caught next we
        documented sparse checkout of its template). Not approvable: the skill assumes it already
        runs inside the checkout and names the repo's docs as its source of truth (`NVIDIA/ncore`,
        `flashdreams`, `TensorRT-Edge-LLM`, `deepops`, `sports-intelligence-playbooks`, all
-       2026-11-20). Files a product CLI embeds and serves
+       2026-11-20). **A published-docs fallback does not make it approvable**, which is where the
+       2026-11-20 run got `NVIDIA/daqiri#skills/daqiri-onboarding` wrong: its own
+       `references/documentation-map.md` has the agent locate a checkout and confirm the
+       repository's `CMakeLists.txt`, `docs/` and `scripts/`, and reaches for the published guides
+       only when no checkout exists, warning they may describe another version. Read the reference
+       file that resolves paths, not just `SKILL.md`, and ask which source the skill treats as
+       authoritative. Files a product CLI embeds and serves
        (`teamcity skill guide <skill> references/...`) are shipped, not a dependency. A related
        sub-signal worth
        checking at the same time: a README saying "Reference code … companion to the blog post …

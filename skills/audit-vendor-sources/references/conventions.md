@@ -187,6 +187,15 @@ developer domain: `atlassian-labs/dc-app-upgrade-skills` had only a
 `community.developer.atlassian.com` post on 2026-11-20 and was rejected. When you do admit one, **record the two signals
 in the vendor repo's README** next to the entry, so the next run can see the basis and does not
 generalise it to every similarly-named org — nothing is inherited by siblings.
+**And the signal has to be attached to the artifact, not to a neighbour of it.** Where a vendor
+repository already records its own test for an adjacent org, apply that test as written. The
+2026-11-20 run approved the Kotlin documentation MCP server because the verified `Kotlin` org
+hosts it on `kotlinlang.org` and an already-approved Kotlin repository documents it; review
+dropped it, because `ai-registry-jetbrains` admits that org only on a first-party JetBrains
+signal carried by the artifact itself — the Incubator badge plus `SKILL.md` self-attribution —
+and the badge sat on the repository describing the server, not on the server. Substituting a
+different pair of signals widens the rule instead of applying it, so propose the widening
+explicitly rather than approving through it.
 
 ## Known gap: non-GitHub-hosted vendors (git-based types only)
 
@@ -373,3 +382,15 @@ run faster or more accurate, and act on it now, not "if it comes up":
   skill review (`Megatron-LM`, `NemoClaw`, `TensorRT-LLM` each narrowed from a wholesale glob down
   to only the skills actually read and confirmed customer-facing; `cudf` dropped entirely) for a
   worked example of what this looks like across a batch of vendors in one sitting.
+- **A source this process cannot review does not stay in the registry.** An approval asserts that
+  someone checked the artifact, so a source where the check cannot be performed cannot carry one —
+  and when the obstacle is the source itself rather than one run, it applies to the whole
+  repository, not just the artifact that hit it: the same wall stands in front of re-reviewing its
+  approved artifacts when they change, and whatever it publishes next. `anthropics/life-sciences`
+  was withdrawn whole on 2026-11-20 after reading `binder-gauntlet`'s body stopped on a safety
+  classifier three times across three runs; the already-published `scientific-problem-selection`
+  approval was removed with it, and `clinical-trial-forecast`, fully reviewed that day, was not
+  added. Write the reason as what it is — a limit of this review process, not a finding about the
+  vendor's material — and record it at repository level in the cache so later runs don't re-raise
+  it. A human reading the repository directly is what reverses it; one blocked read is not this
+  rule (see `skill-audit.md`), two in a row on the same artifact is.

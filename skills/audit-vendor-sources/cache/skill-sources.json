@@ -18,11 +18,7 @@
     "githubOrgs": ["anthropics"],
     "lastChecked": "2026-11-20",
     "knownSources": {
-      "skills": [
-        "https://github.com/anthropics/skills.git#skills/*",
-        "https://github.com/anthropics/life-sciences.git#scientific-problem-selection",
-        "https://github.com/anthropics/life-sciences.git#clinical-trial-forecast"
-      ]
+      "skills": ["https://github.com/anthropics/skills.git#skills/*"]
     },
     "rejected": [
       {
@@ -152,12 +148,6 @@
         "checkedAt": "2026-10-09"
       },
       {
-        "url": "https://github.com/anthropics/life-sciences.git#clinical-trial-protocol-skill",
-        "type": "skill",
-        "reason": "SKILL.md declares a clinical trials MCP server (.mcpb for Claude Desktop) as Required with 'No fallback available'; the repo removed its MCP connector plugins 2026-10-23 and no longer hosts the MCP servers — permanent dependency on an unshipped artifact.",
-        "checkedAt": "2026-10-30"
-      },
-      {
         "url": "https://github.com/anthropics/single-agent-loop-kit.git#skill",
         "type": "skill",
         "reason": "Self-contained, but README: 'Reference implementation. Not maintained and not accepting contributions', companion to a claude.com article; step 1 hands off to Claude Code /claude-api build-eval and a .claude/hillclimb layout. Blog-companion kit, rejected conservatively — borderline, flagged for human review.",
@@ -185,6 +175,12 @@
         "url": "https://github.com/anthropics/FlashProve.git",
         "type": "skill",
         "reason": "New repo 2026-10-30; no SKILL.md anywhere in the tree.",
+        "checkedAt": "2026-11-20"
+      },
+      {
+        "url": "https://github.com/anthropics/life-sciences.git",
+        "type": "skill",
+        "reason": "Whole repository withdrawn 2026-11-20: reading binder-gauntlet's body stops on a safety classifier (3 attempts across 2026-10-30 and two 2026-11-20 runs), so the registry cannot meet its own read-the-body bar for this repository — neither for new skills nor for re-reviewing approved ones on drift. Not a judgement on the material (Anthropic's own published, licensed work). The existing scientific-problem-selection approval was removed and the reviewed clinical-trial-forecast was not added. Do not re-raise; re-entry needs a direct human review of the repository.",
         "checkedAt": "2026-11-20"
       }
     ]
@@ -1619,7 +1615,6 @@
         "https://github.com/NVIDIA/harmonizer.git#skills/harmonizer",
         "https://github.com/NVIDIA/cccl.git#skills/cccl",
         "https://github.com/NVIDIA/cuda-python.git#skills/cuda-python",
-        "https://github.com/NVIDIA/daqiri.git#skills/daqiri-onboarding",
         "https://github.com/NVIDIA/SkillEvaluator.git#skills/skillevaluator"
       ]
     },
@@ -1958,6 +1953,12 @@
         "url": "https://github.com/NVIDIA/TensorRT-Edge-LLM.git#skills/*",
         "type": "skill",
         "reason": "REVISIT: 15 skills README calls public, mixing user (install/serve/convert/benchmark) and contributor (cutedsl-kernel, plugin-extension, cpp-test, documentation) workflows; install supports wheel installs outside a checkout. Not narrowed this run.",
+        "checkedAt": "2026-11-20"
+      },
+      {
+        "url": "https://github.com/NVIDIA/daqiri.git#skills/daqiri-onboarding",
+        "type": "skill",
+        "reason": "Approved by the 2026-11-20 audit and dropped at review the same day. Customer-facing and signed, but references/documentation-map.md has it locate a DAQIRI checkout and confirm the repository's CMakeLists.txt, docs/ and scripts/, and SKILL.md treats that checkout's documentation, generator and validator as the technical sources of truth. The published guides are a fallback the map itself warns may describe a different version, and only concept questions work without a checkout, so unlike nurec and harmonizer the skill does not obtain what it needs. Recorded in the vendor README. Re-raise only if the skill starts fetching the source itself.",
         "checkedAt": "2026-11-20"
       }
     ]
